@@ -2,6 +2,7 @@ package com.novastream.app.di
 
 import android.content.Context
 import com.novastream.app.data.download.MangaDownloadManager
+import com.novastream.app.data.download.VideoDownloadManager
 import com.novastream.app.data.ext.ExtensionRepository
 import com.novastream.app.data.ext.ExtensionStore
 import com.novastream.app.data.local.AddonStore
@@ -24,8 +25,9 @@ class AppContainer(context: Context) {
     val extensionStore = ExtensionStore(context)
     val extensionRepository = ExtensionRepository(extensionStore, context)
 
-    // Offline download engine for manga chapter images.
+    // Offline download engines: manga chapter images and video streams.
     val mangaDownloadManager = MangaDownloadManager(context)
+    val videoDownloadManager = VideoDownloadManager(context)
 
     val addonRepository = AddonRepository(addonStore)
     val catalogRepository = CatalogRepository(addonRepository, settings)

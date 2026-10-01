@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.novastream.app.data.download.VideoKind
 import com.novastream.app.data.model.CastMember
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
@@ -123,6 +125,15 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
         val url = source.playableUrl ?: return
         val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(Uri.parse(url), "video/*") }
         runCatching { context.startActivity(intent) }
+    }
+
+    /** Queue a direct/HLS stream for offline download (torrent-only streams have no HTTP URL). */
+    fun downloadStream(source: StreamSource) {
+        val url = source.playableUrl ?: return
+        val kind = if (url.contains(".m3u8", ignoreCase = true)) VideoKind.HLS else VideoKind.PROGRESSIVE
+        val title = source.title ?: source.name ?: item.title
+        container.videoDownloadManager.enqueue(item, url, title, selectedVideo?.title, kind)
+        Toast.makeText(context, "Download started", Toast.LENGTH_SHORT).show()
     }
 
     fun play(source: StreamSource) {
@@ -392,7 +403,13 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                     )
                 }
             } else {
-                items(streams) { s -> StreamRow(s) { play(s) } }
+                items(streams) { s ->
+                    StreamRow(
+                        s,
+                        onPlay = { play(s) },
+                        onDownload = { downloadStream(s) },
+                    )
+                }
             }
         }
 
@@ -727,9 +744,11 @@ private fun ChapterRow(v: Video, onClick: () -> Unit) {
 }
 
 @Composable
-private fun StreamRow(s: StreamSource, onClick: () -> Unit) {
+private fun StreamRow(s: StreamSource, onPlay: () -> Unit, onDownload: () -> Unit) {
     val nova = LocalNovaColors.current
-    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onClick) {
+    // Only directly playable HTTP(S) streams can be saved for offline use.
+    val downloadable = s.playableUrl != null
+    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onPlay) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(s.title ?: s.name ?: "Stream", style = MaterialTheme.typography.titleMedium, color = nova.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -739,6 +758,11 @@ private fun StreamRow(s: StreamSource, onClick: () -> Unit) {
                 )
             }
             s.quality?.let { RatingBadge(it) }
+            if (downloadable) {
+                IconButton(onClick = onDownload) {
+                    Icon(Icons.Filled.Download, "Download", tint = nova.textSecondary)
+                }
+            }
         }
     }
 }

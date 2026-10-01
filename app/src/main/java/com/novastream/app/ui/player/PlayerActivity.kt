@@ -122,7 +122,15 @@ class PlayerActivity : ComponentActivity() {
         val preferredQuality = settings.preferredQuality.value
 
         source = first
-        httpFactory.setDefaultRequestProperties(first.headers)
+        // Offline-first: when this title has a completed download, play the local file instead of
+        // the remote stream (the item identity is unchanged, so watch history still records).
+        runCatching {
+            val local = (application as NovaApp).container.videoDownloadManager.localFileFor(item.key)
+            if (local != null && first.playableUrl != null) {
+                source = first.copy(url = Uri.fromFile(local).toString(), headers = emptyMap())
+            }
+        }
+        httpFactory.setDefaultRequestProperties(source.headers)
         subs = if (subtitlesEnabled) readSubs(intent) else emptyList()
         titleState.value = if (index >= 0) episodeTitle(episodes.getOrNull(index)) else item.title
         subtitleState.value = first.name ?: first.title
