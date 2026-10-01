@@ -57,6 +57,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.novastream.app.NovaApp
+import com.novastream.app.data.download.DownloadManagerProvider
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.model.SubtitleTrack
@@ -122,14 +123,6 @@ class PlayerActivity : ComponentActivity() {
         val preferredQuality = settings.preferredQuality.value
 
         source = first
-        // Offline-first: when this title has a completed download, play the local file instead of
-        // the remote stream (the item identity is unchanged, so watch history still records).
-        runCatching {
-            val local = (application as NovaApp).container.videoDownloadManager.localFileFor(item.key)
-            if (local != null && first.playableUrl != null) {
-                source = first.copy(url = Uri.fromFile(local).toString(), headers = emptyMap())
-            }
-        }
         httpFactory.setDefaultRequestProperties(source.headers)
         subs = if (subtitlesEnabled) readSubs(intent) else emptyList()
         titleState.value = if (index >= 0) episodeTitle(episodes.getOrNull(index)) else item.title
@@ -201,8 +194,18 @@ class PlayerActivity : ComponentActivity() {
      */
     private val httpFactory: OkHttpDataSource.Factory by lazy { OkHttpDataSource.Factory(OkHttpClient()) }
 
+    /**
+     * Playback reads through the same [SimpleCache] the downloader writes to, so a completed
+     * download plays offline automatically (and streaming still works on a cache miss).
+     */
     private val dataSourceFactory: DataSource.Factory by lazy {
-        DefaultDataSource.Factory(this, httpFactory)
+        val upstream = DefaultDataSource.Factory(this, httpFactory)
+        runCatching {
+            androidx.media3.datasource.cache.CacheDataSource.Factory()
+                .setCache(DownloadManagerProvider.cache(this))
+                .setUpstreamDataSourceFactory(upstream)
+                .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        }.getOrDefault(upstream)
     }
 
     private fun buildMediaItem(): Media3Item {

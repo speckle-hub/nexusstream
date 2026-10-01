@@ -1,7 +1,6 @@
 package com.novastream.app.ui.screens.library
 
 import android.content.Context
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -61,7 +60,6 @@ import com.novastream.app.ui.vm.LibraryViewModel
 import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
-import java.io.File
 
 @Composable
 fun LibraryScreen(nav: NavHostController) {
@@ -116,7 +114,7 @@ fun LibraryScreen(nav: NavHostController) {
                 )
             }
         } else {
-            val ordered = videoDownloads.values.sortedByDescending { it.updatedAt }
+            val ordered = videoDownloads.sortedByDescending { it.updatedAt }
             items(ordered, key = { it.id }) { d ->
                 VideoDownloadRow(d) { context.playDownloaded(d) }
             }
@@ -145,11 +143,11 @@ private fun Context.openChapter(d: MangaDownload) {
     startActivity(MangaReaderActivity.intent(this, item, chapter))
 }
 
-/** Play a downloaded video from its local file, reusing the original item identity. */
+/** Play a downloaded video; the player reads the shared download cache, so it works offline. */
 private fun Context.playDownloaded(d: VideoDownload) {
+    if (d.itemJson.isBlank()) return
     val item = runCatching { Http.gson.fromJson(d.itemJson, MediaItem::class.java) }.getOrNull() ?: return
-    val file = d.filePath?.let { File(it) }?.takeIf { it.exists() } ?: return
-    val source = StreamSource(url = Uri.fromFile(file).toString(), title = d.title, addonName = "Download")
+    val source = StreamSource(url = d.url, title = d.title, addonName = "Download")
     startActivity(PlayerActivity.intent(this, item, source, emptyList()))
 }
 
