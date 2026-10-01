@@ -11,12 +11,16 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,6 +38,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.Video
 import com.novastream.app.data.remote.MangaDexClient
@@ -40,9 +47,17 @@ import com.novastream.app.ui.theme.NovaStreamTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** How pages are laid out. */
+private enum class ReadingMode(val label: String) {
+    LTR("Left \u2192 Right"),
+    RTL("Right \u2192 Left"),
+    WEBTOON("Webtoon"),
+}
+
 /**
- * Full-screen manga chapter reader: horizontal pager, pinch-to-zoom, and a
- * brightness/dim overlay for comfortable reading.
+ * Full-screen manga chapter reader. Supports three reading modes — Webtoon (vertical scroll),
+ * Right-to-Left (manga) and Left-to-Right (western comic) — with pinch-to-zoom, page preloading,
+ * and a brightness/dim overlay.
  */
 class MangaReaderActivity : ComponentActivity() {
 
@@ -100,10 +115,12 @@ private fun ReaderScreen(
     chapterId: String,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var dim by remember { mutableStateOf(0f) }
+    var mode by remember { mutableStateOf(ReadingMode.LTR) }
 
     LaunchedEffect(chapterId) {
         loading = true
@@ -131,23 +148,8 @@ private fun ReaderScreen(
             pages.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No pages available", color = Color.White.copy(alpha = 0.7f))
             }
-            else -> {
-                val pagerState = rememberPagerState(pageCount = { pages.size })
-                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                    ZoomablePage(pages[page])
-                }
-                // Progress
-                Surface(
-                    color = Color(0xCC000000),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(20.dp),
-                ) {
-                    Text(
-                        "${pagerState.currentPage + 1} / ${pages.size}",
-                        color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    )
-                }
-            }
+            mode == ReadingMode.WEBTOON -> WebtoonReader(pages, context)
+            else -> PagedReader(pages, mode)
         }
 
         // Top bar
@@ -160,6 +162,22 @@ private fun ReaderScreen(
                 Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(chapterTitle, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            AssistChip(
+                onClick = {
+                    mode = when (mode) {
+                        ReadingMode.LTR -> ReadingMode.RTL
+                        ReadingMode.RTL -> ReadingMode.WEBTOON
+                        ReadingMode.WEBTOON -> ReadingMode.LTR
+                    }
+                },
+                label = { Text(mode.label, color = Color.White, fontSize = 11.sp) },
+                leadingIcon = {
+                    Icon(
+                        if (mode == ReadingMode.WEBTOON) Icons.Filled.ViewStream else Icons.AutoMirrored.Filled.MenuBook,
+                        null, tint = Color.White, modifier = Modifier.size(16.dp),
+                    )
+                },
+            )
             IconButton(onClick = { dim = if (dim > 0f) 0f else 0.45f }) {
                 Icon(Icons.Filled.Brightness6, "Dim", tint = Color.White)
             }
@@ -168,6 +186,77 @@ private fun ReaderScreen(
         // Dim overlay (tap-through disabled)
         if (dim > 0f) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
+        }
+    }
+}
+
+/** Horizontal pager layout; RTL reverses direction. */
+@Composable
+private fun PagedReader(pages: List<String>, mode: ReadingMode) {
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+    Box(Modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            // Compose three pages beyond the viewport so Coil preloads the next few pages.
+            beyondBoundsPageCount = 3,
+            reverseLayout = mode == ReadingMode.RTL,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            ZoomablePage(pages[page])
+        }
+        Surface(
+            color = Color(0xCC000000),
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(20.dp),
+        ) {
+            Text(
+                "${pagerState.currentPage + 1} / ${pages.size}",
+                color = Color.White, fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+/** Vertical continuous-scroll layout with explicit preloading of the next three pages. */
+@Composable
+private fun WebtoonReader(pages: List<String>, context: Context) {
+    val listState = rememberLazyListState()
+    val firstVisible by remember { derivedStateOf { listState.firstVisibleItemIndex } }
+
+    LaunchedEffect(firstVisible, pages) {
+        val loader = context.imageLoader
+        for (i in (firstVisible + 1)..(firstVisible + 3)) {
+            pages.getOrNull(i)?.let { url ->
+                runCatching { loader.enqueue(ImageRequest.Builder(context).data(url).build()) }
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            items(pages.size) { i ->
+                AsyncImage(
+                    model = pages[i],
+                    contentDescription = null,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        val total = pages.size
+        if (total > 0) {
+            Surface(
+                color = Color(0xCC000000),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(20.dp),
+            ) {
+                Text(
+                    "${firstVisible + 1} / $total",
+                    color = Color.White, fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+            }
         }
     }
 }

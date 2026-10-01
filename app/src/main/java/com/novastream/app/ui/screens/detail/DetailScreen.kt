@@ -105,6 +105,13 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
     val external by container.settings.playerExternal.collectAsStateSafe()
     var torrentPreparing by remember { mutableStateOf(false) }
 
+    // Flat, ordered episode list + the currently selected episode's index, handed to the player
+    // so it can autoplay the next episode and populate its episode sheet.
+    val orderedEpisodes = remember(seasonEpisodes) {
+        seasonEpisodes.values.flatten().sortedWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
+    }
+    val currentEpisodeIndex = orderedEpisodes.indexOfFirst { it.id == selectedVideo?.id }
+
     fun openExternal(source: StreamSource) {
         val url = source.playableUrl ?: return
         val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(Uri.parse(url), "video/*") }
@@ -115,7 +122,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
         // 1) A direct HTTP(S) stream — play immediately.
         if (source.playableUrl != null) {
             if (external) openExternal(source)
-            else context.startActivity(PlayerActivity.intent(context, item, source, subtitles))
+            else context.startActivity(
+                PlayerActivity.intent(context, item, source, subtitles, orderedEpisodes, currentEpisodeIndex)
+            )
             return
         }
         // 2) A YouTube-backed stream.
@@ -135,7 +144,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                     torrentPreparing = false
                     val playable = source.copy(url = url)
                     if (external) openExternal(playable)
-                    else context.startActivity(PlayerActivity.intent(context, item, playable, subtitles))
+                    else context.startActivity(
+                        PlayerActivity.intent(context, item, playable, subtitles, orderedEpisodes, currentEpisodeIndex)
+                    )
                 },
                 onError = { msg ->
                     torrentPreparing = false
