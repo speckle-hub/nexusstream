@@ -3,6 +3,7 @@ package com.novastream.app.ui.screens.detail
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -75,6 +76,8 @@ import com.novastream.app.ui.components.TagChip
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.player.PlayerActivity
 import com.novastream.app.ui.theme.LocalNovaColors
+import com.novastream.app.ui.theme.PosterPalette
+import com.novastream.app.ui.theme.rememberPosterPalette
 import com.novastream.app.ui.vm.DetailViewModel
 import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
@@ -104,6 +107,10 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
     val container = LocalContainer.current
     val external by container.settings.playerExternal.collectAsStateSafe()
     var torrentPreparing by remember { mutableStateOf(false) }
+
+    // Dynamic Material You theming: derive an accent from the artwork and animate to it.
+    val palette = rememberPosterPalette(detail?.background ?: item.backdrop ?: item.poster)
+    val accent by animateColorAsState(palette?.vibrantColor ?: nova.accent, label = "detailAccent")
 
     // Flat, ordered episode list + the currently selected episode's index, handed to the player
     // so it can autoplay the next episode and populate its episode sheet.
@@ -175,6 +182,7 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                 item = item,
                 detail = detail,
                 loading = loading,
+                palette = palette,
                 onBack = { nav.popBackStack() },
             )
         }
@@ -194,7 +202,7 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                             },
                             enabled = canRead,
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = nova.accent),
+                            colors = ButtonDefaults.buttonColors(containerColor = accent),
                             modifier = Modifier.weight(1f),
                         ) {
                             Icon(Icons.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
@@ -209,7 +217,7 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                             onClick = { firstPlayable?.let { play(it) } },
                             enabled = !streamsLoading && firstPlayable != null,
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = nova.accent),
+                            colors = ButtonDefaults.buttonColors(containerColor = accent),
                             modifier = Modifier.weight(1f),
                         ) {
                             Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(20.dp))
@@ -236,8 +244,8 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                     onClick = { vm.toggleFavorite() },
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (fav) nova.accent.copy(alpha = 0.22f) else nova.surfaceElevated,
-                        contentColor = if (fav) nova.accent else nova.textPrimary,
+                        containerColor = if (fav) accent.copy(alpha = 0.22f) else nova.surfaceElevated,
+                        contentColor = if (fav) accent else nova.textPrimary,
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -431,22 +439,34 @@ private fun DetailHeader(
     item: MediaItem,
     detail: com.novastream.app.data.model.MetaDetail?,
     loading: Boolean,
+    palette: PosterPalette?,
     onBack: () -> Unit,
 ) {
     val nova = LocalNovaColors.current
     val img = detail?.background ?: item.backdrop ?: item.poster
+    // Palette-driven glow behind the artwork; animates as the color resolves / title changes.
+    val glow by animateColorAsState(palette?.darkVibrantColor ?: Color.Black, label = "headerGlow")
+    val halo by animateColorAsState(palette?.vibrantColor ?: Color.Transparent, label = "headerHalo")
     Box(Modifier.fillMaxWidth().aspectRatio(16f / 11f)) {
         if (!img.isNullOrBlank()) {
             AsyncImage(img, item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
             ShimmerBox(Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
         }
-        // Scrim for legibility
+        // Ambient halo tinted by the artwork's dominant color.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    listOf(halo.copy(alpha = 0.32f), Color.Transparent),
+                )
+            )
+        )
+        // Scrim for legibility, seeded from the palette's dark swatch so dark art stays cohesive.
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.45f),
-                    0.45f to Color.Black.copy(alpha = 0.15f),
+                    0f to glow.copy(alpha = 0.55f),
+                    0.45f to Color.Transparent,
                     1f to nova.background,
                 )
             )

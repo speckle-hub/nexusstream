@@ -1,6 +1,9 @@
 package com.novastream.app.ui.screens.home
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -34,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -58,22 +64,28 @@ import com.novastream.app.ui.components.SectionHeader
 import com.novastream.app.ui.components.ShimmerBox
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.theme.LocalNovaColors
+import com.novastream.app.ui.theme.rememberPosterPalette
 import com.novastream.app.ui.vm.HomeViewModel
 import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(nav: NavHostController) {
     val vm = novaViewModel { HomeViewModel(it) }
-    val nova = LocalNovaColors.current
     val rows by vm.rows.collectAsStateSafe()
     val loading by vm.loading.collectAsStateSafe()
     val error by vm.error.collectAsStateSafe()
     val continueWatching by vm.continueWatching.collectAsStateSafe()
 
+    // Featured carousel pool: trending titles first (they have backdrops), then the rest of the
+    // feed, deduped. Prefer items with real artwork so a premium banner never falls back to a
+    // portrait poster unless nothing else exists.
     val featured = remember(rows) {
-        rows.firstOrNull { it.title.contains("Trending", true) }?.items?.firstOrNull()
-            ?: rows.firstOrNull()?.items?.firstOrNull()
+        val trending = rows.firstOrNull { it.title.contains("Trending", true) }?.items.orEmpty()
+        val pool = (trending + rows.flatMap { it.items }).distinctBy { it.key }
+        val withArt = pool.filter { !it.backdrop.isNullOrBlank() }
+        (withArt.ifEmpty { pool }).take(8)
     }
 
     LazyColumn(
@@ -87,10 +99,10 @@ fun HomeScreen(nav: NavHostController) {
             )
         }
 
-        // ---- Hero / featured banner -----------------------------------------
-        if (featured != null) {
+        // ---- Featured carousel ----------------------------------------------
+        if (featured.isNotEmpty()) {
             item {
-                HeroBanner(featured) { nav.navigate(Routes.detail(it)) }
+                FeaturedCarousel(featured) { nav.navigate(Routes.detail(it)) }
             }
         } else if (loading) {
             item {
@@ -137,15 +149,78 @@ fun HomeScreen(nav: NavHostController) {
     }
 }
 
+/**
+ * Auto-sliding featured banners with swipe support and animated dot indicators.
+ *
+ * Adjacent slides peek in from the edges (pager content padding) so it reads as a carousel
+ * rather than a static hero. Auto-advance pauses while the user is dragging.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HeroBanner(item: MediaItem, onClick: (MediaItem) -> Unit) {
+private fun FeaturedCarousel(items: List<MediaItem>, onClick: (MediaItem) -> Unit) {
+    if (items.isEmpty()) return
+    val pagerState = rememberPagerState(pageCount = { items.size })
+
+    LaunchedEffect(items.size) {
+        if (items.size <= 1) return@LaunchedEffect
+        while (true) {
+            delay(5000)
+            if (!pagerState.isScrollInProgress) {
+                pagerState.animateScrollToPage((pagerState.currentPage + 1) % items.size)
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            pageSpacing = 12.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) { page ->
+            HeroSlide(items[page], onClick)
+        }
+        Spacer(Modifier.height(10.dp))
+        CarouselDots(count = items.size, selected = pagerState.currentPage)
+    }
+}
+
+@Composable
+private fun CarouselDots(count: Int, selected: Int) {
+    if (count <= 1) return
+    val nova = LocalNovaColors.current
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(count) { i ->
+            val active = i == selected
+            val width by animateDpAsState(if (active) 22.dp else 6.dp, label = "dotWidth")
+            Box(
+                Modifier
+                    .padding(horizontal = 3.dp)
+                    .height(6.dp)
+                    .width(width)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (active) nova.accent else nova.textTertiary.copy(alpha = 0.45f)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroSlide(item: MediaItem, onClick: (MediaItem) -> Unit) {
     val nova = LocalNovaColors.current
     val img = item.backdrop ?: item.poster
     val heroShape = RoundedCornerShape(22.dp)
+    // Dynamic theming: the accent + scrim shift to match each banner's artwork as it changes.
+    val palette = rememberPosterPalette(img)
+    val glow by animateColorAsState(palette?.vibrantColor ?: nova.accent, label = "heroAccent")
+    val scrim by animateColorAsState(palette?.darkVibrantColor ?: Color.Black, label = "heroScrim")
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
             // Ambient drop-shadow + hairline outline so dark poster art separates from the background.
             .shadow(elevation = 16.dp, shape = heroShape, ambientColor = Color.Black, spotColor = Color.Black)
             .clip(heroShape)
@@ -158,13 +233,19 @@ private fun HeroBanner(item: MediaItem, onClick: (MediaItem) -> Unit) {
             } else {
                 ShimmerBox(Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
             }
-            // Cinematic gradient scrims
+            // Ambient halo tinted by the artwork's vibrant swatch.
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.radialGradient(listOf(glow.copy(alpha = 0.30f), Color.Transparent))
+                )
+            )
+            // Cinematic gradient scrims (seeded from the palette's dark swatch).
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.15f),
-                        0.5f to Color.Black.copy(alpha = 0.25f),
-                        1f to Color.Black.copy(alpha = 0.85f),
+                        0f to scrim.copy(alpha = 0.35f),
+                        0.45f to Color.Black.copy(alpha = 0.30f),
+                        1f to Color.Black.copy(alpha = 0.90f),
                     )
                 )
             )
@@ -182,7 +263,7 @@ private fun HeroBanner(item: MediaItem, onClick: (MediaItem) -> Unit) {
                 Text(
                     "FEATURED",
                     style = MaterialTheme.typography.labelSmall,
-                    color = nova.accent,
+                    color = glow,
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(4.dp))
@@ -207,6 +288,16 @@ private fun HeroBanner(item: MediaItem, onClick: (MediaItem) -> Unit) {
                     if (item.genres.isNotEmpty()) {
                         Text(item.genres.take(2).joinToString(" \u00b7 "), color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium)
                     }
+                }
+                item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.85f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
                 Button(
