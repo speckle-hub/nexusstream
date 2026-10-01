@@ -9,11 +9,13 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Rational
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -70,6 +72,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import kotlin.math.abs
 
 /**
  * Full-featured video player built on Media3 ExoPlayer.
@@ -105,6 +108,11 @@ class PlayerActivity : ComponentActivity() {
     private var autoTriggered = false
 
     private var brightnessValue = 0.5f
+    /** Fractional volume steps accumulated from the edge drag (committed in whole steps). */
+    private var volumeAccum = 0f
+    /** Horizontal drag translated to a pending seek, flushed at most every [SEEK_FLUSH_MS]. */
+    private var pendingSeekMs = 0L
+    private var lastSeekFlushMs = 0L
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -170,12 +178,14 @@ class PlayerActivity : ComponentActivity() {
                     onNext = { playEpisode(index + 1) },
                     onSelectEpisode = { playEpisode(it) },
                     onGestures = { mode, amount ->
+                        // Returns the normalized level (0..1) so the gesture HUD can render it.
                         when (mode) {
                             GestureMode.BRIGHTNESS -> adjustBrightness(amount)
                             GestureMode.VOLUME -> adjustVolume(amount)
-                            GestureMode.SEEK -> seekBy((amount * 300).toLong())
+                            GestureMode.SEEK -> { gestureSeek(amount); seekProgress() }
                         }
                     },
+                    onGestureEnd = { endGesture() },
                 )
             }
         }
@@ -354,25 +364,71 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun adjustBrightness(delta: Float) {
-        brightnessValue = (brightnessValue + delta).coerceIn(0.02f, 1f)
-        window.attributes = window.attributes.apply { screenBrightness = brightnessValue }
-    }
-
-    private fun adjustVolume(delta: Float) {
-        if (delta == 0f) return
-        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val cur = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val next = (cur + if (delta > 0f) 1 else -1).coerceIn(0, max)
-        runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, next, 0) }
-    }
-
-    private fun seekBy(deltaMs: Long) {
-        player?.let { p ->
-            val dur = p.duration.coerceAtLeast(0)
-            val target = (p.currentPosition + deltaMs).coerceIn(0, if (dur > 0) dur else Long.MAX_VALUE)
-            p.seekTo(target)
+    /** Edge-drag brightness delta → the new normalized level (what the gesture HUD shows). */
+    private fun adjustBrightness(delta: Float): Float {
+        if (delta != 0f) {
+            brightnessValue = (brightnessValue + delta).coerceIn(0.02f, 1f)
+            window.attributes = window.attributes.apply { screenBrightness = brightnessValue }
         }
+        return brightnessValue
+    }
+
+    /**
+     * Edge-drag volume delta. Fractional movement is accumulated and committed one whole step
+     * at a time, so a slow drag nudges the volume instead of jumping a step per frame.
+     * Returns the current level (0..1) for the gesture HUD.
+     */
+    private fun adjustVolume(delta: Float): Float {
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (max <= 0) return 0f
+        if (delta != 0f) {
+            volumeAccum += delta
+            if (abs(volumeAccum) >= VOLUME_STEP) {
+                val steps = volumeAccum.toInt() // truncates toward zero
+                volumeAccum -= steps
+                val cur = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                runCatching {
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (cur + steps).coerceIn(0, max), 0)
+                }
+            }
+        }
+        return audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) / max.toFloat()
+    }
+
+    /**
+     * Accumulate a horizontal drag into a pending seek and flush at most every [SEEK_FLUSH_MS].
+     *
+     * Calling [Player.seekTo] on every drag event (roughly once per frame) tears the decoder
+     * down repeatedly and makes the scrub stutter; batching keeps playback smooth and
+     * [endGesture] lands the exact final position on release.
+     */
+    private fun gestureSeek(deltaPx: Float) {
+        pendingSeekMs += (deltaPx * SEEK_PX_TO_MS).toLong()
+        if (SystemClock.elapsedRealtime() - lastSeekFlushMs >= SEEK_FLUSH_MS) flushSeek()
+    }
+
+    private fun flushSeek() {
+        lastSeekFlushMs = SystemClock.elapsedRealtime()
+        val p = player ?: return
+        val delta = pendingSeekMs
+        pendingSeekMs = 0
+        if (delta == 0L) return
+        val dur = p.duration
+        val target = (p.currentPosition + delta).coerceIn(0, if (dur > 0) dur else Long.MAX_VALUE)
+        p.seekTo(target)
+    }
+
+    /** Drag released/cancelled: land the final seek and reset the fractional volume accumulator. */
+    private fun endGesture() {
+        flushSeek()
+        volumeAccum = 0f
+    }
+
+    /** Normalized playhead position for the seek gesture HUD. */
+    private fun seekProgress(): Float {
+        val p = player ?: return 0f
+        val dur = p.duration
+        return if (dur > 0) (p.currentPosition.toFloat() / dur).coerceIn(0f, 1f) else 0f
     }
 
     private fun mimeFor(url: String): String = when {
@@ -455,6 +511,15 @@ class PlayerActivity : ComponentActivity() {
         private const val EXT_EPISODES = "p_episodes"
         private const val EXT_INDEX = "p_index"
 
+        /** Horizontal drag pixels → milliseconds of seek (matches the original gesture feel). */
+        private const val SEEK_PX_TO_MS = 300f
+
+        /** Minimum gap between seeks while scrubbing, so playback never stutters. */
+        private const val SEEK_FLUSH_MS = 300L
+
+        /** How much vertical drag equals one full volume sweep (fraction of the track). */
+        private const val VOLUME_STEP = 0.15f
+
         fun intent(
             context: Context,
             item: MediaItem,
@@ -514,17 +579,67 @@ private fun PlayerScreen(
     onCancelCountdown: () -> Unit,
     onNext: () -> Unit,
     onSelectEpisode: (Int) -> Unit,
-    onGestures: (GestureMode, Float) -> Unit,
+    onGestures: (GestureMode, Float) -> Float,
+    onGestureEnd: () -> Unit,
 ) {
     var controlsVisible by remember { mutableStateOf(true) }
     var showTracks by remember { mutableStateOf(false) }
     var showEpisodes by remember { mutableStateOf(false) }
-    var gestureHint by remember { mutableStateOf<String?>(null) }
     var tracks by remember { mutableStateOf<Tracks?>(null) }
+
+    // ---- Timeline state ---------------------------------------------------
+    // Nothing in composition read the player's clock before, so the timestamps and slider only
+    // changed when something else happened to recompose. A periodic ticker now drives them.
+    var position by remember { mutableStateOf(0L) }
+    var duration by remember { mutableStateOf(0L) }
+    var isPlaying by remember { mutableStateOf(player.isPlaying) }
+    // While the thumb is being dragged the ticker holds, so the slider never fights the finger.
+    var scrubbing by remember { mutableStateOf(false) }
+    var scrubValue by remember { mutableStateOf(0f) }
+
+    // ---- Gesture HUD ------------------------------------------------------
+    var hudMode by remember { mutableStateOf<GestureMode?>(null) }
+    var hudLevel by remember { mutableStateOf(0f) }
+    var hudVisible by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var hudHideJob by remember { mutableStateOf<Job?>(null) }
+
+    fun showHud(mode: GestureMode, level: Float) {
+        hudHideJob?.cancel()
+        hudMode = mode
+        hudLevel = level.coerceIn(0f, 1f)
+        hudVisible = true
+    }
+
+    /** Keep the HUD up for ~1.4 s after the finger lifts, then fade it out. */
+    fun scheduleHudHide() {
+        hudHideJob?.cancel()
+        hudHideJob = scope.launch { delay(1400); hudVisible = false }
+    }
+
+    // Periodic ticker: refreshes the playhead, duration and play/pause state every 250 ms.
+    LaunchedEffect(player) {
+        while (isActive) {
+            if (!scrubbing) {
+                position = player.currentPosition.coerceAtLeast(0)
+                duration = player.duration.coerceAtLeast(0)
+            }
+            isPlaying = player.isPlaying
+            delay(250)
+        }
+    }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(t: Tracks) { tracks = t }
+            // Instant play/pause feedback instead of waiting for the next tick.
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+                if (!scrubbing) {
+                    position = player.currentPosition.coerceAtLeast(0)
+                    duration = player.duration.coerceAtLeast(0)
+                }
+            }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
@@ -554,36 +669,25 @@ private fun PlayerScreen(
                                 offset.x > width * 0.82f -> GestureMode.VOLUME
                                 else -> GestureMode.SEEK
                             }
-                            gestureHint = when (mode) {
-                                GestureMode.BRIGHTNESS -> "Brightness"
-                                GestureMode.VOLUME -> "Volume"
-                                GestureMode.SEEK -> "Seek"
-                            }
+                            // Seed the HUD with the current level (a zero-delta call is a read).
+                            showHud(mode, onGestures(mode, 0f))
                         },
                         onDrag = { change, drag ->
                             change.consume()
-                            when (mode) {
+                            val level = when (mode) {
                                 // Vertical drag on the edges; downward decreases.
-                                GestureMode.BRIGHTNESS, GestureMode.VOLUME -> onGestures(mode, -drag.y / 260f)
+                                GestureMode.BRIGHTNESS, GestureMode.VOLUME ->
+                                    onGestures(mode, -drag.y / 260f)
                                 GestureMode.SEEK -> onGestures(GestureMode.SEEK, drag.x)
                             }
+                            showHud(mode, level)
                         },
-                        onDragEnd = { gestureHint = null },
-                        onDragCancel = { gestureHint = null },
+                        onDragEnd = { onGestureEnd(); scheduleHudHide() },
+                        onDragCancel = { onGestureEnd(); scheduleHudHide() },
                     )
                 }
                 .clickable { controlsVisible = !controlsVisible },
         )
-
-        gestureHint?.let {
-            Surface(
-                color = Color.Black.copy(alpha = 0.6f),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.align(Alignment.Center),
-            ) {
-                Text(it, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            }
-        }
 
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
             Box(
@@ -617,29 +721,43 @@ private fun PlayerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(28.dp),
                 ) {
-                    IconButton(onClick = { player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0)) }) {
+                    IconButton(onClick = {
+                        val target = (player.currentPosition - 10_000).coerceAtLeast(0)
+                        player.seekTo(target); position = target
+                    }) {
                         Icon(Icons.Filled.Replay10, "Back 10", tint = Color.White, modifier = Modifier.size(40.dp))
                     }
                     IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }, modifier = Modifier.size(72.dp)) {
                         Icon(
-                            if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             "Play/Pause", tint = Color.White, modifier = Modifier.size(64.dp),
                         )
                     }
-                    IconButton(onClick = { player.seekTo(player.currentPosition + 10_000) }) {
+                    IconButton(onClick = {
+                        val target = player.currentPosition + 10_000
+                        player.seekTo(target); position = target
+                    }) {
                         Icon(Icons.Filled.Forward10, "Forward 10", tint = Color.White, modifier = Modifier.size(40.dp))
                     }
                 }
 
                 // Bottom bar
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp)) {
-                    val dur = player.duration.coerceAtLeast(0)
-                    val pos = player.currentPosition.coerceAtLeast(0)
+                    // While dragging, show the thumb position; otherwise the ticker's playhead.
+                    val dur = duration
+                    val pos = if (scrubbing) (scrubValue * dur).toLong() else position
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(fmt(pos), color = Color.White, fontSize = 12.sp)
                         Slider(
-                            value = if (dur > 0) pos.toFloat() / dur else 0f,
-                            onValueChange = { if (dur > 0) player.seekTo((it * dur).toLong()) },
+                            value = if (scrubbing) scrubValue else if (dur > 0) position.toFloat() / dur else 0f,
+                            // Dragging only moves the thumb — no seek spam per pixel moved.
+                            onValueChange = { scrubValue = it; scrubbing = true },
+                            // One seek when the finger lifts, then the ticker resumes control.
+                            onValueChangeFinished = {
+                                if (dur > 0) player.seekTo((scrubValue * dur).toLong())
+                                position = if (dur > 0) (scrubValue * dur).toLong() else 0
+                                scrubbing = false
+                            },
                             modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                         )
                         Text(fmt(dur), color = Color.White, fontSize = 12.sp)
@@ -652,6 +770,25 @@ private fun PlayerScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // Gesture HUD — brightness (left), volume (right) or seek (center). Rendered after the
+        // controls so it sits on top of them, and fades ~1.4 s after the finger lifts.
+        AnimatedVisibility(
+            visible = hudVisible && hudMode != null,
+            enter = fadeIn(),
+            exit = fadeOut(tween(400)),
+            modifier = Modifier.align(
+                when (hudMode) {
+                    GestureMode.VOLUME -> Alignment.CenterEnd
+                    GestureMode.SEEK -> Alignment.Center
+                    else -> Alignment.CenterStart
+                },
+            ).padding(horizontal = 28.dp),
+        ) {
+            hudMode?.let { mode ->
+                GestureHud(mode = mode, level = hudLevel, position = position, duration = duration)
             }
         }
 
@@ -823,6 +960,56 @@ private fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit) {
     ) {
         Text(label, color = if (selected) Color(0xFF7C5CFF) else Color.White, modifier = Modifier.weight(1f))
         if (selected) Icon(Icons.Filled.Check, null, tint = Color(0xFF7C5CFF))
+    }
+}
+
+/**
+ * On-screen indicator for the edge gestures: a vertical level bar for brightness/volume, or a
+ * center pill with the playhead for seeks. [level] is the normalized 0..1 value for the bar.
+ */
+@Composable
+private fun GestureHud(mode: GestureMode, level: Float, position: Long, duration: Long) {
+    if (mode == GestureMode.SEEK) {
+        Surface(color = Color.Black.copy(alpha = 0.6f), shape = RoundedCornerShape(14.dp)) {
+            Column(
+                Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(fmt(position), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(fmt(duration), color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+            }
+        }
+        return
+    }
+    Surface(color = Color.Black.copy(alpha = 0.6f), shape = RoundedCornerShape(18.dp)) {
+        Column(
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                if (mode == GestureMode.BRIGHTNESS) Icons.Filled.BrightnessHigh else Icons.Filled.VolumeUp,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier
+                    .width(6.dp)
+                    .height(110.dp)
+                    .background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(50)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(level)
+                        .align(Alignment.BottomStart)
+                        .background(Color.White, RoundedCornerShape(50)),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("${(level * 100).toInt()}%", color = Color.White, fontSize = 11.sp)
+        }
     }
 }
 

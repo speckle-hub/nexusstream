@@ -2,10 +2,8 @@ package com.novastream.app.ui.screens.home
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,7 +32,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -49,11 +47,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -96,8 +95,12 @@ fun HomeScreen(nav: NavHostController) {
     // Entry awaiting confirmation before it is dropped from Continue Watching.
     var pendingRemoval by remember { mutableStateOf<WatchEntry?>(null) }
 
+    // Keeps the Home scroll position when returning from another tab or a detail screen.
+    val listState = rememberLazyListState()
+
     Box(Modifier.fillMaxSize()) {
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 44.dp, bottom = 28.dp),
     ) {
@@ -174,10 +177,10 @@ fun HomeScreen(nav: NavHostController) {
 }
 
 /**
- * Auto-sliding featured banners with swipe support and animated dot indicators.
+ * Full-bleed featured banners with swipe support and overlaying dot indicators.
  *
- * Adjacent slides peek in from the edges (pager content padding) so it reads as a carousel
- * rather than a static hero. Auto-advance pauses while the user is dragging.
+ * The artwork runs edge-to-edge (no card, radius, border or side padding) and fades into the
+ * page background through top/bottom gradient scrims. Auto-advance pauses while dragging.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -195,144 +198,159 @@ private fun FeaturedCarousel(items: List<MediaItem>, onClick: (MediaItem) -> Uni
         }
     }
 
-    Column(Modifier.fillMaxWidth()) {
+    Box(Modifier.fillMaxWidth()) {
         HorizontalPager(
             state = pagerState,
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            pageSpacing = 12.dp,
+            contentPadding = PaddingValues(0.dp),
+            pageSpacing = 0.dp,
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
             HeroSlide(items[page], onClick)
         }
-        Spacer(Modifier.height(10.dp))
-        CarouselDots(count = items.size, selected = pagerState.currentPage)
+        // Pagination indicators overlay the bottom gradient of the active slide.
+        CarouselDots(
+            count = items.size,
+            selected = pagerState.currentPage,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
+        )
     }
 }
 
 @Composable
-private fun CarouselDots(count: Int, selected: Int) {
+private fun CarouselDots(count: Int, selected: Int, modifier: Modifier = Modifier) {
     if (count <= 1) return
-    val nova = LocalNovaColors.current
     Row(
-        Modifier.fillMaxWidth(),
+        modifier,
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         repeat(count) { i ->
             val active = i == selected
-            val width by animateDpAsState(if (active) 22.dp else 6.dp, label = "dotWidth")
+            val width by animateDpAsState(if (active) 24.dp else 7.dp, label = "dotWidth")
             Box(
                 Modifier
                     .padding(horizontal = 3.dp)
                     .height(6.dp)
                     .width(width)
                     .clip(RoundedCornerShape(50))
-                    .background(if (active) nova.accent else nova.textTertiary.copy(alpha = 0.45f)),
+                    // White reads cleanly over the artwork/gradient at every palette tint.
+                    .background(if (active) Color.White else Color.White.copy(alpha = 0.35f)),
             )
         }
     }
 }
 
+/** Centre-aligned metadata line, e.g. "Movie • Action • 2024 • ★ 7.8". */
+private fun heroMeta(item: MediaItem): String = buildList {
+    // Labels are plural ("Movies", "TV Shows"); drop the plural for the single-title row.
+    add(item.type.label.removeSuffix("s"))
+    item.genres.firstOrNull()?.let { add(it) }
+    item.year?.takeIf { it.isNotBlank() }?.let { add(it) }
+    item.rating?.let { add(String.format("%.1f", it)) }
+}.joinToString(" \u00b7 ")
+
+/**
+ * One immersive hero slide: full-width artwork, top/bottom scrims that blend into the page
+ * background, and centre-aligned title, metadata and pill CTA.
+ */
 @Composable
 private fun HeroSlide(item: MediaItem, onClick: (MediaItem) -> Unit) {
     val nova = LocalNovaColors.current
     val img = item.backdrop ?: item.poster
-    val heroShape = RoundedCornerShape(22.dp)
     // Dynamic theming: the accent + scrim shift to match each banner's artwork as it changes.
     val palette = rememberPosterPalette(img)
     val glow by animateColorAsState(palette?.vibrantColor ?: nova.accent, label = "heroAccent")
     val scrim by animateColorAsState(palette?.darkVibrantColor ?: Color.Black, label = "heroScrim")
+
+    // Immersive portrait-ish height, clamped so tablets/landscape never stretch it into the feed.
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val heroHeight = (screenWidthDp / 0.84f).coerceIn(400f, 540f).dp
+
     Box(
         Modifier
             .fillMaxWidth()
-            // Ambient drop-shadow + hairline outline so dark poster art separates from the background.
-            .shadow(elevation = 16.dp, shape = heroShape, ambientColor = Color.Black, spotColor = Color.Black)
-            .clip(heroShape)
-            .border(BorderStroke(1.dp, nova.outline.copy(alpha = 0.6f)), heroShape)
+            .height(heroHeight)
             .clickable { onClick(item) },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f)) {
-            if (!img.isNullOrBlank()) {
-                AsyncImage(img, item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            } else {
-                ShimmerBox(Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
-            }
-            // Ambient halo tinted by the artwork's vibrant swatch.
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.radialGradient(listOf(glow.copy(alpha = 0.30f), Color.Transparent))
+        if (!img.isNullOrBlank()) {
+            AsyncImage(img, item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            ShimmerBox(Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
+        }
+        // Ambient halo tinted by the artwork's vibrant swatch.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(listOf(glow.copy(alpha = 0.24f), Color.Transparent))
+            )
+        )
+        // Top + bottom scrims: the art fades into the page background at both edges.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.55f),
+                    0.20f to Color.Transparent,
+                    0.48f to Color.Transparent,
+                    0.76f to scrim.copy(alpha = 0.60f),
+                    1f to nova.background,
                 )
             )
-            // Cinematic gradient scrims (seeded from the palette's dark swatch).
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        0f to scrim.copy(alpha = 0.35f),
-                        0.45f to Color.Black.copy(alpha = 0.30f),
-                        1f to Color.Black.copy(alpha = 0.90f),
-                    )
-                )
-            )
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(
-                        listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent),
-                    )
-                )
-            )
+        )
 
-            Column(
-                Modifier.align(Alignment.BottomStart).padding(18.dp),
-            ) {
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                // Bottom room for the overlaying pagination dots.
+                .padding(start = 24.dp, end = 24.dp, bottom = 44.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "FEATURED",
+                style = MaterialTheme.typography.labelSmall,
+                color = glow,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                item.title,
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                heroMeta(item),
+                color = Color.White.copy(alpha = 0.85f),
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "FEATURED",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = glow,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    item.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
+                    desc,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.80f),
+                    textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    item.rating?.let { r ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Star, null, tint = Color(0xFFFFC94D), modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(3.dp))
-                            Text(String.format("%.1f", r), color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    item.year?.let { Text(it, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium) }
-                    if (item.genres.isNotEmpty()) {
-                        Text(item.genres.take(2).joinToString(" \u00b7 "), color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-                item.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        desc,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.85f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = { onClick(item) },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
-                ) {
-                    Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Play", fontWeight = FontWeight.Bold)
-                }
+            }
+            Spacer(Modifier.height(16.dp))
+            // Pill CTA.
+            Button(
+                onClick = { onClick(item) },
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                contentPadding = PaddingValues(horizontal = 26.dp, vertical = 11.dp),
+            ) {
+                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Play", fontWeight = FontWeight.Bold)
             }
         }
     }
