@@ -1,7 +1,7 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-01 (Phase 6 — UX/UI pass).
+> resume exactly where it left off. Last updated: 2026-10-01 (Phase 6 — UX/UI pass + NSFW nav fix).
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
@@ -23,10 +23,9 @@ ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI (`di/AppContainer.kt
 
 **Topic: Phase 6 — UX/UI pass (hero carousel, player timeline/gestures, nav state).**
 
-Status: **Phase 6 complete.** Build green (30 tests / 0 failures). The Home hero is now a
-full-bleed centered carousel; the player got a live timeline ticker, smooth scrubbing and
-brightness/volume/seek gesture HUDs; tab navigation keeps its scroll position and search state.
-No APK has been rebuilt yet — a device pass (§7 items 11–12) is still pending for this phase.
+Status: **Phase 6 complete** (+ a follow-up NSFW nav fix: the Real 18+ sub-tab, query and
+results now survive detail ⇄ back). Build green (30 tests / 0 failures) and **both APKs rebuilt**
+this session; only the device pass (§7 items 11–12) is outstanding.
 
 ### Rename (display name only)
 `strings.xml` app label, the Home title and Settings "About" row, and the shared HTTP User-Agent
@@ -490,7 +489,8 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | **Phase 6 — player timeline:** `PlayerScreen` gained `position`/`duration`/`isPlaying` state with a 250 ms ticker + `onIsPlayingChanged` listener; slider now uses `onValueChange`/`onValueChangeFinished` (one seek on release, thumb-follows-finger while scrubbing) instead of seeking per pixel. |
 | 2026-10-01 | **Phase 6 — gesture HUD + smooth seek:** brightness/volume/seek show an animated HUD (vertical level bars on the edges, seek pill in the center) that fades 1.4 s after release; `onGestures` returns the level, new `onGestureEnd`; horizontal seeks are batched and flushed every 300 ms (`SEEK_FLUSH_MS`) plus once on release (removes the stutter from one `seekTo` per frame); volume commits whole steps (`VOLUME_STEP`) from a fractional accumulator. |
 | 2026-10-01 | **Phase 6 — nav state:** `SearchScreen` query → `rememberSaveable` with a re-search guard (`results.isEmpty()`), so returning to the tab keeps term + results; Home/Library/Search use `rememberLazyListState()`. Confirmed no `FLAG_ACTIVITY_*`/launch-mode flags exist to strip. |
-| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures** ✅. APK **not** rebuilt this session — device pass (§7) still pending. |
+| 2026-10-01 | **Phase 6 fix — NSFW sub-tab/search lost on Back:** returning from a detail page used to reset the NSFW section to the NSFW Anime tab with an empty search box (the ViewModel still held the results, but the UI showed browse rows). `NsfwContent`'s sub-tab index and all three per-section queries are now `rememberSaveable`, with the queries hoisted into the destination so sub-tab switches can't drop them either; `NsfwViewModel` tracks `animeSearchedFor`/`mangaSearchedFor`/`realSearchedFor` so a query restored after process death re-runs its search exactly once, while a query the ViewModel already holds is never re-queried. |
+| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL; `dist/NovaStream.apk` refreshed. Device pass (§7) still pending. |
 
 ---
 
@@ -547,7 +547,9 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
     track move live during playback, dragging the slider doesn't stutter and seeks once on
     release; left-edge drag → brightness bar + %, right-edge drag → volume bar + %, horizontal
     drag → seek pill, each fading ~1.4 s after release; switch Home → Search → back → scroll
-    position and search term/results are both still there.
+    position and search term/results are both still there. **NSFW section:** Real 18+ → search →
+    open a video → Back → must land on Real 18+ with the same term *and* results (not NSFW
+    Anime); switching sub-tabs (NSFW Anime ⇄ Real 18+) must keep each section's typed query.
 
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.

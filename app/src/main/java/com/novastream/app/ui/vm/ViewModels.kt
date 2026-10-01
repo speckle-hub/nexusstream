@@ -146,6 +146,19 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
     val realSearching = MutableStateFlow(false)
 
     /**
+     * The last query each section was handed. The UI reads this to tell a *restored* query (after
+     * process death, when this ViewModel was recreated empty) apart from one whose results this
+     * instance still holds — the former gets re-searched once, the latter never does. Tab switches
+     * keep the ViewModel alive but dispose the UI, so this is exactly the discriminator needed.
+     */
+    var animeSearchedFor: String? = null
+        private set
+    var mangaSearchedFor: String? = null
+        private set
+    var realSearchedFor: String? = null
+        private set
+
+    /**
      * At most one in-flight search per section. Each new keystroke cancels the previous job, so
      * a slow response from an earlier query can never overwrite a newer query's results — which
      * is what made search look "confused" and return stale/irrelevant items.
@@ -199,6 +212,7 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun searchAnime(q: String) {
+        animeSearchedFor = q
         animeSearchJob?.cancel()
         val query = q.trim()
         if (query.length < MIN_SEARCH_CHARS) {
@@ -220,6 +234,7 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun searchManga(q: String) {
+        mangaSearchedFor = q
         mangaSearchJob?.cancel()
         val query = q.trim()
         if (query.length < MIN_SEARCH_CHARS) {
@@ -245,6 +260,7 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
      * of one per keystroke, and only the newest query is allowed to publish results.
      */
     fun searchReal(q: String) {
+        realSearchedFor = q
         realSearchJob?.cancel()
         val query = q.trim()
         if (query.length < MIN_SEARCH_CHARS) {

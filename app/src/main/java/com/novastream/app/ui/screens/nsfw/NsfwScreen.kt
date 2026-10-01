@@ -19,11 +19,12 @@ import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -71,7 +72,16 @@ fun NsfwScreen(nav: NavHostController) {
 private fun NsfwContent(nav: NavHostController) {
     val vm = novaViewModel { NsfwViewModel(it) }
     val nova = LocalNovaColors.current
-    var tab by remember { mutableIntStateOf(0) }
+    // Saved, not just remembered: opening a detail page disposes this destination, and coming
+    // back used to reset the sub-tab to 0 (NSFW Anime) — losing the Real 18+ position.
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // One saved query per sub-tab, hoisted out of NsfwSection on purpose: a conditional branch
+    // is disposed when you switch sub-tabs, but this composable stays alive for the whole
+    // destination, which is where saved state is actually persisted and restored. Switching
+    // NSFW Anime ⇄ Real 18+ therefore keeps each section's term exactly as typed.
+    var animeQuery by rememberSaveable { mutableStateOf("") }
+    var mangaQuery by rememberSaveable { mutableStateOf("") }
+    var realQuery by rememberSaveable { mutableStateOf("") }
     val titles = listOf("NSFW Anime", "NSFW Manga", "Real 18+")
 
     Column(Modifier.fillMaxSize()) {
@@ -102,7 +112,10 @@ private fun NsfwContent(nav: NavHostController) {
                 results = vm.animeResults.collectAsStateSafe().value,
                 loading = vm.animeLoading.collectAsStateSafe().value,
                 searching = vm.animeSearching.collectAsStateSafe().value,
+                query = animeQuery,
+                onQueryChange = { animeQuery = it },
                 onSearch = { vm.searchAnime(it) },
+                searchedFor = vm.animeSearchedFor,
                 emptyHint = "Install NSFW anime add-ons or search AniList/Jikan.",
             )
             1 -> NsfwSection(
@@ -111,7 +124,10 @@ private fun NsfwContent(nav: NavHostController) {
                 results = vm.mangaResults.collectAsStateSafe().value,
                 loading = vm.mangaLoading.collectAsStateSafe().value,
                 searching = vm.mangaSearching.collectAsStateSafe().value,
+                query = mangaQuery,
+                onQueryChange = { mangaQuery = it },
                 onSearch = { vm.searchManga(it) },
+                searchedFor = vm.mangaSearchedFor,
                 emptyHint = "Search MangaDex's adult catalogue.",
             )
             else -> NsfwSection(
@@ -120,7 +136,10 @@ private fun NsfwContent(nav: NavHostController) {
                 results = vm.realResults.collectAsStateSafe().value,
                 loading = vm.realLoading.collectAsStateSafe().value,
                 searching = vm.realSearching.collectAsStateSafe().value,
+                query = realQuery,
+                onQueryChange = { realQuery = it },
                 onSearch = { vm.searchReal(it) },
+                searchedFor = vm.realSearchedFor,
                 emptyHint = "Built-in sources unavailable. Install NSFW Stremio add-ons as a fallback.",
                 errors = vm.realErrors.collectAsStateSafe().value,
                 searchErrors = vm.realSearchErrors.collectAsStateSafe().value,
@@ -135,14 +154,29 @@ private fun NsfwSection(
     rows: List<com.novastream.app.data.model.CatalogRow>,
     results: List<com.novastream.app.data.model.MediaItem>,
     loading: Boolean,
+    query: String,
+    onQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
     emptyHint: String,
     errors: List<String> = emptyList(),
     searchErrors: List<String> = emptyList(),
     searching: Boolean = false,
+    /** The query this section's ViewModel last searched for (`null` = never, i.e. fresh VM). */
+    searchedFor: String? = null,
 ) {
     val nova = LocalNovaColors.current
-    var query by remember { mutableStateOf("") }
+
+    // Process-death restore: the query survived in saved state but this section's ViewModel was
+    // recreated empty. Re-run the search exactly once so the results come back with the term.
+    // Guarded by `searchedFor != query`, so it never fires on keystrokes or when the ViewModel
+    // already holds these results — a legitimately empty result is never re-queried on a
+    // sub-tab switch (the ViewModel outlives those, unlike this composable).
+    LaunchedEffect(Unit) {
+        if (query.isNotBlank() && query != searchedFor && results.isEmpty() && !searching) {
+            onSearch(query)
+        }
+    }
+
     // Home shows per-source failures; a non-empty query shows failures only when nothing came
     // back (so an empty search can explain why it is empty).
     val visibleErrors = when {
@@ -153,7 +187,7 @@ private fun NsfwSection(
     Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = query,
-            onValueChange = { query = it; onSearch(it) },
+            onValueChange = { onQueryChange(it); onSearch(it) },
             placeholder = { Text("Search…") },
             leadingIcon = { Icon(Icons.Filled.Search, null) },
             singleLine = true,
