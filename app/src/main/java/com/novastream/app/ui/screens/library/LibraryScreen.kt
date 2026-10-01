@@ -1,32 +1,58 @@
 package com.novastream.app.ui.screens.library
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import com.novastream.app.data.download.DownloadStatus
+import com.novastream.app.data.download.MangaDownload
 import com.novastream.app.data.model.MediaItem
+import com.novastream.app.data.model.MediaType
+import com.novastream.app.data.model.Video
 import com.novastream.app.ui.components.EmptyState
+import com.novastream.app.ui.components.GlassSurface
 import com.novastream.app.ui.components.PosterCard
 import com.novastream.app.ui.components.SectionHeader
 import com.novastream.app.ui.nav.Routes
+import com.novastream.app.ui.player.MangaReaderActivity
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.vm.LibraryViewModel
+import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
 
@@ -34,8 +60,11 @@ import com.novastream.app.ui.vm.novaViewModel
 fun LibraryScreen(nav: NavHostController) {
     val vm = novaViewModel { LibraryViewModel(it) }
     val nova = LocalNovaColors.current
+    val container = LocalContainer.current
+    val context = LocalContext.current
     val favorites by vm.favorites.collectAsStateSafe()
     val history by vm.history.collectAsStateSafe()
+    val downloads by container.mangaDownloadManager.downloads.collectAsStateSafe()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -50,6 +79,24 @@ fun LibraryScreen(nav: NavHostController) {
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
+
+        // ---- Offline downloads ----------------------------------------------
+        item { SectionHeader("Downloads") }
+        if (downloads.isEmpty()) {
+            item {
+                EmptyState(
+                    "No downloads yet",
+                    "Download chapters from the manga reader to read them offline.",
+                    icon = Icons.Outlined.Download,
+                )
+            }
+        } else {
+            val ordered = downloads.values.sortedByDescending { it.updatedAt }
+            items(ordered, key = { it.key }) { d ->
+                MangaDownloadRow(d) { context.openChapter(d) }
+            }
+        }
+
         item { SectionHeader("Continue Watching") }
         if (history.isEmpty()) {
             item { EmptyState("Nothing in progress", "Content you watch will appear here.", icon = Icons.Outlined.History) }
@@ -64,6 +111,99 @@ fun LibraryScreen(nav: NavHostController) {
             items(favorites.chunked(3)) { chunk -> GridRow(chunk, nav) }
         }
     }
+}
+
+/** Open a downloaded chapter in the reader (pages resolve from disk, no network). */
+private fun Context.openChapter(d: MangaDownload) {
+    val item = MediaItem(id = d.mangaId, type = MediaType.MANGA, title = d.mangaTitle, poster = d.cover)
+    val chapter = Video(id = d.chapterId, title = d.chapterTitle)
+    startActivity(MangaReaderActivity.intent(this, item, chapter))
+}
+
+@Composable
+private fun MangaDownloadRow(d: MangaDownload, onClick: () -> Unit) {
+    val nova = LocalNovaColors.current
+    val manager = LocalContainer.current.mangaDownloadManager
+    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onClick) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (!d.cover.isNullOrBlank()) {
+                AsyncImage(
+                    d.cover, null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    d.chapterTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = nova.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    d.mangaTitle,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = nova.textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(6.dp))
+                when (d.status) {
+                    DownloadStatus.DOWNLOADING -> {
+                        LinearProgressIndicator(
+                            progress = { d.progress },
+                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                            color = nova.accent,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${d.downloaded}/${d.total} · ${formatBytes(d.bytes)}" +
+                                if (d.speedBytesPerSec > 0) " · ${formatBytes(d.speedBytesPerSec)}/s" else "",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = nova.textTertiary,
+                        )
+                    }
+                    DownloadStatus.COMPLETED -> Text(
+                        "Downloaded · ${formatBytes(d.bytes)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = androidx.compose.ui.graphics.Color(0xFF35E0A1),
+                    )
+                    DownloadStatus.PAUSED -> Text(
+                        "Paused · ${d.downloaded}/${d.total}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = nova.textTertiary,
+                    )
+                    DownloadStatus.QUEUED -> Text("Queued", style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
+                    DownloadStatus.FAILED -> Text(
+                        d.error ?: "Failed",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            when (d.status) {
+                DownloadStatus.DOWNLOADING -> IconButton(onClick = { manager.pause(d.key) }) {
+                    Icon(Icons.Filled.Pause, "Pause", tint = nova.textSecondary)
+                }
+                DownloadStatus.PAUSED, DownloadStatus.FAILED -> IconButton(onClick = { manager.resume(d.key) }) {
+                    Icon(Icons.Filled.PlayArrow, "Resume", tint = nova.accent)
+                }
+                else -> {}
+            }
+            IconButton(onClick = { manager.delete(d.key) }) {
+                Icon(Icons.Filled.Delete, "Delete", tint = nova.textSecondary)
+            }
+        }
+    }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1_000_000_000 -> String.format("%.1f GB", bytes / 1_000_000_000.0)
+    bytes >= 1_000_000 -> String.format("%.1f MB", bytes / 1_000_000.0)
+    bytes >= 1_000 -> String.format("%.1f KB", bytes / 1_000.0)
+    else -> "$bytes B"
 }
 
 @Composable
