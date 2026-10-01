@@ -61,9 +61,11 @@ import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.model.SubtitleTrack
 import com.novastream.app.data.model.Video
+import com.novastream.app.data.model.WatchEntry
 import com.novastream.app.ui.theme.NovaStreamTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -147,6 +149,7 @@ class PlayerActivity : ComponentActivity() {
         exo.setMediaItem(buildMediaItem())
         exo.prepare()
         startProgressWatcher()
+        resumeLastPosition()
 
         setContent {
             NovaStreamTheme(darkTheme = true, accentKey = "violet") {
@@ -236,6 +239,7 @@ class PlayerActivity : ComponentActivity() {
     private fun playEpisode(target: Int) {
         if (target !in episodes.indices) return
         cancelCountdown()
+        recordProgress()
         val ep = episodes[target]
         lifecycleScope.launch {
             val container = (application as NovaApp).container
@@ -282,10 +286,11 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    /** Poll playback so autoplay fires at 95% as well as on natural end. */
+    /** Poll playback so autoplay fires at 95% as well as on natural end (and save progress). */
     private fun startProgressWatcher() {
         progressJob?.cancel()
         progressJob = lifecycleScope.launch {
+            var ticks = 0
             while (isActive) {
                 delay(1000)
                 val p = player ?: continue
@@ -294,7 +299,47 @@ class PlayerActivity : ComponentActivity() {
                     autoTriggered = true
                     maybeAutoplay()
                 }
+                // Persist roughly every 5 s while playing, so closing the app never loses more
+                // than a few seconds and Continue Watching stays current.
+                if (++ticks % 5 == 0 && p.isPlaying) recordProgress()
             }
+        }
+    }
+
+    /**
+     * Snapshot the current playback state into Continue Watching. Runs on the app scope so it is
+     * not cancelled when the Activity is torn down (back press, PiP close, process navigation).
+     */
+    private fun recordProgress() {
+        val p = player ?: return
+        val position = p.currentPosition.coerceAtLeast(0)
+        val duration = p.duration.takeIf { it > 0 } ?: 0
+        if (position <= 0 && duration <= 0) return
+        val ep = episodes.getOrNull(index)
+        val entry = WatchEntry(
+            item = item,
+            videoId = ep?.id,
+            videoTitle = ep?.title,
+            positionMs = position,
+            durationMs = duration,
+        )
+        (application as NovaApp).appScope.launch {
+            runCatching { (application as NovaApp).container.libraryStore.recordWatch(entry) }
+        }
+    }
+
+    /** Seek to the last saved position for this title/episode, when there is one worth resuming. */
+    private fun resumeLastPosition() {
+        val videoId = episodes.getOrNull(index)?.id
+        lifecycleScope.launch {
+            val entry = runCatching {
+                (application as NovaApp).container.libraryStore.history.first()
+                    .firstOrNull { it.item.key == item.key && it.videoId == videoId }
+            }.getOrNull() ?: return@launch
+            val dur = entry.durationMs
+            val resume = entry.positionMs
+            val finished = dur > 0 && resume >= (dur * 0.95f).toLong()
+            if (resume > 0 && !finished) runCatching { player?.seekTo(resume) }
         }
     }
 
@@ -365,11 +410,19 @@ class PlayerActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureMode) player?.pause()
+        // Save the exact spot before we might be torn down.
+        recordProgress()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        recordProgress()
     }
 
     override fun onDestroy() {
         countdownJob?.cancel()
         progressJob?.cancel()
+        recordProgress()
         player?.release()
         player = null
         super.onDestroy()

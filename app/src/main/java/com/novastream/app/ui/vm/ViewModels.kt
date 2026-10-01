@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -47,13 +48,19 @@ internal inline fun <T> runCatchingCancellable(block: () -> T): Result<T> =
         Result.failure(e)
     }
 
+/** Watched beyond this fraction of its duration, an entry is treated as finished. */
+private const val COMPLETED_THRESHOLD = 0.95f
+
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val rows = MutableStateFlow<List<CatalogRow>>(emptyList())
     val loading = MutableStateFlow(true)
     val error = MutableStateFlow<String?>(null)
 
+    /** In-progress titles, newest first, with anything essentially finished filtered out. */
     val continueWatching: StateFlow<List<WatchEntry>> =
-        container.libraryStore.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        container.libraryStore.history
+            .map { list -> list.filter { it.progress < COMPLETED_THRESHOLD } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init { refresh() }
 
@@ -125,7 +132,10 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
 
     /** Per-source failures from the last Real 18+ search, so an empty result can explain itself. */
     val realSearchErrors = MutableStateFlow<List<String>>(emptyList())
-    val searching = MutableStateFlow(false)
+
+    /** Per-section search-in-progress flags so one section's search never affects another's UI. */
+    val animeSearching = MutableStateFlow(false)
+    val mangaSearching = MutableStateFlow(false)
 
     /** Search-in-progress flag dedicated to Real 18+ (independent of the anime/manga flag). */
     val realSearching = MutableStateFlow(false)
@@ -165,8 +175,15 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
                     mangaLoading.value = false
                 }
                 launch {
-                    val (real, realErrs) = runCatching { container.catalogRepository.realRowsWithErrors() }
-                        .getOrDefault(emptyList<CatalogRow>() to emptyList<String>())
+                    // Progressive: the tab paints each source as it lands and drops its skeleton on
+                    // the first rows, so one slow site no longer stalls the whole section.
+                    val (real, realErrs) = runCatching {
+                        container.catalogRepository.realRowsProgressive { rows, errs ->
+                            realRows.value = rows
+                            realErrors.value = errs
+                            if (rows.isNotEmpty()) realLoading.value = false
+                        }
+                    }.getOrDefault(emptyList<CatalogRow>() to emptyList<String>())
                     realRows.value = real
                     realErrors.value = realErrs
                     realLoading.value = false
@@ -187,13 +204,13 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
         val id = ++animeGeneration
         animeSearchJob = viewModelScope.launch {
             delay(SEARCH_DEBOUNCE_MS)
-            searching.value = true
+            animeSearching.value = true
             val found = runCatchingCancellable {
                 container.catalogRepository.search(query, MediaType.NSFW_ANIME)
             }.getOrDefault(emptyList())
             if (id != animeGeneration) return@launch
             animeResults.value = found
-            searching.value = false
+            animeSearching.value = false
         }
     }
 
@@ -208,13 +225,13 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
         val id = ++mangaGeneration
         mangaSearchJob = viewModelScope.launch {
             delay(SEARCH_DEBOUNCE_MS)
-            searching.value = true
+            mangaSearching.value = true
             val found = runCatchingCancellable {
                 container.catalogRepository.search(query, MediaType.NSFW_MANGA)
             }.getOrDefault(emptyList())
             if (id != mangaGeneration) return@launch
             mangaResults.value = found
-            searching.value = false
+            mangaSearching.value = false
         }
     }
 

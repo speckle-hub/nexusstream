@@ -81,6 +81,9 @@ object TorrentStreamer {
         }
         val e = engine ?: run { onError("Torrent engine unavailable."); return }
         pending = Pending(onReady, onError, onProgress)
+        // The listener is a singleton, so drop any previous registration before re-adding it —
+        // otherwise every playback leaks another copy and callbacks fire N times.
+        runCatching { e.removeListener(listener) }
         e.addListener(listener)
         runCatching { e.startStream(magnet) }.onFailure {
             pending = null

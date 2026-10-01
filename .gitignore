@@ -2,6 +2,9 @@
 keystore.properties
 local.properties
 
+# Signing keystore — must never be tracked (anyone with it can sign over-the-air updates)
+keystore/
+
 # Gradle / build output
 .gradle/
 build/

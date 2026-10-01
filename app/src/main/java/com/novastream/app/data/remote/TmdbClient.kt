@@ -70,8 +70,12 @@ object TmdbClient {
     suspend fun discoverTv(genreId: String? = null): List<MediaItem> =
         parseList(get("/discover/tv", if (genreId != null) mapOf("with_genres" to genreId) else emptyMap()), MediaType.SERIES)
 
+    /**
+     * General (SFW) search. `include_adult` is forced to false so pornographic titles can never
+     * leak into the normal Search tab; NSFW content is reached only through the NSFW sections.
+     */
     suspend fun search(query: String): List<MediaItem> =
-        parseList(get("/search/multi", mapOf("query" to query, "include_adult" to "true")), MediaType.MOVIE)
+        parseList(get("/search/multi", mapOf("query" to query, "include_adult" to "false")), MediaType.MOVIE)
 
     suspend fun searchMovies(query: String): List<MediaItem> =
         parseList(get("/search/movie", mapOf("query" to query)), MediaType.MOVIE)

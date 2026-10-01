@@ -26,7 +26,11 @@ class NovaApp : Application(), ImageLoaderFactory {
     lateinit var container: AppContainer
         private set
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * App-lifetime IO scope. Used for fire-and-forget persistence (e.g. saving playback progress)
+     * that must survive the caller's Activity being destroyed.
+     */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Number of activities currently started — reaches 0 only when the whole app is backgrounded. */
     private var startedActivities = 0
@@ -36,6 +40,11 @@ class NovaApp : Application(), ImageLoaderFactory {
         container = AppContainer(this)
         // Give the shared HTTP layer access to the on-disk metadata cache.
         Http.cache = container.cache
+        // Keep the cache in sync with the "Cache metadata" setting (initial value + live toggles).
+        Http.cacheEnabled = container.settings.cacheMeta.value
+        appScope.launch {
+            container.settings.cacheMeta.collect { Http.cacheEnabled = it }
+        }
         // Seed default addons on first launch.
         appScope.launch {
             runCatching { container.addonRepository.ensureDefaults() }

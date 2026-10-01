@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.novastream.app.BuildConfig
 import com.novastream.app.ui.components.GlassSurface
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.screens.nsfw.hashPin
@@ -135,7 +136,7 @@ fun SettingsScreen(nav: NavHostController) {
         } }
 
         item { SettingsGroup("About") {
-            SettingsRow("NexusStream", "v1.0.0 · Stremio + CloudStream + Aniyomi + Mihon") {}
+            SettingsRow("NexusStream", "v${BuildConfig.VERSION_NAME} · Stremio + CloudStream + Aniyomi + Mihon") {}
         } }
     }
 

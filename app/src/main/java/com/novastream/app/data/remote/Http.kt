@@ -56,6 +56,14 @@ object Http {
      */
     @Volatile
     var cache: MetadataCache? = null
+
+    /**
+     * When false the "Cache metadata" setting is off and the cached helpers skip both the read and
+     * the write, so every request goes straight to the network. Kept in sync from the app scope
+     * (see `NovaApp`).
+     */
+    @Volatile
+    var cacheEnabled: Boolean = true
 }
 
 /** Freshness window for cached metadata responses (TMDB / AniList / MangaDex). */
@@ -70,9 +78,10 @@ suspend fun httpGetCached(
     headers: Map<String, String> = emptyMap(),
     maxAgeMs: Long = METADATA_TTL_MS,
 ): String {
-    Http.cache?.get(url, maxAgeMs)?.let { return it }
+    val cache = Http.cache?.takeIf { Http.cacheEnabled }
+    cache?.get(url, maxAgeMs)?.let { return it }
     val body = httpGet(url, headers)
-    Http.cache?.put(url, body)
+    cache?.put(url, body)
     return body
 }
 
@@ -83,9 +92,10 @@ suspend fun httpPostJsonCached(
     maxAgeMs: Long = METADATA_TTL_MS,
 ): String {
     val key = "POST:$url:${body.hashCode()}"
-    Http.cache?.get(key, maxAgeMs)?.let { return it }
+    val cache = Http.cache?.takeIf { Http.cacheEnabled }
+    cache?.get(key, maxAgeMs)?.let { return it }
     val resp = httpPostJson(url, body)
-    Http.cache?.put(key, resp)
+    cache?.put(key, resp)
     return resp
 }
 
