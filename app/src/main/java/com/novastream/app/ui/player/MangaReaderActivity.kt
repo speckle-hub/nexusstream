@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,11 +42,16 @@ import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
+import com.novastream.app.NovaApp
+import com.novastream.app.data.download.DownloadStatus
+import com.novastream.app.data.download.MangaDownload
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.Video
 import com.novastream.app.data.remote.MangaDexClient
 import com.novastream.app.ui.theme.NovaStreamTheme
+import com.novastream.app.ui.vm.LocalContainer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** How pages are laid out. */
@@ -74,15 +81,19 @@ class MangaReaderActivity : ComponentActivity() {
 
         item = readItem(intent) ?: run { finish(); return }
         chapter = readChapter(intent) ?: run { finish(); return }
+        val container = (application as NovaApp).container
 
         setContent {
             NovaStreamTheme(darkTheme = true, accentKey = "violet") {
-                ReaderScreen(
-                    title = item.title,
-                    chapterTitle = chapter.title ?: "Chapter",
-                    chapterId = chapter.id,
-                    onBack = { finish() },
-                )
+                androidx.compose.runtime.CompositionLocalProvider(LocalContainer provides container) {
+                    ReaderScreen(
+                        mangaId = item.id,
+                        title = item.title,
+                        chapterTitle = chapter.title ?: "Chapter",
+                        chapterId = chapter.id,
+                        onBack = { finish() },
+                    )
+                }
             }
         }
     }
@@ -110,12 +121,15 @@ class MangaReaderActivity : ComponentActivity() {
 
 @Composable
 private fun ReaderScreen(
+    mangaId: String,
     title: String,
     chapterTitle: String,
     chapterId: String,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val manager = LocalContainer.current.mangaDownloadManager
+    val scope = rememberCoroutineScope()
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -123,10 +137,18 @@ private fun ReaderScreen(
     var mode by remember { mutableStateOf(ReadingMode.RTL) }
     // Bumped by the Retry button so the load effect actually re-runs for the same chapter.
     var loadAttempt by remember { mutableIntStateOf(0) }
+    val download = manager.downloads.collectAsState().value["$mangaId::$chapterId"]
 
     LaunchedEffect(chapterId, loadAttempt) {
         loading = true
         error = null
+        // Offline-first: render straight from disk when the chapter has been downloaded.
+        val local = manager.localPages(mangaId, chapterId)
+        if (local != null) {
+            pages = local.map { it.toURI().toString() }
+            loading = false
+            return@LaunchedEffect
+        }
         val res = withContext(Dispatchers.IO) {
             runCatching { MangaDexClient.chapterPages(chapterId) }
         }
@@ -180,6 +202,28 @@ private fun ReaderScreen(
                     )
                 },
             )
+            val downloaded = download?.status == DownloadStatus.COMPLETED
+            IconButton(onClick = {
+                if (downloaded) return@IconButton
+                if (pages.isNotEmpty()) {
+                    manager.enqueue(MangaDownload(mangaId, title, chapterId, chapterTitle, null, pages))
+                } else {
+                    scope.launch {
+                        val fetched = withContext(Dispatchers.IO) {
+                            runCatching { MangaDexClient.chapterPages(chapterId) }.getOrDefault(emptyList())
+                        }
+                        if (fetched.isNotEmpty()) {
+                            manager.enqueue(MangaDownload(mangaId, title, chapterId, chapterTitle, null, fetched))
+                        }
+                    }
+                }
+            }) {
+                Icon(
+                    if (downloaded) Icons.Filled.DownloadDone else Icons.Filled.Download,
+                    "Download chapter",
+                    tint = if (downloaded) Color(0xFF35E0A1) else Color.White,
+                )
+            }
             IconButton(onClick = { dim = if (dim > 0f) 0f else 0.45f }) {
                 Icon(Icons.Filled.Brightness6, "Dim", tint = Color.White)
             }
