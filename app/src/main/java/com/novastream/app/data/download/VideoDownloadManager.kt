@@ -1,13 +1,13 @@
 package com.novastream.app.data.download
 
 import android.content.Context
-import androidx.work.Constraints
-import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import androidx.work.workDataOf
+import android.net.Uri
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.DownloadService
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.remote.Http
 import kotlinx.coroutines.CoroutineScope
@@ -17,19 +17,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 import java.util.UUID
 
-/** How a remote stream is turned into an offline file. */
+/** How a stream is downloaded (Media3 infers the actual downloader from the URI/mime). */
 enum class VideoKind { PROGRESSIVE, HLS }
 
 enum class VideoDownloadStatus { QUEUED, DOWNLOADING, COMPLETED, FAILED, PAUSED }
 
 /**
- * A single video download (movie, episode, anime stream).
+ * UI-facing snapshot of a Media3 download.
  *
- * [itemJson] keeps the original [MediaItem] so the offline player can be launched straight from
- * the downloads list with the same identity — which is what preserves watch history and progress.
+ * The original [MediaItem] JSON and display fields are stored inside the Media3
+ * [DownloadRequest]'s `data` payload (see [VideoDownloadMeta]), so the list can be rebuilt after a
+ * restart without a separate index of our own — Media3 persists the downloads in its own database.
  */
 data class VideoDownload(
     val id: String,
@@ -39,7 +39,6 @@ data class VideoDownload(
     val title: String,
     val subtitle: String? = null,
     val poster: String? = null,
-    val kind: VideoKind = VideoKind.PROGRESSIVE,
     val status: VideoDownloadStatus = VideoDownloadStatus.QUEUED,
     val progress: Float = 0f,
     val bytes: Long = 0L,
@@ -47,210 +46,193 @@ data class VideoDownload(
     val speedBytesPerSec: Long = 0L,
     val etaSeconds: Long = 0L,
     val error: String? = null,
-    val filePath: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
-/** Shared keys between [VideoDownloadManager] and [VideoDownloadWorker]. */
-object VideoDownloadContract {
-    const val KEY_ID = "dl_id"
-    const val KEY_URL = "dl_url"
-    const val KEY_KIND = "dl_kind"
-    const val KEY_TITLE = "dl_title"
-    const val KEY_PROGRESS = "dl_progress" // 0..100
-    const val KEY_BYTES = "dl_bytes"
-    const val KEY_TOTAL = "dl_total"
-    const val KEY_SPEED = "dl_speed"
-    const val KEY_ETA = "dl_eta"
-    const val KEY_ERROR = "dl_error"
+/** Extra fields Media3 does not model, serialized into `DownloadRequest.data`. */
+data class VideoDownloadMeta(
+    val itemJson: String,
+    val title: String,
+    val subtitle: String? = null,
+    val poster: String? = null,
+    val url: String,
+)
 
-    const val TAG = "video-download"
-    const val DL_TAG_PREFIX = "dl:"
-    const val NOTIFICATION_ID = 4801
-    const val CHANNEL_ID = "video_downloads"
-
-    fun dlTag(id: String) = "$DL_TAG_PREFIX$id"
-    fun workName(id: String) = "video-dl-$id"
-    fun idFromTags(tags: Set<String>): String? =
-        tags.firstOrNull { it.startsWith(DL_TAG_PREFIX) }?.removePrefix(DL_TAG_PREFIX)
-}
+/** Stable, collision-resistant download id from the item key + stream URL. */
+fun videoDownloadId(itemKey: String, url: String): String =
+    UUID.nameUUIDFromBytes("$itemKey|$url".toByteArray()).toString()
 
 /**
- * Owns the list of video downloads, their persisted index, and the WorkManager jobs that actually
- * move bytes. Live progress is read back from each job's [WorkInfo], so the UI always reflects the
- * worker even across process restarts.
+ * Wraps Media3's [DownloadManager]: enqueue/pause/resume/remove go through the framework (which
+ * handles progressive MP4, HLS — including alternate audio, byte-range and `#EXT-X-KEY` playlists —
+ * and DASH reliably), while this class maps [Download]s to a reactive [StateFlow] for the UI and
+ * derives download speed/ETA from successive progress callbacks.
  */
+@UnstableApi
 class VideoDownloadManager(private val context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val _downloads = MutableStateFlow<Map<String, VideoDownload>>(emptyMap())
-    val downloads: StateFlow<Map<String, VideoDownload>> = _downloads.asStateFlow()
+    private val _downloads = MutableStateFlow<List<VideoDownload>>(emptyList())
+    val downloads: StateFlow<List<VideoDownload>> = _downloads.asStateFlow()
 
-    private val workManager: WorkManager get() = WorkManager.getInstance(context)
+    private val items = LinkedHashMap<String, VideoDownload>()
+    private val lock = Any()
+    private val samples = HashMap<String, Pair<Long, Long>>() // id -> (bytes, timestampMs)
+
+    private val listener = object : DownloadManager.Listener {
+        override fun onInitialized(downloadManager: DownloadManager) = refresh()
+
+        override fun onDownloadChanged(
+            downloadManager: DownloadManager,
+            download: Download,
+            finalException: Exception?,
+        ) = onChanged(download)
+
+        override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+            synchronized(lock) { items.remove(download.request.id) }
+            publish()
+        }
+    }
 
     init {
-        runCatching { loadIndex() }
-        observeWork()
+        runCatching {
+            DownloadManagerProvider.downloadManager(context).addListener(listener)
+            refresh()
+        }
     }
 
     // ---- Public API ----------------------------------------------------------
 
-    /** Expected local media file for a download id (created once the job finishes). */
-    fun fileFor(id: String): File? {
-        val d = _downloads.value[id] ?: return null
-        return d.filePath?.let { File(it).takeIf { f -> f.exists() } }
-    }
-
-    /** A completed offline file for an item key, used to prefer local playback. */
-    fun localFileFor(itemKey: String): File? =
-        _downloads.value.values
-            .filter { it.itemKey == itemKey && it.status == VideoDownloadStatus.COMPLETED }
-            .mapNotNull { it.filePath?.let { p -> File(p).takeIf { f -> f.exists() } } }
-            .firstOrNull()
+    fun isDownloaded(itemKey: String): Boolean =
+        _downloads.value.any { it.itemKey == itemKey && it.status == VideoDownloadStatus.COMPLETED }
 
     fun enqueue(item: MediaItem, url: String, title: String, subtitle: String?, kind: VideoKind) {
-        val id = stableId(item.key, url)
-        val existing = _downloads.value[id]
-        if (existing?.status == VideoDownloadStatus.COMPLETED) return
-        val download = VideoDownload(
-            id = id,
-            itemKey = item.key,
+        val id = videoDownloadId(item.key, url)
+        // Ignore re-taps while a download is active/completed (Media3 rejects duplicate ids).
+        if (_downloads.value.any { it.id == id && it.status != VideoDownloadStatus.FAILED }) return
+
+        val meta = VideoDownloadMeta(
             itemJson = Http.gson.toJson(item),
-            url = url,
             title = title,
             subtitle = subtitle,
             poster = item.poster,
-            kind = kind,
-            status = VideoDownloadStatus.QUEUED,
-            filePath = expectedPath(id, kind).absolutePath,
+            url = url,
         )
-        _downloads.value = _downloads.value + (id to download)
-        saveIndex()
-        enqueueWork(download)
+        val builder = DownloadRequest.Builder(id, Uri.parse(url))
+            .setData(Http.gson.toJson(meta).toByteArray())
+        // Nudge Media3 to the HLS downloader; progressive streams are inferred from the URI.
+        if (kind == VideoKind.HLS) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+
+        runCatching {
+            DownloadService.sendAddDownload(
+                context,
+                NovaDownloadService::class.java,
+                builder.build(),
+                /* foreground = */ true,
+            )
+        }
     }
 
     fun pause(id: String) {
-        workManager.cancelUniqueWork(VideoDownloadContract.workName(id))
-        update(id) { it.copy(status = VideoDownloadStatus.PAUSED, speedBytesPerSec = 0L, etaSeconds = 0L) }
-        saveIndex()
+        runCatching { DownloadManagerProvider.downloadManager(context).setStopReason(id, STOP_REASON_PAUSED) }
     }
 
     fun resume(id: String) {
-        val d = _downloads.value[id] ?: return
-        update(id) { it.copy(status = VideoDownloadStatus.QUEUED, error = null) }
-        enqueueWork(d)
+        runCatching { DownloadManagerProvider.downloadManager(context).setStopReason(id, Download.STOP_REASON_NONE) }
     }
 
     fun delete(id: String) {
-        workManager.cancelUniqueWork(VideoDownloadContract.workName(id))
-        File(root(), id).deleteRecursively()
-        _downloads.value = _downloads.value - id
-        saveIndex()
+        runCatching {
+            DownloadService.sendRemoveDownload(context, NovaDownloadService::class.java, id, false)
+        }
+        synchronized(lock) { items.remove(id) }
+        publish()
     }
 
     // ---- Internals -----------------------------------------------------------
 
-    private fun enqueueWork(d: VideoDownload) {
-        val request = OneTimeWorkRequestBuilder<VideoDownloadWorker>()
-            .setInputData(
-                workDataOf(
-                    VideoDownloadContract.KEY_ID to d.id,
-                    VideoDownloadContract.KEY_URL to d.url,
-                    VideoDownloadContract.KEY_KIND to d.kind.name,
-                    VideoDownloadContract.KEY_TITLE to d.title,
-                )
-            )
-            .setConstraints(
-                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-            )
-            .addTag(VideoDownloadContract.TAG)
-            .addTag(VideoDownloadContract.dlTag(d.id))
-            .build()
-        workManager.enqueueUniqueWork(
-            VideoDownloadContract.workName(d.id),
-            ExistingWorkPolicy.REPLACE,
-            request,
-        )
-    }
-
-    private fun observeWork() {
+    private fun refresh() {
         scope.launch {
-            runCatching {
-                workManager.getWorkInfosByTagFlow(VideoDownloadContract.TAG).collect { infos ->
-                    infos.forEach { info -> applyWorkInfo(info) }
+            val list = runCatching {
+                val cursor = DownloadManagerProvider.downloadManager(context).downloadIndex.getDownloads()
+                cursor.use { c ->
+                    val out = ArrayList<VideoDownload>()
+                    while (c.moveToNext()) out.add(c.download.toUi(speed = 0L, eta = 0L))
+                    out
                 }
+            }.getOrDefault(emptyList())
+            synchronized(lock) {
+                items.clear()
+                list.forEach { items[it.id] = it }
             }
+            publish()
         }
     }
 
-    private fun applyWorkInfo(info: WorkInfo) {
-        val id = VideoDownloadContract.idFromTags(info.tags) ?: return
-        val current = _downloads.value[id] ?: return
-        val progressData = info.progress
-        val status = when (info.state) {
-            WorkInfo.State.RUNNING -> VideoDownloadStatus.DOWNLOADING
-            WorkInfo.State.SUCCEEDED -> VideoDownloadStatus.COMPLETED
-            WorkInfo.State.FAILED -> VideoDownloadStatus.FAILED
-            WorkInfo.State.CANCELLED -> VideoDownloadStatus.PAUSED
-            else -> VideoDownloadStatus.QUEUED
+    private fun onChanged(download: Download) {
+        val id = download.request.id
+        val now = System.currentTimeMillis()
+        val bytes = download.bytesDownloaded
+        val prev = samples[id]
+        val speed = if (prev != null && now > prev.second && download.state == Download.STATE_DOWNLOADING) {
+            ((bytes - prev.first) * 1000L / (now - prev.second)).coerceAtLeast(0L)
+        } else 0L
+        samples[id] = bytes to now
+        val eta = if (speed > 0 && download.contentLength > bytes) {
+            (download.contentLength - bytes) / speed
+        } else 0L
+
+        val ui = download.toUi(speed, eta)
+        synchronized(lock) { items[id] = ui }
+        publish()
+    }
+
+    private fun publish() {
+        _downloads.value = synchronized(lock) { items.values.sortedByDescending { it.updatedAt } }
+    }
+
+    private fun Download.toUi(speed: Long, eta: Long): VideoDownload {
+        val meta = request.data?.let {
+            runCatching { Http.gson.fromJson(String(it), VideoDownloadMeta::class.java) }.getOrNull()
         }
-        val updated = current.copy(
-            status = status,
-            progress = progressData.getInt(VideoDownloadContract.KEY_PROGRESS, (current.progress * 100).toInt()) / 100f,
-            bytes = progressData.getLong(VideoDownloadContract.KEY_BYTES, current.bytes),
-            totalBytes = progressData.getLong(VideoDownloadContract.KEY_TOTAL, current.totalBytes),
-            speedBytesPerSec = if (status == VideoDownloadStatus.DOWNLOADING) {
-                progressData.getLong(VideoDownloadContract.KEY_SPEED, current.speedBytesPerSec)
-            } else 0L,
-            etaSeconds = if (status == VideoDownloadStatus.DOWNLOADING) {
-                progressData.getLong(VideoDownloadContract.KEY_ETA, current.etaSeconds)
-            } else 0L,
-            error = if (status == VideoDownloadStatus.FAILED) {
-                info.outputData.getString(VideoDownloadContract.KEY_ERROR) ?: current.error
-            } else current.error,
-            updatedAt = System.currentTimeMillis(),
+        val itemKey = meta?.itemJson?.let {
+            runCatching { Http.gson.fromJson(it, MediaItem::class.java)?.key }.getOrNull()
+        } ?: request.id
+        return VideoDownload(
+            id = request.id,
+            itemKey = itemKey,
+            itemJson = meta?.itemJson ?: "",
+            url = request.uri.toString(),
+            title = meta?.title ?: (request.uri.lastPathSegment ?: "Download"),
+            subtitle = meta?.subtitle,
+            poster = meta?.poster,
+            status = statusOf(state),
+            progress = (percentDownloaded / 100f).coerceIn(0f, 1f),
+            bytes = bytesDownloaded,
+            totalBytes = contentLength,
+            speedBytesPerSec = speed,
+            etaSeconds = eta,
+            error = if (state == Download.STATE_FAILED) failureText(failureReason) else null,
+            updatedAt = updateTimeMs,
         )
-        _downloads.value = _downloads.value + (id to updated)
-        if (status == VideoDownloadStatus.COMPLETED || status == VideoDownloadStatus.FAILED) saveIndex()
     }
 
-    private fun update(id: String, transform: (VideoDownload) -> VideoDownload) {
-        val current = _downloads.value[id] ?: return
-        _downloads.value = _downloads.value + (id to transform(current))
+    private fun statusOf(state: Int): VideoDownloadStatus = when (state) {
+        Download.STATE_DOWNLOADING -> VideoDownloadStatus.DOWNLOADING
+        Download.STATE_COMPLETED -> VideoDownloadStatus.COMPLETED
+        Download.STATE_FAILED -> VideoDownloadStatus.FAILED
+        Download.STATE_STOPPED -> VideoDownloadStatus.PAUSED
+        else -> VideoDownloadStatus.QUEUED
     }
 
-    private fun expectedPath(id: String, kind: VideoKind): File {
-        val dir = File(root(), id).apply { mkdirs() }
-        return if (kind == VideoKind.HLS) File(dir, "local.m3u8") else File(dir, "video.mp4")
-    }
-
-    private fun root(): File = File(context.filesDir, "downloads/video").apply { mkdirs() }
-
-    private fun indexFile(): File = File(root(), "index.json")
-
-    private fun saveIndex() {
-        runCatching { indexFile().writeText(Http.gson.toJson(_downloads.value.values.toList())) }
-    }
-
-    private fun loadIndex() {
-        if (!indexFile().exists()) return
-        val list = runCatching {
-            Http.gson.fromJson(indexFile().readText(), Array<VideoDownload>::class.java)?.toList()
-        }.getOrNull() ?: return
-        // Anything mid-flight when the process died comes back paused; the worker job (if still
-        // alive) will immediately flip it back to RUNNING via the WorkInfo observer.
-        val normalized = list.map { d ->
-            if (d.status == VideoDownloadStatus.DOWNLOADING || d.status == VideoDownloadStatus.QUEUED) {
-                d.copy(status = VideoDownloadStatus.PAUSED)
-            } else d
-        }
-        _downloads.value = normalized.associateBy { it.id }
+    private fun failureText(reason: Int): String = when (reason) {
+        Download.FAILURE_REASON_UNKNOWN -> "Download failed"
+        else -> "Download failed ($reason)"
     }
 
     private companion object {
-        /** Stable, collision-resistant id from the item key + stream URL. */
-        fun stableId(itemKey: String, url: String): String =
-            UUID.nameUUIDFromBytes("$itemKey|$url".toByteArray()).toString()
+        /** Any non-zero stop reason pauses; Media3 reserves 0 for "not stopped". */
+        const val STOP_REASON_PAUSED = 1
     }
 }

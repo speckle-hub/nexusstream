@@ -49,9 +49,11 @@
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:theme="@style/Theme.NovaStream.Player" />
 
-        <receiver
-            android:name=".data.download.VideoDownloadActionReceiver"
-            android:exported="false" />
+        <!-- Media3 download service: foreground job that owns the offline download queue. -->
+        <service
+            android:name=".data.download.NovaDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
