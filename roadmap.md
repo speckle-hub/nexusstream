@@ -1,7 +1,7 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-01 (Phase 3).
+> resume exactly where it left off. Last updated: 2026-10-01 (Phase 4 wrap-up).
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
@@ -13,17 +13,19 @@
 Android streaming app (`com.novastream.app`) unifying Stremio add-ons, CloudStream extensions,
 Aniyomi and Mihon/Keiyoushi repos into one Compose UI. Kotlin + Jetpack Compose (M3), Media3
 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI (`di/AppContainer.kt`).
-~6,500 LOC across 42 Kotlin files in a single `:app` module. Unit tests (24 cases):
-`app/src/test/java/com/novastream/app/ParsersTest.kt` (9), `AdultSourcesTest.kt` (13) and
-`SearchCancellationTest.kt` (2).
+~6,600 LOC across 62 Kotlin files in a single `:app` module. Unit tests (30 cases):
+`app/src/test/java/com/novastream/app/ParsersTest.kt` (9), `AdultSourcesTest.kt` (13),
+`SearchCancellationTest.kt` (2), `PaletteCacheTest.kt` (3) and `MangaDownloadTest.kt` (3).
 
 ---
 
 ## 2. Current focus
 
-**Topic: Phase-3 device-report fixes (Home nav, Real 18+ speed, Continue Watching, Home carousel).**
+**Topic: Phase-4 wrap-up — Media3 offline downloads + bulk season download.**
 
-Status: **Phase 3 complete.** Build green (24 tests / 0 failures).
+Status: **Phase 4 complete.** Build green (30 tests / 0 failures). The naive WorkManager downloader
+was replaced by Media3 `DownloadManager`/`DownloadService` (see Phase 4 below), and `DetailScreen`
+gained a bulk "download season" action.
 
 ### Rename (display name only)
 `strings.xml` app label, the Home title and Settings "About" row, and the shared HTTP User-Agent
@@ -106,14 +108,23 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   `index.json` of ordered page filenames and a resumable `meta.json`. `MangaReaderActivity` is
   offline-first (renders local files when present) and has a download action; `LibraryScreen`
   lists chapters with progress, speed, pause/resume/delete.
-- **Native video downloader.** `data/download/VideoDownloadManager.kt` + `VideoDownloadWorker.kt`
-  download progressive MP4 (HTTP `Range` resume) and HLS (master→highest variant→segments rewritten
-  into a local `local.m3u8`) via WorkManager, with a foreground notification (progress, speed, ETA,
-  cancel action), persisted index, and reactive state read back from `WorkInfo`. `PlayerActivity`
-  prefers a completed local file; the Detail stream list has a per-stream download action; and
-  `LibraryScreen` adds a downloaded-videos section with offline playback. `HlsPlaylist.kt` holds the
-  pure playlist logic.
-- **Tests:** `PaletteCacheTest` (3), `MangaDownloadTest` (3), `HlsDownloadTest` (4) → **34 tests**.
+- **Native video downloader (Media3).** `data/download/DownloadManagerProvider.kt` owns one shared
+  `SimpleCache` (`files/downloads/media`, 4 GB LRU) + `StandaloneDatabaseProvider` + a Media3
+  `DownloadManager` (3 parallel downloads, `Requirements.NETWORK`). `NovaDownloadService` is a
+  foreground (`dataSync`) `DownloadService` that renders progress via `DownloadNotificationHelper`;
+  `VideoDownloadManager` enqueues progressive MP4 and HLS through `DownloadService.sendAddDownload`
+  (HLS hinted with `MimeTypes.APPLICATION_M3U8`, original item/URL stashed in `DownloadRequest.data`)
+  and maps `Download`s to a reactive `StateFlow<VideoDownload>` with status, %, bytes, speed, ETA and
+  pause/resume/delete (`setStopReason`). Media3's own downloaders handle alternate audio, byte-range
+  and `#EXT-X-KEY` playlists. `PlayerActivity` reads through the same `CacheDataSource`, so a
+  completed download plays offline automatically; the Detail stream list keeps a per-stream download
+  action; `LibraryScreen` has a downloaded-videos section with offline playback.
+- **Bulk "Download season" action.** Every season row on `DetailScreen` has a download button that
+  resolves each episode's streams (sequentially, to spare the add-ons) and queues the first playable
+  one — one tap to queue a whole season. The button swaps to a spinner while it resolves, and a toast
+  reports how many episodes were queued.
+- **Tests:** `PaletteCacheTest` (3), `MangaDownloadTest` (3) → **30 tests** (the naive-HLS
+  `HlsDownloadTest` was removed along with the WorkManager downloader it covered).
 
 ---
 
@@ -412,8 +423,11 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → 24 tests / 0 failures; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL; `dist/NovaStream.apk` refreshed. |
 | 2026-10-01 | **Phase 4a — Palette engine:** Coil+Palette swatch extraction, cached RGB values, animated artwork-tinted gradients/halos/CTA on the detail header and home hero. `PaletteCacheTest` (+3 → 27 tests). |
 | 2026-10-01 | **Phase 4b — Manga downloader:** `MangaDownloadManager`, offline-first reader, Library download list with pause/resume/delete. `MangaDownloadTest` (+3 → 30 tests). |
-| 2026-10-01 | **Phase 4c — Video downloader:** WorkManager progressive/HLS downloader with foreground notification (progress/speed/ETA/cancel), range resume, offline-first player, downloads UI. `HlsDownloadTest` (+4 → 34 tests). |
+| 2026-10-01 | **Phase 4c — Video downloader (initial):** WorkManager progressive/HLS downloader with foreground notification (progress/speed/ETA/cancel), range resume, offline-first player, downloads UI. `HlsDownloadTest` (+4 → 34 tests). |
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **34 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL. |
+| 2026-10-01 | **Phase 4 wrap-up — Media3 downloader:** replaced the naive WorkManager + HLS-segment-concatenation downloader with Media3 `DownloadManager`/`DownloadService` (`DownloadManagerProvider` shared `SimpleCache`+DB, `NovaDownloadService` foreground `dataSync` service, rewritten `VideoDownloadManager`); `PlayerActivity` reads through the shared `CacheDataSource`; deleted `VideoDownloadWorker`/`HlsPlaylist`/`HlsDownloadTest`. Handles alternate audio, byte-range and encrypted `#EXT-X-KEY` HLS. |
+| 2026-10-01 | **Phase 4 wrap-up — bulk season download:** per-season download button on `DetailScreen` resolves each episode's streams (sequentially) and queues the first playable one, with a resolving spinner and a queued-count toast. |
+| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL; `dist/NovaStream.apk` refreshed. |
 
 ---
 
@@ -428,7 +442,8 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 2. Run the device pass in step 1, then archive a release build: `./gradlew :app:assembleRelease`
    (signing now comes from `keystore.properties`).
 3. Test suites live in `app/src/test/java/com/novastream/app/` — `ParsersTest.kt` (9),
-   `AdultSourcesTest.kt` (13) and `SearchCancellationTest.kt` (2).
+   `AdultSourcesTest.kt` (13), `SearchCancellationTest.kt` (2), `PaletteCacheTest.kt` (3) and
+   `MangaDownloadTest.kt` (3).
    If more clients need coverage (MangaDex chapter filtering, AniList query building), extract the
    pure logic and add cases there.
 4. Optional later: flip `isMinifyEnabled = true`, smoke-test on a device, ship. Optional later:
@@ -452,10 +467,11 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
    Home carousel auto-slides, swipes, shows dots and opens the detail page from Play.
 10. **Re-test Phase 4 on a device:** detail/home artwork tints the gradient, halo and buttons;
     download a manga chapter, airplane-mode, open it from Library → renders from disk; download an
-    MP4 and an HLS stream → foreground notification shows progress/speed/ETA and Cancel, Library
-    plays them offline, and reopening a title with a download plays the local file. Note HLS
-    fragments are assembled fairly naively — verify a real provider's playlist (and encrypted
-    `#EXT-X-KEY` streams, which still need network for the key).
+    MP4 and an HLS stream via Media3 → the `dataSync` foreground notification shows progress and
+    Library plays them offline from the shared cache. Bump the 4 GB cache limit in
+    `DownloadManagerProvider` if long seasons ever hit it. On a season row, tap the download button
+    → all its episodes are queued in one go (a toast reports the count); encrypted `#EXT-X-KEY`
+    streams download fine but still need the key online at playback time.
 
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.
@@ -473,6 +489,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | **Extension engine trust model** | Loaded extensions run in-process with app privileges; this is **not** a security sandbox. Loading is restricted to app-private storage and failures are contained per extension. Only load user-installed, trusted extensions; a real sandbox would need a separate process + restricted classloader. |
 | 2026-10-01 | **Rename: display name only** | The app is NexusStream in the UI, but the Kotlin package and `applicationId` stay `com.novastream.app`, so the signing identity and in-place updates are preserved. Renaming the package later would change the app identity. |
 | 2026-09-30 | **Keep R8 minify OFF** (`isMinifyEnabled = false`) | Shrinking reflection/JNI paths (Gson models, Media3, jlibtorrent) fails only at runtime, and no device was available to verify. A larger APK is preferable to a release that might crash. `proguard-rules.pro` was expanded with the needed keeps, so enabling is a one-line change once a device smoke-test is possible. |
+| 2026-10-01 | **Use Media3 `DownloadManager`/`DownloadService` for video downloads** (replacing the hand-rolled WorkManager HLS downloader) | Complex HLS is hard to get right by hand: alternate audio renditions, byte-range segments and `#EXT-X-KEY` encryption all defeat a naive "download master → pick highest variant → concatenate segments" approach. Media3 ships a maintained HLS downloader that shares the playback demuxer, plus a persistent download index, requirement scheduling, a foreground service base class and notification helpers. Cost: an `@UnstableApi` surface and a single shared `SimpleCache` that the player must also read through (constructed once in `DownloadManagerProvider`). |
 
 ---
 
