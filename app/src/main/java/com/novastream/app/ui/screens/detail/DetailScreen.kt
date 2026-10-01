@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +85,7 @@ import com.novastream.app.ui.vm.DetailViewModel
 import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun DetailScreen(nav: NavHostController, item: MediaItem) {
@@ -109,6 +111,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
     val container = LocalContainer.current
     val external by container.settings.playerExternal.collectAsStateSafe()
     var torrentPreparing by remember { mutableStateOf(false) }
+    // Season currently being bulk-downloaded, or null when idle.
+    var seasonDownloading by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
 
     // Dynamic Material You theming: derive an accent from the artwork and animate to it.
     val palette = rememberPosterPalette(detail?.background ?: item.backdrop ?: item.poster)
@@ -134,6 +139,42 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
         val title = source.title ?: source.name ?: item.title
         container.videoDownloadManager.enqueue(item, url, title, selectedVideo?.title, kind)
         Toast.makeText(context, "Download started", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Bulk-download a whole season: resolve each episode's streams and queue the first directly
+     * playable one. Episodes are resolved sequentially so add-ons are not hammered all at once;
+     * the Media3 queue still downloads in parallel (see DownloadManagerProvider).
+     */
+    fun downloadSeason(season: Int) {
+        if (seasonDownloading != null) return
+        seasonDownloading = season
+        scope.launch {
+            val eps = runCatching { vm.loadSeasonEpisodes(season) }.getOrDefault(emptyList())
+            var queued = 0
+            for (ep in eps) {
+                val sources = runCatching { container.streamRepository.streamsFor(item, ep.id) }
+                    .getOrDefault(emptyList())
+                val url = sources.firstOrNull { it.playableUrl != null }?.playableUrl ?: continue
+                val kind = if (url.contains(".m3u8", ignoreCase = true)) VideoKind.HLS else VideoKind.PROGRESSIVE
+                val label = buildString {
+                    append(item.title)
+                    if (ep.season != null && ep.episode != null) append(" \u00b7 S${ep.season}E${ep.episode}")
+                }
+                container.videoDownloadManager.enqueue(item, url, label, ep.title, kind)
+                queued++
+            }
+            seasonDownloading = null
+            Toast.makeText(
+                context,
+                when {
+                    queued == 0 -> "No downloadable streams found for this season"
+                    queued == 1 -> "Queued 1 episode for download"
+                    else -> "Queued $queued episodes for download"
+                },
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
     }
 
     fun play(source: StreamSource) {
@@ -376,7 +417,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                         },
                         expanded = expanded,
                         loading = seasonLoading == s.season,
+                        downloading = seasonDownloading == s.season,
                         onClick = { vm.toggleSeason(s.season) },
+                        onDownload = { downloadSeason(s.season) },
                     )
                 }
                 if (expanded && eps.isNotEmpty()) {
@@ -649,7 +692,9 @@ private fun SeasonRow(
     subtitle: String,
     expanded: Boolean,
     loading: Boolean,
+    downloading: Boolean,
     onClick: () -> Unit,
+    onDownload: () -> Unit,
 ) {
     val nova = LocalNovaColors.current
     GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onClick) {
@@ -673,18 +718,24 @@ private fun SeasonRow(
                 Spacer(Modifier.height(2.dp))
                 Text(subtitle, style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
             }
-            if (loading) {
+            // Bulk "download season" action; swaps to a spinner while the season is being queued
+            // (loading its episode list from TMDB, or resolving each episode's streams).
+            if (loading || downloading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     color = nova.accent,
                     strokeWidth = 2.dp,
                 )
+                Spacer(Modifier.width(6.dp))
             } else {
-                Icon(
-                    if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    null, tint = nova.accent, modifier = Modifier.size(24.dp),
-                )
+                IconButton(onClick = onDownload) {
+                    Icon(Icons.Filled.Download, "Download season", tint = nova.textSecondary)
+                }
             }
+            Icon(
+                if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                null, tint = nova.accent, modifier = Modifier.size(24.dp),
+            )
         }
     }
 }
