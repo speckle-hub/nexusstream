@@ -40,6 +40,10 @@ class NovaApp : Application(), ImageLoaderFactory {
         appScope.launch {
             runCatching { container.addonRepository.ensureDefaults() }
         }
+        // Load any previously installed dynamic extensions.
+        appScope.launch {
+            runCatching { container.extensionRepository.reloadAll() }
+        }
         // Warm up the in-app torrent engine so Real 18+ / P2P streams play instantly.
         TorrentStreamer.warmUp(this)
         registerNsfwAutoLock()
