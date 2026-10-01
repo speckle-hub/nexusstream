@@ -2,6 +2,7 @@ package com.novastream.app.data.repo
 
 import com.novastream.app.data.local.AddonStore
 import com.novastream.app.data.model.Addon
+import com.novastream.app.data.model.AddonKind
 import com.novastream.app.data.model.CloudStreamExt
 import com.novastream.app.data.model.MangaExt
 import com.novastream.app.data.model.RemoteRepo
@@ -139,6 +140,26 @@ class AddonRepository(private val store: AddonStore) {
         val list = store.mangaInstalled.first().toMutableList()
         list.removeAll { it.pkg == pkg }
         store.saveMangaExt(list)
+    }
+
+    /**
+     * Refresh every configured provider repository and warm the on-disk cache. Returns the number
+     * of repositories that returned a non-empty catalogue. Used by the background worker and the
+     * Add-on Manager's manual sync.
+     */
+    suspend fun syncAllRepos(): Int {
+        val repositories = store.repos.first()
+        var synced = 0
+        for (repo in repositories) {
+            val catalogue = when (repo.kind) {
+                AddonKind.CLOUDSTREAM -> fetchCloudStream(repo.url)
+                AddonKind.ANIYOMI -> fetchAniyomi(repo.url)
+                AddonKind.KEIYOUSHI -> fetchKeiyoushi(repo.url)
+                AddonKind.STREMIO -> emptyList()
+            }
+            if (catalogue.isNotEmpty()) synced++
+        }
+        return synced
     }
 
     /** All enabled Stremio addons that declare a given resource. */

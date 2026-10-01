@@ -8,7 +8,7 @@ import com.novastream.app.data.model.MangaSource
 object AniyomiRepo {
 
     suspend fun fetch(repoUrl: String): List<MangaExt> {
-        val root = parseJson(httpGet(repoUrl))
+        val root = parseJson(httpGetCached(repoUrl))
         val arr = when {
             root.isJsonArray -> root.asJsonArray
             root.isJsonObject -> root.asJsonObject.getAsJsonArray("extensions")
