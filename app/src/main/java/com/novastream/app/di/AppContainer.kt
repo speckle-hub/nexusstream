@@ -1,6 +1,8 @@
 package com.novastream.app.di
 
 import android.content.Context
+import com.novastream.app.data.ext.ExtensionRepository
+import com.novastream.app.data.ext.ExtensionStore
 import com.novastream.app.data.local.AddonStore
 import com.novastream.app.data.local.LibraryStore
 import com.novastream.app.data.local.MetadataCache
@@ -16,6 +18,10 @@ class AppContainer(context: Context) {
     val addonStore = AddonStore(context)
     val libraryStore = LibraryStore(context)
     val cache = MetadataCache(context)
+
+    // Dynamic extension execution engine (DEX/APK loading, sandboxed to app-private storage).
+    val extensionStore = ExtensionStore(context)
+    val extensionRepository = ExtensionRepository(extensionStore, context)
 
     val addonRepository = AddonRepository(addonStore)
     val catalogRepository = CatalogRepository(addonRepository, settings)
