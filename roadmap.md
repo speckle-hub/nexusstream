@@ -94,6 +94,27 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   title, rating/year/genres, a 2-line description and a Play button, plus animated dot indicators.
   Auto-advance every 5 s pauses while the user is dragging. `ui/screens/home/HomeScreen.kt`.
 
+### Phase 4 — dynamic theming + offline downloads (complete)
+- **Dynamic poster palette (Material You style).** `ui/theme/PosterPalette.kt` derives
+  vibrant/dark-vibrant/muted/dominant swatches from artwork via Coil + the Palette API, caches the
+  RGB values in the shared metadata cache (30-day TTL), and exposes `rememberPosterPalette`. The
+  detail header and home hero use `animateColorAsState` for artwork-tinted gradient scrims, an
+  ambient radial halo, the FEATURED label and the primary CTA tint.
+- **Offline manga chapter downloader.** `data/download/MangaDownloadManager.kt` queues chapter
+  images into `files/downloads/manga/{mangaId}/{chapterId}/` with a reactive
+  `StateFlow<Map<String, MangaDownload>>` (queued/downloading/paused/completed/failed), an
+  `index.json` of ordered page filenames and a resumable `meta.json`. `MangaReaderActivity` is
+  offline-first (renders local files when present) and has a download action; `LibraryScreen`
+  lists chapters with progress, speed, pause/resume/delete.
+- **Native video downloader.** `data/download/VideoDownloadManager.kt` + `VideoDownloadWorker.kt`
+  download progressive MP4 (HTTP `Range` resume) and HLS (master→highest variant→segments rewritten
+  into a local `local.m3u8`) via WorkManager, with a foreground notification (progress, speed, ETA,
+  cancel action), persisted index, and reactive state read back from `WorkInfo`. `PlayerActivity`
+  prefers a completed local file; the Detail stream list has a per-stream download action; and
+  `LibraryScreen` adds a downloaded-videos section with offline playback. `HlsPlaylist.kt` holds the
+  pure playlist logic.
+- **Tests:** `PaletteCacheTest` (3), `MangaDownloadTest` (3), `HlsDownloadTest` (4) → **34 tests**.
+
 ---
 
 ## 2a. Search reliability (whole app + Real 18+)
@@ -389,6 +410,10 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | **Audit fixes (High):** biometric unlock (MainActivity → `FragmentActivity`); manga reader Retry (`loadAttempt` key); `cacheMeta` toggle wired to `Http.cacheEnabled`; TMDB `include_adult=false`; NSFW lock screen always offers a PIN path. |
 | 2026-10-01 | **Audit fixes (Medium/Low):** `TorrentStreamer` de-dupes its listener; `MetadataCache` uses SHA-256 keys + 64 MB eviction; network config drops the user-CA trust anchor; `keystore/novastream.jks` untracked (`git rm --cached`, gitignored); About reads `BuildConfig.VERSION_NAME`; manga reader defaults to RTL; NSFW search flags split per section. |
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → 24 tests / 0 failures; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL; `dist/NovaStream.apk` refreshed. |
+| 2026-10-01 | **Phase 4a — Palette engine:** Coil+Palette swatch extraction, cached RGB values, animated artwork-tinted gradients/halos/CTA on the detail header and home hero. `PaletteCacheTest` (+3 → 27 tests). |
+| 2026-10-01 | **Phase 4b — Manga downloader:** `MangaDownloadManager`, offline-first reader, Library download list with pause/resume/delete. `MangaDownloadTest` (+3 → 30 tests). |
+| 2026-10-01 | **Phase 4c — Video downloader:** WorkManager progressive/HLS downloader with foreground notification (progress/speed/ETA/cancel), range resume, offline-first player, downloads UI. `HlsDownloadTest` (+4 → 34 tests). |
+| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **34 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL. |
 
 ---
 
@@ -425,6 +450,12 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
    (no bounce); Real 18+ paints rows as sources land and re-enters instantly; play something, back
    out, kill and reopen → it appears under Continue Watching and resumes at the saved spot; the
    Home carousel auto-slides, swipes, shows dots and opens the detail page from Play.
+10. **Re-test Phase 4 on a device:** detail/home artwork tints the gradient, halo and buttons;
+    download a manga chapter, airplane-mode, open it from Library → renders from disk; download an
+    MP4 and an HLS stream → foreground notification shows progress/speed/ETA and Cancel, Library
+    plays them offline, and reopening a title with a download plays the local file. Note HLS
+    fragments are assembled fairly naively — verify a real provider's playlist (and encrypted
+    `#EXT-X-KEY` streams, which still need network for the key).
 
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.
