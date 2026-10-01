@@ -12,7 +12,7 @@ object CloudStreamRepo {
      * provider array lives one hop away. Inline `extensions` / `data` / `plugins` arrays also work.
      */
     suspend fun fetch(repoUrl: String): List<CloudStreamExt> {
-        val root = runCatching { parseJson(httpGet(repoUrl)) }.getOrNull() ?: return emptyList()
+        val root = runCatching { parseJson(httpGetCached(repoUrl)) }.getOrNull() ?: return emptyList()
         val out = ArrayList<CloudStreamExt>()
 
         fun addArray(el: com.google.gson.JsonElement?) {
@@ -31,7 +31,7 @@ object CloudStreamRepo {
                 // Manifest repos point at plugin-list URLs; fetch each and parse its array.
                 o.getAsJsonArray("pluginLists")?.forEach { el ->
                     val url = el.takeIf { it.isJsonPrimitive }?.asString
-                    if (!url.isNullOrBlank() && url != repoUrl) addArray(runCatching { parseJson(httpGet(url)) }.getOrNull())
+                    if (!url.isNullOrBlank() && url != repoUrl) addArray(runCatching { parseJson(httpGetCached(url)) }.getOrNull())
                 }
             }
         }

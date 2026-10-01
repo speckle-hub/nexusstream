@@ -514,6 +514,17 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
     fun updateAll() { viewModelScope.launch { container.addonRepository.updateAll(); message.value = "All addons updated" } }
+
+    /** Refresh every extension repository index into the cache (background worker + manual sync). */
+    fun syncRepos() {
+        viewModelScope.launch {
+            busy.value = true
+            val synced = runCatching { container.addonRepository.syncAllRepos() }.getOrDefault(0)
+            message.value = "Synced $synced repositories"
+            busy.value = false
+        }
+    }
+
     fun addRepo(repo: RemoteRepo) { viewModelScope.launch { container.addonRepository.addRepo(repo) } }
     fun removeRepo(url: String) { viewModelScope.launch { container.addonRepository.removeRepo(url) } }
 

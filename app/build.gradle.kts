@@ -122,6 +122,7 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")

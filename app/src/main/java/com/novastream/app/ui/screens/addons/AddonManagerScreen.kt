@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Icon
@@ -76,6 +77,7 @@ fun AddonManagerScreen(nav: NavHostController) {
         Row(Modifier.fillMaxWidth().padding(top = 40.dp, start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.Filled.ArrowBack, "Back", tint = nova.textPrimary) }
             Text("Add-on Manager", style = MaterialTheme.typography.headlineSmall, color = nova.textPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            IconButton(onClick = { vm.syncRepos() }) { Icon(Icons.Filled.Sync, "Sync repositories", tint = nova.accent) }
             IconButton(onClick = { vm.updateAll() }) { Icon(Icons.Filled.Refresh, "Update all", tint = nova.accent) }
         }
         ScrollableTabRow(selectedTabIndex = tab, containerColor = nova.background, contentColor = nova.accent, edgePadding = 12.dp) {

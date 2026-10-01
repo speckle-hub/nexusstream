@@ -3,12 +3,18 @@ package com.novastream.app
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.novastream.app.data.remote.Http
 import com.novastream.app.data.remote.TorrentStreamer
+import com.novastream.app.data.sync.RepoSyncWorker
 import com.novastream.app.di.AppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +43,25 @@ class NovaApp : Application(), ImageLoaderFactory {
         // Warm up the in-app torrent engine so Real 18+ / P2P streams play instantly.
         TorrentStreamer.warmUp(this)
         registerNsfwAutoLock()
+        scheduleRepoSync()
+    }
+
+    /** Enqueue the periodic extension-repository index refresh (network-constrained, 12 h). */
+    private fun scheduleRepoSync() {
+        val request = PeriodicWorkRequestBuilder<RepoSyncWorker>(12, java.util.concurrent.TimeUnit.HOURS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        runCatching {
+            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                RepoSyncWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request,
+            )
+        }
     }
 
     /**
