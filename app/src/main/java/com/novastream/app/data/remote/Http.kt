@@ -1,0 +1,158 @@
+package com.novastream.app.data.remote
+
+import com.google.gson.Gson
+import com.google.gson.JsonElement
+import com.google.gson.JsonParser
+import com.novastream.app.data.local.MetadataCache
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import java.util.concurrent.TimeUnit
+
+/**
+ * Retries idempotent (GET) requests that hit a rate limit, honouring `Retry-After` when present.
+ * MangaDex (especially the at-home image server) is aggressive with 429s, so this keeps chapter
+ * and catalogue loads reliable without a separate throttle on every call site.
+ */
+private object RetryOn429Interceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        if (request.method != "GET") return chain.proceed(request)
+        var response = chain.proceed(request)
+        var attempt = 0
+        while (response.code == 429 && attempt < 3) {
+            val retryAfterMs = response.header("Retry-After")?.trim()?.toLongOrNull()?.times(1000)
+            response.close()
+            val waitMs = (retryAfterMs ?: (500L shl attempt)).coerceIn(250L, 5000L)
+            Thread.sleep(waitMs)
+            attempt++
+            response = chain.proceed(request)
+        }
+        return response
+    }
+}
+
+/** Shared HTTP layer used by every remote client. */
+object Http {
+    val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .retryOnConnectionFailure(true)
+        .addInterceptor(RetryOn429Interceptor)
+        .build()
+
+    val gson: Gson = Gson()
+
+    /**
+     * On-disk metadata cache, wired up from the Application. When null (e.g. unit tests) the
+     * cached helpers below simply fall through to the network.
+     */
+    @Volatile
+    var cache: MetadataCache? = null
+}
+
+/** Freshness window for cached metadata responses (TMDB / AniList / MangaDex). */
+const val METADATA_TTL_MS = 6L * 60 * 60 * 1000
+
+/**
+ * GET with the shared on-disk cache in front of the network: a fresh cached body is returned
+ * without any request, otherwise the response is stored (6 h by default).
+ */
+suspend fun httpGetCached(
+    url: String,
+    headers: Map<String, String> = emptyMap(),
+    maxAgeMs: Long = METADATA_TTL_MS,
+): String {
+    Http.cache?.get(url, maxAgeMs)?.let { return it }
+    val body = httpGet(url, headers)
+    Http.cache?.put(url, body)
+    return body
+}
+
+/** POST variant of [httpGetCached], keyed on the URL + request body (used by AniList GraphQL). */
+suspend fun httpPostJsonCached(
+    url: String,
+    body: String,
+    maxAgeMs: Long = METADATA_TTL_MS,
+): String {
+    val key = "POST:$url:${body.hashCode()}"
+    Http.cache?.get(key, maxAgeMs)?.let { return it }
+    val resp = httpPostJson(url, body)
+    Http.cache?.put(key, resp)
+    return resp
+}
+
+/** Default browser-like user agent so addons / APIs behave. */
+const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 NexusStream/1.0"
+
+suspend fun httpGet(
+    url: String,
+    headers: Map<String, String> = emptyMap(),
+): String = withContext(Dispatchers.IO) {
+    val builder = Request.Builder().url(url).get()
+        .header("User-Agent", UA)
+        .header("Accept", "application/json, text/plain, */*")
+    headers.forEach { (k, v) -> builder.header(k, v) }
+    Http.client.newCall(builder.build()).execute().use { resp: Response ->
+        if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
+        resp.body?.string() ?: ""
+    }
+}
+
+suspend fun httpGetBytes(
+    url: String,
+    headers: Map<String, String> = emptyMap(),
+): ByteArray = withContext(Dispatchers.IO) {
+    val builder = Request.Builder().url(url).get().header("User-Agent", UA)
+    headers.forEach { (k, v) -> builder.header(k, v) }
+    Http.client.newCall(builder.build()).execute().use { resp: Response ->
+        if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
+        resp.body?.bytes() ?: ByteArray(0)
+    }
+}
+
+suspend fun httpPostJson(
+    url: String,
+    body: String,
+    headers: Map<String, String> = emptyMap(),
+): String = withContext(Dispatchers.IO) {
+    val builder = Request.Builder().url(url)
+        .post(okhttp3.RequestBody.create("application/json; charset=utf-8".toMediaType(), body))
+        .header("User-Agent", UA)
+        .header("Content-Type", "application/json")
+    headers.forEach { (k, v) -> builder.header(k, v) }
+    Http.client.newCall(builder.build()).execute().use { resp: Response ->
+        if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
+        resp.body?.string() ?: ""
+    }
+}
+
+/**
+ * Transparently inflate gzip-compressed payloads.
+ *
+ * Some upstreams serve a *gzipped file* rather than a `Content-Encoding: gzip` response (GitHub
+ * raw does this for the Keiyoushi `index.pb`), which OkHttp will not auto-decode for us.
+ */
+fun maybeGunzip(data: ByteArray): ByteArray {
+    if (data.size < 2 || data[0] != 0x1f.toByte() || data[1] != 0x8b.toByte()) return data
+    return try {
+        java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(data)).use { it.readBytes() }
+    } catch (e: Exception) {
+        data
+    }
+}
+
+fun parseJson(text: String): JsonElement = JsonParser.parseString(text)
+
+fun JsonElement?.str(name: String): String? =
+    this?.takeIf { it.isJsonObject }?.asJsonObject?.get(name)?.takeIf { !it.isJsonNull }?.asString
+
+fun JsonElement?.obj(name: String): JsonElement? =
+    this?.takeIf { it.isJsonObject }?.asJsonObject?.get(name)

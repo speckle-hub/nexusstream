@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ns_background">#FF0A0A0F</color>
+    <color name="ns_surface">#FF12121A</color>
+    <color name="ns_accent">#FF7C5CFF</color>
+    <color name="ic_launcher_background">#FF0A0A0F</color>
+</resources>
