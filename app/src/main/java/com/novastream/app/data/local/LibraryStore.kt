@@ -41,12 +41,28 @@ class LibraryStore(private val context: Context) {
     suspend fun isFavorite(key: String): Boolean =
         favorites.first().any { it.key == key }
 
+    /** Remove a single favourite by key. A no-op when it is not in the list (never re-adds). */
+    suspend fun removeFavorite(key: String) {
+        context.dataStore.edit { prefs ->
+            val list = decode<MediaItem>(prefs[K_FAV]).filterNot { it.key == key }
+            prefs[K_FAV] = Http.gson.toJson(list)
+        }
+    }
+
     suspend fun recordWatch(entry: WatchEntry) {
         context.dataStore.edit { prefs ->
             val list = decode<WatchEntry>(prefs[K_HISTORY]).toMutableList()
             list.removeAll { it.item.key == entry.item.key }
             list.add(0, entry)
             prefs[K_HISTORY] = Http.gson.toJson(list.take(100))
+        }
+    }
+
+    /** Drop one continue-watching entry by its title key, clearing the saved playback progress. */
+    suspend fun removeWatch(key: String) {
+        context.dataStore.edit { prefs ->
+            val list = decode<WatchEntry>(prefs[K_HISTORY]).filterNot { it.item.key == key }
+            prefs[K_HISTORY] = Http.gson.toJson(list)
         }
     }
 
