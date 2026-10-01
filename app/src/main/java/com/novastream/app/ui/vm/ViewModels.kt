@@ -379,15 +379,27 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
         expandedSeason.value = season
         if (!tmdbDrivenSeasons.value) return
         if (seasonEpisodes.value.containsKey(season)) return
-        val tmdbId = tmdbSeriesId ?: return
+        if (tmdbSeriesId == null) return
         viewModelScope.launch {
             seasonLoading.value = season
-            val imdb = detail.value?.id?.takeIf { it.startsWith("tt") }
-            val eps = runCatching { TmdbClient.seasonEpisodes(tmdbId, season, imdb) }
-                .getOrDefault(emptyList())
-            seasonEpisodes.value = seasonEpisodes.value + (season to eps)
+            loadSeasonEpisodes(season)
             if (seasonLoading.value == season) seasonLoading.value = null
         }
+    }
+
+    /**
+     * Episodes for a season, lazily fetched from TMDB when the season hasn't been expanded yet.
+     * Also used by the bulk "download season" action, which must not depend on UI state.
+     */
+    suspend fun loadSeasonEpisodes(season: Int): List<Video> {
+        seasonEpisodes.value[season]?.takeIf { it.isNotEmpty() }?.let { return it }
+        if (!tmdbDrivenSeasons.value) return seasonEpisodes.value[season].orEmpty()
+        val tmdbId = tmdbSeriesId ?: return emptyList()
+        val imdb = detail.value?.id?.takeIf { it.startsWith("tt") }
+        val eps = runCatching { TmdbClient.seasonEpisodes(tmdbId, season, imdb) }
+            .getOrDefault(emptyList())
+        if (eps.isNotEmpty()) seasonEpisodes.value = seasonEpisodes.value + (season to eps)
+        return eps
     }
 
     fun retry() { load() }
