@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -21,7 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -42,13 +43,19 @@ import com.novastream.app.ui.vm.novaViewModel
 fun SearchScreen(nav: NavHostController, initialQuery: String = "") {
     val vm = novaViewModel { SearchViewModel(it) }
     val nova = LocalNovaColors.current
-    var query by remember { mutableStateOf(initialQuery) }
-    androidx.compose.runtime.LaunchedEffect(initialQuery) {
-        if (initialQuery.isNotBlank()) vm.search(initialQuery)
-    }
+    // Saved across tab switches/process death so returning to Search keeps the term + results.
+    var query by rememberSaveable { mutableStateOf(initialQuery) }
     val results by vm.results.collectAsStateSafe()
     val loading by vm.loading.collectAsStateSafe()
     val section by vm.section.collectAsStateSafe()
+
+    // Only kick off the initial search when we don't already have results (e.g. restoring the
+    // tab) — re-running it would clear the visible list and flash a loading state.
+    androidx.compose.runtime.LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank() && results.isEmpty()) vm.search(initialQuery)
+    }
+
+    val resultsListState = rememberLazyListState()
 
     val filters = listOf(
         null to "All",
@@ -87,6 +94,7 @@ fun SearchScreen(nav: NavHostController, initialQuery: String = "") {
             }
         }
         LazyColumn(
+            state = resultsListState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -83,8 +84,12 @@ fun LibraryScreen(nav: NavHostController) {
     // Title awaiting confirmation before it is dropped from Favourites / Continue Watching.
     var pendingRemoval by remember { mutableStateOf<PendingRemoval?>(null) }
 
+    // Keeps the Library scroll position when returning from another tab or a detail screen.
+    val listState = rememberLazyListState()
+
     Box(Modifier.fillMaxSize()) {
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp),
     ) {

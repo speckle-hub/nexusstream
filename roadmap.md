@@ -1,7 +1,7 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-01 (Phase 4 wrap-up + library removals).
+> resume exactly where it left off. Last updated: 2026-10-01 (Phase 6 — UX/UI pass).
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
@@ -21,12 +21,12 @@ ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI (`di/AppContainer.kt
 
 ## 2. Current focus
 
-**Topic: Phase 5 — library management (remove from Favourites / Continue Watching).**
+**Topic: Phase 6 — UX/UI pass (hero carousel, player timeline/gestures, nav state).**
 
-Status: **Phase 5 complete.** Build green (30 tests / 0 failures). Both curated lists are now
-editable: Favourites and Continue Watching can be removed from the Library grid, and Continue
-Watching can be removed straight from the Home row. No APK has been rebuilt yet — a device pass
-(§7) is still pending for this phase.
+Status: **Phase 6 complete.** Build green (30 tests / 0 failures). The Home hero is now a
+full-bleed centered carousel; the player got a live timeline ticker, smooth scrubbing and
+brightness/volume/seek gesture HUDs; tab navigation keeps its scroll position and search state.
+No APK has been rebuilt yet — a device pass (§7 items 11–12) is still pending for this phase.
 
 ### Rename (display name only)
 `strings.xml` app label, the Home title and Settings "About" row, and the shared HTTP User-Agent
@@ -144,6 +144,43 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   `onRemove` parameters (default `null` → no change for existing call sites), and
   `ui/components/Components.kt` gained a shared `ConfirmRemoveDialog` so both remove paths are
   worded identically and always require a deliberate second tap.
+
+### Phase 6 — UX/UI pass (complete)
+- **Full-bleed hero carousel (Home).** `FeaturedCarousel` now runs edge-to-edge (zero
+  `contentPadding`/`pageSpacing`) with the dots overlaid inside the artwork at `BottomCenter`.
+  `HeroSlide` was rewritten: height derives from the screen width (`w / 0.84`, clamped 400–540 dp),
+  a radial artwork-tinted halo, top+bottom vertical scrims that dissolve into `nova.background`,
+  and a center-aligned stack (FEATURED label → title → `Type • Genre • Year • rating` via the new
+  `heroMeta()` helper → 2-line description → white pill **Play** button). The old boxed,
+  left-aligned, rounded-corner `HeroSlide` was deleted.
+- **Player timeline ticker.** `PlayerScreen` now owns `position`/`duration`/`isPlaying` state
+  driven by a 250 ms `LaunchedEffect` loop plus an `onIsPlayingChanged` listener, so the
+  timestamps, slider track and center play/pause icon update continuously instead of only when
+  something else happened to recompose (they previously read `player.currentPosition` once per
+  composition). ±10 s buttons also write `position` immediately for a snappy label.
+- **Smooth scrubbing.** The bottom slider no longer seeks on every `onValueChange` (one
+  `seekTo` per pixel = decoder thrash). Dragging only moves the thumb (`scrubbing`/`scrubValue`,
+  ticker holds while true); `onValueChangeFinished` fires exactly one `seekTo` and hands control
+  back to the ticker. The left timestamp follows the thumb while scrubbing.
+- **Gesture HUDs (brightness / volume / seek).** The old centered `gestureHint` label was replaced
+  by a real overlay rendered above the controls: brightness shows a vertical level bar on the
+  left, volume a mirrored bar on the right (icon + live %), seek a center pill with
+  position/duration. `onGestures` now *returns* the normalized level (`adjustBrightness` /
+  `adjustVolume` return 0..1; a zero-delta call is a pure read used to seed the HUD on drag
+  start). New `onGestureEnd` → `endGesture()` flushes the last seek and resets the volume
+  accumulator. The HUD auto-hides ~1.4 s after the finger lifts (1400 ms job + fade).
+- **Gesture seek throttling.** Horizontal drags accumulate into `pendingSeekMs` and flush at most
+  every 300 ms (`SEEK_FLUSH_MS`, `SEEK_PX_TO_MS = 300f`), with a final exact flush on release —
+  seeking once per frame tore the decoder down repeatedly and made scrubbing stutter. Volume now
+  accumulates fractional drag and commits whole steps (`VOLUME_STEP = 0.15f`) instead of one step
+  per frame, and `adjustVolume`/`gestureSeek`/`flushSeek`/`seekProgress` replaced `seekBy`.
+- **Nav state preservation.** `SearchScreen`'s query is now `rememberSaveable` (survives tab
+  switches and process death) and its `LaunchedEffect(initialQuery)` only re-searches when
+  `results.isEmpty()`, so returning to the tab no longer clears the visible list; Home, Library
+  and Search lists use `rememberLazyListState()` so scroll position is restored when switching
+  tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
+  app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
+  ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
 
 ---
 
@@ -449,6 +486,11 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL; `dist/NovaStream.apk` refreshed. |
 | 2026-10-01 | **Phase 5 — library removals:** Favourites and Continue Watching are now editable. `×` badge + long-press → shared `ConfirmRemoveDialog` on both Library grids and on the Home Continue Watching row; `LibraryStore.removeFavorite(key)` / `removeWatch(key)` are non-toggling single-item removals (clears saved watch progress); `HomeViewModel.removeContinueWatching`, `LibraryViewModel.removeFavorite`/`removeWatch`; `PosterCard` gained optional `onLongClick`/`onRemove`. Detail heart button unchanged (un-favourites as before). |
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures** ✅. APK **not** rebuilt this session — device pass (§7) still pending. |
+| 2026-10-01 | **Phase 6 — Home hero:** `FeaturedCarousel` goes full-bleed (0 content padding, dots overlaid BottomCenter); `HeroSlide` rewritten full-bleed with screen-width-derived height (400–540 dp clamp), radial artwork glow, top/bottom scrims and a center-aligned content stack (title, `Type • Genre • Year • rating`, description, white Play pill); old boxed `HeroSlide` deleted. |
+| 2026-10-01 | **Phase 6 — player timeline:** `PlayerScreen` gained `position`/`duration`/`isPlaying` state with a 250 ms ticker + `onIsPlayingChanged` listener; slider now uses `onValueChange`/`onValueChangeFinished` (one seek on release, thumb-follows-finger while scrubbing) instead of seeking per pixel. |
+| 2026-10-01 | **Phase 6 — gesture HUD + smooth seek:** brightness/volume/seek show an animated HUD (vertical level bars on the edges, seek pill in the center) that fades 1.4 s after release; `onGestures` returns the level, new `onGestureEnd`; horizontal seeks are batched and flushed every 300 ms (`SEEK_FLUSH_MS`) plus once on release (removes the stutter from one `seekTo` per frame); volume commits whole steps (`VOLUME_STEP`) from a fractional accumulator. |
+| 2026-10-01 | **Phase 6 — nav state:** `SearchScreen` query → `rememberSaveable` with a re-search guard (`results.isEmpty()`), so returning to the tab keeps term + results; Home/Library/Search use `rememberLazyListState()`. Confirmed no `FLAG_ACTIVITY_*`/launch-mode flags exist to strip. |
+| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures** ✅. APK **not** rebuilt this session — device pass (§7) still pending. |
 
 ---
 
@@ -500,6 +542,12 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
     vanishes and its progress is cleared (re-watching starts from the beginning, not the old
     position); the Detail heart still toggles "Add to Library" ↔ "In Library"; a Cancel tap must
     not remove anything.
+12. **Re-test Phase 6 on a device:** Home hero fills the screen width (no card gutter), dots sit
+    on the artwork and each slide shows title/meta/description/Play; player timestamps + slider
+    track move live during playback, dragging the slider doesn't stutter and seeks once on
+    release; left-edge drag → brightness bar + %, right-edge drag → volume bar + %, horizontal
+    drag → seek pill, each fading ~1.4 s after release; switch Home → Search → back → scroll
+    position and search term/results are both still there.
 
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.
