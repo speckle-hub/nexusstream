@@ -1,9 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!--
+      Add-ons and provider sites are user-supplied and a few still serve plain http, so cleartext
+      is allowed for them. Only system CAs are trusted: trusting user-installed CAs would let any
+      user-added certificate intercept all app traffic (API keys, cookies, add-on manifests).
+    -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
 </network-security-config>

@@ -18,11 +18,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,11 +51,13 @@ fun NsfwLockScreen(
     storedPinHash: String?,
     biometricEnabled: Boolean,
     onUnlocked: () -> Unit,
+    onSetPin: (String) -> Unit,
 ) {
     val nova = LocalNovaColors.current
     val context = LocalContext.current
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var showSetPin by remember { mutableStateOf(false) }
 
     fun tryBiometric() {
         val activity = context as? FragmentActivity ?: return
@@ -116,6 +120,20 @@ fun NsfwLockScreen(
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Unlock") }
+            } else {
+                // Lock is on but no PIN exists yet — never strand the user. Let them set one here.
+                Text(
+                    "No PIN is set yet. Set one to unlock.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = nova.textSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = { showSetPin = true },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Set PIN & unlock") }
             }
 
             if (biometricEnabled) {
@@ -137,4 +155,32 @@ fun NsfwLockScreen(
             }
         }
     }
+
+    if (showSetPin) {
+        SetPinDialog(
+            onDismiss = { showSetPin = false },
+            onSave = { newPin -> showSetPin = false; onSetPin(newPin) },
+        )
+    }
+}
+
+@Composable
+private fun SetPinDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var pin by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set NSFW PIN") },
+        text = {
+            OutlinedTextField(
+                value = pin,
+                onValueChange = { pin = it.filter { c -> c.isDigit() }.take(8) },
+                label = { Text("PIN (4\u20138 digits)") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            )
+        },
+        confirmButton = { TextButton(onClick = { if (pin.length >= 4) onSave(pin) }) { Text("Save & unlock") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

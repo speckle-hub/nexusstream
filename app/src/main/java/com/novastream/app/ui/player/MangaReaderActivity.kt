@@ -120,9 +120,11 @@ private fun ReaderScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var dim by remember { mutableStateOf(0f) }
-    var mode by remember { mutableStateOf(ReadingMode.LTR) }
+    var mode by remember { mutableStateOf(ReadingMode.RTL) }
+    // Bumped by the Retry button so the load effect actually re-runs for the same chapter.
+    var loadAttempt by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(chapterId) {
+    LaunchedEffect(chapterId, loadAttempt) {
         loading = true
         error = null
         val res = withContext(Dispatchers.IO) {
@@ -142,7 +144,7 @@ private fun ReaderScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(error!!, color = Color.White)
                     Spacer(Modifier.height(12.dp))
-                    Button(onClick = { pages = emptyList(); loading = true; error = null }) { Text("Retry") }
+                    Button(onClick = { pages = emptyList(); loadAttempt++ }) { Text("Retry") }
                 }
             }
             pages.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

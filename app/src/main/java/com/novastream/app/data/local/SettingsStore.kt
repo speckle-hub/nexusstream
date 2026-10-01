@@ -14,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -67,4 +68,11 @@ class SettingsStore(private val context: Context) {
     suspend fun setAutoNsfwFromAddons(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_NSFW_FROM_ADDONS] = v }
     suspend fun setCacheMeta(v: Boolean) = context.dataStore.edit { it[Keys.CACHE_META] = v }
     suspend fun setLastTab(v: Int) = context.dataStore.edit { it[Keys.LAST_TAB] = v }
+
+    /**
+     * One-shot read of the persisted tab index, for cold-boot restore. Reading the DataStore
+     * directly (rather than the [lastTab] StateFlow, whose initial value is always 0) avoids
+     * mistaking "not loaded yet" for "Home" and lets the restore run exactly once.
+     */
+    suspend fun lastTabSnapshot(): Int = context.dataStore.data.first()[Keys.LAST_TAB] ?: 0
 }

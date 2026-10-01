@@ -1,9 +1,9 @@
 package com.novastream.app.ui
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -16,7 +16,9 @@ import com.novastream.app.ui.nav.NovaApp as NovaAppUi
 import com.novastream.app.ui.theme.NovaStreamTheme
 import com.novastream.app.ui.vm.LocalContainer
 
-class MainActivity : ComponentActivity() {
+// Extends FragmentActivity (not just ComponentActivity) so BiometricPrompt can attach to it —
+// androidx.biometric requires a FragmentActivity host for the NSFW unlock flow.
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

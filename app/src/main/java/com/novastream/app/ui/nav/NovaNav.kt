@@ -28,6 +28,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -53,7 +56,6 @@ import com.novastream.app.ui.screens.search.SearchScreen
 import com.novastream.app.ui.screens.settings.SettingsScreen
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.vm.LocalContainer
-import com.novastream.app.ui.vm.collectAsStateSafe
 
 object Routes {
     const val HOME = "home"
@@ -97,22 +99,32 @@ fun NovaApp(navController: NavHostController = rememberNavController()) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBar = currentRoute in tabs.map { it.route }
-    val savedTab by container.settings.lastTab.collectAsStateSafe()
 
-    // Restore the last active tab on cold boot (only while we're still on Home).
-    LaunchedEffect(savedTab, currentRoute) {
-        val target = tabs.getOrNull(savedTab)?.route
-        if (target != null && target != Routes.HOME && currentRoute == Routes.HOME) {
-            navController.navigate(target) {
-                popUpTo(Routes.HOME) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
+    // Guards tab persistence until the one-shot cold-boot restore has finished, so restoring a
+    // saved tab can never be undone by the initial Home route being persisted first.
+    var restored by remember { mutableStateOf(false) }
+
+    // Restore the last active tab **exactly once**, on cold boot. It used to key off
+    // `currentRoute == HOME`, which meant tapping Home from Settings re-triggered it and bounced
+    // the user straight back to the saved tab — the "Home glitches" bug.
+    LaunchedEffect(Unit) {
+        val current = navController.currentBackStackEntry?.destination?.route
+        if (current == null || current == Routes.HOME) {
+            val target = tabs.getOrNull(container.settings.lastTabSnapshot())?.route
+            if (target != null && target != Routes.HOME) {
+                navController.navigate(target) {
+                    popUpTo(Routes.HOME) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
             }
         }
+        restored = true
     }
 
-    // Persist the active tab whenever it changes.
-    LaunchedEffect(currentRoute) {
+    // Persist the active tab whenever it changes (after the restore above has settled).
+    LaunchedEffect(currentRoute, restored) {
+        if (!restored) return@LaunchedEffect
         val idx = tabs.indexOfFirst { it.route == currentRoute }
         if (idx >= 0) container.settings.setLastTab(idx)
     }

@@ -1,7 +1,7 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-01.
+> resume exactly where it left off. Last updated: 2026-10-01 (Phase 3).
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
@@ -21,9 +21,9 @@ ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI (`di/AppContainer.kt
 
 ## 2. Current focus
 
-**Topic: NexusStream rename + Phase-1 UI/UX polish + Phase-2 core features.**
+**Topic: Phase-3 device-report fixes (Home nav, Real 18+ speed, Continue Watching, Home carousel).**
 
-Status: **rename + Phase 1 complete; Phase 2 complete.** Build green (24 tests / 0 failures).
+Status: **Phase 3 complete.** Build green (24 tests / 0 failures).
 
 ### Rename (display name only)
 `strings.xml` app label, the Home title and Settings "About" row, and the shared HTTP User-Agent
@@ -66,6 +66,33 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   `DexClassLoader` host (app-private storage only), and an `ExtensionRepository` that imports,
   loads, persists and unloads `.apk`/`.dex`/`.extension` files; installed extensions re-load on
   start. See the trust-model note in §8.
+
+### Phase 3 — device-report fixes (complete)
+- **Home navigation (ISSUE-11).** Opening Settings then tapping **Home** used to bounce straight
+  back to Settings. The cold-boot "restore last tab" effect keyed off `currentRoute == HOME`, so
+  returning Home re-triggered it and re-navigated to the saved tab — Home flashed and reverted.
+  The restore is now a true one-shot: it reads the persisted index via a new
+  `SettingsStore.lastTabSnapshot()`, fires once from `LaunchedEffect(Unit)` only while still on the
+  start destination, and a `restored` flag gates tab persistence until it has settled.
+  `ui/nav/NovaNav.kt`, `data/local/SettingsStore.kt`.
+- **Real 18+ speed (ISSUE-12).** Home rows are now emitted **progressively** — `AdultRepository.home`
+  takes an `onUpdate` callback invoked after *each* source finishes, so the tab paints the first
+  rows and drops its skeleton instead of waiting for the slowest site. Each source is cached
+  **individually** (`SOURCE_TTL_MS` 10 min), so re-entering the tab serves cached sources instantly
+  and only refetches stale ones; rows are always emitted in registry order. `NsfwViewModel` consumes
+  the progressive stream; `CatalogRepository.realRowsProgressive` appends Stremio NSFW rows in a
+  final snapshot. `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/ViewModels.kt`.
+- **Continue Watching (ISSUE-13).** `LibraryStore.recordWatch` existed but was **never called** —
+  the player didn't persist anything, so the section could never populate. `PlayerActivity` now
+  snapshots playback (title, episode, position, duration) every ~5 s while playing, on episode
+  switch, and in `onPause`/`onStop`/`onDestroy`, writing through a new app-lifetime
+  `NovaApp.appScope` so the save survives Activity teardown. It also **resumes** at the last saved
+  position (unless ≥95% watched). Home filters out finished titles (>95%) and shows the rest.
+  `ui/player/PlayerActivity.kt`, `NovaApp.kt`, `ui/vm/ViewModels.kt`.
+- **Home carousel (ISSUE-14).** The single static hero became an auto-sliding `HorizontalPager`
+  carousel: swipeable featured banners (trending first, backdrop art preferred, up to 8) with a
+  title, rating/year/genres, a 2-line description and a Play button, plus animated dot indicators.
+  Auto-advance every 5 s pauses while the user is dragging. `ui/screens/home/HomeScreen.kt`.
 
 ---
 
@@ -264,6 +291,37 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
 - ⬜ `local.properties` is still on disk (buildable); it is now gitignored.
 - ⬜ `usesCleartextTraffic=true` intentionally left (add-ons may use http).
 
+### ✅ ISSUE-11 — Can't return to Home from Settings (Home "glitches")
+- **Symptom:** after opening Settings, tapping the Home tab flashes and bounces back to Settings;
+  every other tab works.
+- **Root cause:** the "restore last tab" effect was keyed on `currentRoute == HOME`, so tapping Home
+  re-triggered it, read the saved tab (Settings) and navigated straight back.
+- **Fix:** restore is now a one-shot `LaunchedEffect(Unit)` that reads the persisted index via
+  `SettingsStore.lastTabSnapshot()` and only runs while still on the start destination; a `restored`
+  flag prevents persisting the initial Home route before the restore settles.
+- **Files:** `ui/nav/NovaNav.kt`, `data/local/SettingsStore.kt`
+
+### ✅ ISSUE-12 — Real 18+ still loads too slowly
+- **Symptom:** Real 18+ home takes a long time to appear; one slow/blocked site gates the tab.
+- **Fix:** progressive per-source emission (`AdultRepository.home(onUpdate)`), per-source 10-min
+  cache with instant re-entry, order-stable merging; `NsfwViewModel` paints rows and clears its
+  skeleton on the first source that lands.
+- **Files:** `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/ViewModels.kt`
+
+### ✅ ISSUE-13 — Continue Watching never populates
+- **Symptom:** Home's "Continue Watching" section stays empty no matter what is played.
+- **Root cause:** `LibraryStore.recordWatch` (and `DetailViewModel.recordWatch`) were never invoked;
+  nothing persisted playback progress.
+- **Fix:** `PlayerActivity` records progress on a 5 s cadence, on episode switch and on
+  pause/stop/destroy via the app-lifetime scope, and resumes from the saved position; Home hides
+  entries watched past 95%.
+- **Files:** `ui/player/PlayerActivity.kt`, `NovaApp.kt`, `ui/vm/ViewModels.kt`
+
+### ✅ ISSUE-14 — Home needs a real featured carousel
+- **Fix:** auto-sliding swipeable `HorizontalPager` carousel (backdrop art, title, rating/year/genres,
+  2-line description, Play button) with animated dot indicators and a drag-aware 5 s auto-advance.
+- **Files:** `ui/screens/home/HomeScreen.kt`
+
 ---
 
 ## 5. How to re-verify
@@ -326,6 +384,11 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | **Phase 2 complete:** autoplay-next overlay (+episode plumbing), player gestures + audio tracks + episode drawer, manga Webtoon/RTL/LTR modes + preload, WorkManager repo sync, sandboxed DEX/APK extension engine (`data/ext/`). |
 | 2026-10-01 | Initialized git; commits: initial snapshot → player/reader → repo sync → extension engine. |
 | 2026-10-01 | `:app:testDebugUnitTest` → **24 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (43 MB / 36 MB). |
+| 2026-10-01 | **Phase 3 — device-report fixes:** ISSUE-11 Home nav one-shot tab restore; ISSUE-12 Real 18+ progressive per-source loading + per-source cache; ISSUE-13 Continue Watching recording + resume in `PlayerActivity`; ISSUE-14 auto-sliding Home carousel with dot indicators. |
+| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **24 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL. |
+| 2026-10-01 | **Audit fixes (High):** biometric unlock (MainActivity → `FragmentActivity`); manga reader Retry (`loadAttempt` key); `cacheMeta` toggle wired to `Http.cacheEnabled`; TMDB `include_adult=false`; NSFW lock screen always offers a PIN path. |
+| 2026-10-01 | **Audit fixes (Medium/Low):** `TorrentStreamer` de-dupes its listener; `MetadataCache` uses SHA-256 keys + 64 MB eviction; network config drops the user-CA trust anchor; `keystore/novastream.jks` untracked (`git rm --cached`, gitignored); About reads `BuildConfig.VERSION_NAME`; manga reader defaults to RTL; NSFW search flags split per section. |
+| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → 24 tests / 0 failures; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL; `dist/NovaStream.apk` refreshed. |
 
 ---
 
@@ -358,6 +421,10 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 8. **Phase 2 follow-ups:** wire the extension engine into the Add-on Manager UI (import flow +
    installed list) and add a full CloudStream/Mihon compatibility layer on top of `NexusExtension`;
    add on-device verification of the player gestures and autoplay overlay.
+9. **Re-test Phase 3 on a device** (see ISSUE-11…14): open Settings then tap Home → lands on Home
+   (no bounce); Real 18+ paints rows as sources land and re-enters instantly; play something, back
+   out, kill and reopen → it appears under Continue Watching and resumes at the saved spot; the
+   Home carousel auto-slides, swipes, shows dots and opens the detail page from Play.
 
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.

@@ -54,6 +54,12 @@ fun NsfwScreen(nav: NavHostController) {
             storedPinHash = pin,
             biometricEnabled = biometric,
             onUnlocked = { scope.launch { container.settings.setNsfwUnlocked(true) } },
+            onSetPin = { raw ->
+                scope.launch {
+                    container.settings.setNsfwPin(hashPin(raw))
+                    container.settings.setNsfwUnlocked(true)
+                }
+            },
         )
         return
     }
@@ -95,7 +101,7 @@ private fun NsfwContent(nav: NavHostController) {
                 rows = vm.animeRows.collectAsStateSafe().value,
                 results = vm.animeResults.collectAsStateSafe().value,
                 loading = vm.animeLoading.collectAsStateSafe().value,
-                searching = vm.searching.collectAsStateSafe().value,
+                searching = vm.animeSearching.collectAsStateSafe().value,
                 onSearch = { vm.searchAnime(it) },
                 emptyHint = "Install NSFW anime add-ons or search AniList/Jikan.",
             )
@@ -104,7 +110,7 @@ private fun NsfwContent(nav: NavHostController) {
                 rows = vm.mangaRows.collectAsStateSafe().value,
                 results = vm.mangaResults.collectAsStateSafe().value,
                 loading = vm.mangaLoading.collectAsStateSafe().value,
-                searching = vm.searching.collectAsStateSafe().value,
+                searching = vm.mangaSearching.collectAsStateSafe().value,
                 onSearch = { vm.searchManga(it) },
                 emptyHint = "Search MangaDex's adult catalogue.",
             )

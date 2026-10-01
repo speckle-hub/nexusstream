@@ -7,8 +7,6 @@ import com.novastream.app.data.model.StreamSource
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * Aggregates every built-in [AdultSource] into the app's normal content shapes.
@@ -33,15 +31,18 @@ object AdultRepository {
      */
     data class Search(val items: List<MediaItem>, val errors: List<String>)
 
-    /** Fresh enough to survive a quick tab switch without another network round-trip. */
-    private const val HOME_TTL_MS = 60_000L
+    /** How long a source's freshly scraped rows stay good for a quick tab switch / re-entry. */
+    private const val SOURCE_TTL_MS = 10 * 60_000L
 
     /** Detail pages are heavy (~1 MB each) and users back-navigate constantly. */
     private const val DETAIL_TTL_MS = 10 * 60_000L
     private const val DETAIL_CACHE_MAX = 32
 
-    private val homeMutex = Mutex()
-    private var homeCache: Pair<Long, Home>? = null
+    /** One source's cached home rows (or the error that replaced them). */
+    private class SourceResult(val rows: List<CatalogRow>, val error: String?)
+
+    private val sourceLock = Any()
+    private val sourceCache = HashMap<String, Pair<Long, SourceResult>>()
     private val detailLock = Any()
     private val detailCache =
         object : LinkedHashMap<String, Pair<Long, AdultDetail>>(8, 0.75f, false) {
@@ -49,21 +50,74 @@ object AdultRepository {
                 size > DETAIL_CACHE_MAX
         }
 
-    suspend fun home(): Home = homeMutex.withLock {
-        homeCache?.takeIf { now() - it.first < HOME_TTL_MS }?.second
-            ?: buildHome().also { homeCache = now() to it }
+    /**
+     * Home rows, emitted **progressively**: [onUpdate] is invoked every time another source
+     * finishes, so the first rows paint immediately instead of waiting for the slowest site.
+     *
+     * Each source is short-TTL cached **individually**, so re-entering the tab serves cached
+     * sources instantly and only refetches the stale ones. Results are always emitted in the
+     * source registry's order, regardless of which site answers first.
+     */
+    suspend fun home(
+        onUpdate: (suspend (rows: List<CatalogRow>, errors: List<String>) -> Unit)? = null,
+    ): Home = coroutineScope {
+        val sources = AdultSources.all
+        val results = LinkedHashMap<String, SourceResult>()
+
+        for (source in sources) {
+            cachedSource(source.id)?.let { results[source.id] = it }
+        }
+
+        val stale = sources.filter { results[it.id] == null }
+        if (stale.isEmpty()) {
+            val home = snapshot(sources, results)
+            onUpdate?.invoke(home.rows, home.errors)
+            return@coroutineScope home
+        }
+
+        // Some sources were cached: show them immediately while the rest load.
+        if (results.isNotEmpty()) {
+            val partial = snapshot(sources, results)
+            onUpdate?.invoke(partial.rows, partial.errors)
+        }
+
+        val jobs = stale.map { source -> source to async { runCatching { source.home() } } }
+        for ((source, job) in jobs) {
+            val result = job.await().fold(
+                onSuccess = { adultRows -> SourceResult(adultRows.map { it.toCatalogRow(source) }, null) },
+                onFailure = { SourceResult(emptyList(), "${source.name}: ${it.message ?: "unavailable"}") },
+            )
+            storeSource(source.id, result)
+            results[source.id] = result
+            val partial = snapshot(sources, results)
+            // Progressive paint: publish after *each* source, not only once all are done.
+            onUpdate?.invoke(partial.rows, partial.errors)
+        }
+
+        snapshot(sources, results)
     }
 
-    private suspend fun buildHome(): Home = coroutineScope {
-        val jobs = AdultSources.all.map { source -> source to async { runCatching { source.home() } } }
+    /** Merges cached/fresh per-source results back into registry order. */
+    private fun snapshot(
+        sources: List<AdultSource>,
+        results: Map<String, SourceResult>,
+    ): Home {
         val rows = ArrayList<CatalogRow>()
         val errors = ArrayList<String>()
-        for ((source, job) in jobs) {
-            job.await()
-                .onSuccess { adultRows -> rows += adultRows.map { it.toCatalogRow(source) } }
-                .onFailure { errors += "${source.name}: ${it.message ?: "unavailable"}" }
+        for (source in sources) {
+            val result = results[source.id] ?: continue
+            rows += result.rows
+            result.error?.let { errors += it }
         }
-        Home(rows, errors)
+        return Home(rows, errors)
+    }
+
+    private fun cachedSource(id: String): SourceResult? = synchronized(sourceLock) {
+        sourceCache[id]?.takeIf { now() - it.first < SOURCE_TTL_MS }?.second
+    }
+
+    private fun storeSource(id: String, result: SourceResult) = synchronized(sourceLock) {
+        sourceCache[id] = now() to result
     }
 
     /** Convenience wrapper for callers that don't need the per-source failures. */

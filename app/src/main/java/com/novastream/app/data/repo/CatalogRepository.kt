@@ -108,16 +108,28 @@ class CatalogRepository(
      * Real 18+ comes from the built-in adult sources first, and additionally from any installed
      * NSFW Stremio add-ons. Per-source errors are returned so the UI can report a site that's down.
      */
-    suspend fun realRowsWithErrors(): Pair<List<CatalogRow>, List<String>> = coroutineScope {
-        val builtIn = async { AdultRepository.home() }
+    suspend fun realRowsWithErrors(): Pair<List<CatalogRow>, List<String>> =
+        realRowsProgressive { _, _ -> }
+
+    /**
+     * Real 18+ home with progressive updates. [onUpdate] fires as each built-in source finishes, so
+     * the UI can drop its skeleton and paint rows immediately instead of waiting for every site
+     * (the slowest of which used to gate the whole tab).
+     */
+    suspend fun realRowsProgressive(
+        onUpdate: suspend (rows: List<CatalogRow>, errors: List<String>) -> Unit,
+    ): Pair<List<CatalogRow>, List<String>> = coroutineScope {
         // "Auto-pull NSFW from add-ons" gates whether installed NSFW Stremio add-ons feed Real 18+.
         val autoNsfw = settings.autoNsfwFromAddons.first()
         val stremio = async {
             if (!autoNsfw) emptyList()
             else runCatching { stremioNsfwRows(MediaType.REAL) }.getOrDefault(emptyList())
         }
-        val home = builtIn.await()
-        (home.rows + stremio.await()) to home.errors
+        val home = AdultRepository.home { rows, errors -> onUpdate(rows, errors) }
+        val rows = home.rows + stremio.await()
+        // Final snapshot includes any Stremio NSFW add-on rows appended after the built-ins.
+        onUpdate(rows, home.errors)
+        rows to home.errors
     }
 
     suspend fun realRows(): List<CatalogRow> = realRowsWithErrors().first
