@@ -5,10 +5,12 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,11 +28,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -94,6 +99,7 @@ fun SectionHeader(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PosterCard(
     item: MediaItem,
@@ -101,11 +107,18 @@ fun PosterCard(
     modifier: Modifier = Modifier,
     width: Int = 132,
     showTitle: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
+    onRemove: (() -> Unit)? = null,
 ) {
     val nova = LocalNovaColors.current
     val sizeMod = if (width > 0) Modifier.width(width.dp) else Modifier.fillMaxWidth()
+    val clickMod = if (onLongClick != null) {
+        Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    } else {
+        Modifier.clickable { onClick() }
+    }
     Column(
-        modifier = modifier.then(sizeMod).clickable { onClick() },
+        modifier = modifier.then(sizeMod).then(clickMod),
     ) {
         Box(
             modifier = Modifier
@@ -137,6 +150,22 @@ fun PosterCard(
                         )
                     )
             )
+            // Small "×" affordance for removing the card from a curated list (favourites,
+            // continue watching). TopStart so it never collides with the rating badge.
+            onRemove?.let { remove ->
+                Box(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .clickable { remove() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Close, "Remove", tint = Color.White, modifier = Modifier.size(14.dp))
+                }
+            }
             item.rating?.let { r ->
                 Row(
                     modifier = Modifier
@@ -322,4 +351,26 @@ fun TagChip(text: String, selected: Boolean = false, onClick: () -> Unit = {}) {
             color = if (selected) Color.White else nova.textSecondary,
         )
     }
+}
+
+/**
+ * Confirmation dialog for removing an item from a curated list (favourites / continue watching).
+ *
+ * Both remove paths — the card's "×" and long-press — go through this so the wording is
+ * identical and removal is always a deliberate second tap rather than an accidental one.
+ */
+@Composable
+fun ConfirmRemoveDialog(
+    title: String,
+    message: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Remove") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

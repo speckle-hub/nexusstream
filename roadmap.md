@@ -1,7 +1,7 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-01 (Phase 4 wrap-up).
+> resume exactly where it left off. Last updated: 2026-10-01 (Phase 4 wrap-up + library removals).
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
@@ -21,11 +21,12 @@ ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI (`di/AppContainer.kt
 
 ## 2. Current focus
 
-**Topic: Phase-4 wrap-up — Media3 offline downloads + bulk season download.**
+**Topic: Phase 5 — library management (remove from Favourites / Continue Watching).**
 
-Status: **Phase 4 complete.** Build green (30 tests / 0 failures). The naive WorkManager downloader
-was replaced by Media3 `DownloadManager`/`DownloadService` (see Phase 4 below), and `DetailScreen`
-gained a bulk "download season" action.
+Status: **Phase 5 complete.** Build green (30 tests / 0 failures). Both curated lists are now
+editable: Favourites and Continue Watching can be removed from the Library grid, and Continue
+Watching can be removed straight from the Home row. No APK has been rebuilt yet — a device pass
+(§7) is still pending for this phase.
 
 ### Rename (display name only)
 `strings.xml` app label, the Home title and Settings "About" row, and the shared HTTP User-Agent
@@ -125,6 +126,24 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   reports how many episodes were queued.
 - **Tests:** `PaletteCacheTest` (3), `MangaDownloadTest` (3) → **30 tests** (the naive-HLS
   `HlsDownloadTest` was removed along with the WorkManager downloader it covered).
+
+### Phase 5 — library removal actions (complete)
+- **Favourites removal (Library → Favourites).** Every poster in the Favourites grid carries a
+  small `×` badge (TopStart, so it never collides with the rating badge) and also responds to a
+  long-press; both open the same `ConfirmRemoveDialog` ("Remove from favourites?"). The Detail
+  screen's heart/"In Library" button keeps working as before for un-favouriting from there.
+- **Continue Watching removal (Home row + Library grid).** The Home carousel-style row has a `×`
+  on each card's thumbnail (and long-press works too); the Library's Continue Watching grid uses
+  the same `×`/long-press affordances as Favourites. Confirming clears the saved watch progress
+  via the new `LibraryStore.removeWatch(key)`, so the entry disappears from both screens at once
+  (both read the same DataStore flow).
+- **Plumbing.** `LibraryStore` gained non-toggling `removeFavorite(key)` / `removeWatch(key)`
+  (the old `LibraryViewModel.removeFavorite` called `toggleFavorite`, which could re-add an
+  item that was already gone); `HomeViewModel.removeContinueWatching(entry)` and
+  `LibraryViewModel.removeWatch(key)` wrap them. `PosterCard` gained optional `onLongClick` /
+  `onRemove` parameters (default `null` → no change for existing call sites), and
+  `ui/components/Components.kt` gained a shared `ConfirmRemoveDialog` so both remove paths are
+  worded identically and always require a deliberate second tap.
 
 ---
 
@@ -428,6 +447,8 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | **Phase 4 wrap-up — Media3 downloader:** replaced the naive WorkManager + HLS-segment-concatenation downloader with Media3 `DownloadManager`/`DownloadService` (`DownloadManagerProvider` shared `SimpleCache`+DB, `NovaDownloadService` foreground `dataSync` service, rewritten `VideoDownloadManager`); `PlayerActivity` reads through the shared `CacheDataSource`; deleted `VideoDownloadWorker`/`HlsPlaylist`/`HlsDownloadTest`. Handles alternate audio, byte-range and encrypted `#EXT-X-KEY` HLS. |
 | 2026-10-01 | **Phase 4 wrap-up — bulk season download:** per-season download button on `DetailScreen` resolves each episode's streams (sequentially) and queues the first playable one, with a resolving spinner and a queued-count toast. |
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL; `dist/NovaStream.apk` refreshed. |
+| 2026-10-01 | **Phase 5 — library removals:** Favourites and Continue Watching are now editable. `×` badge + long-press → shared `ConfirmRemoveDialog` on both Library grids and on the Home Continue Watching row; `LibraryStore.removeFavorite(key)` / `removeWatch(key)` are non-toggling single-item removals (clears saved watch progress); `HomeViewModel.removeContinueWatching`, `LibraryViewModel.removeFavorite`/`removeWatch`; `PosterCard` gained optional `onLongClick`/`onRemove`. Detail heart button unchanged (un-favourites as before). |
+| 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **30 tests / 0 failures** ✅. APK **not** rebuilt this session — device pass (§7) still pending. |
 
 ---
 
@@ -470,8 +491,15 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
     MP4 and an HLS stream via Media3 → the `dataSync` foreground notification shows progress and
     Library plays them offline from the shared cache. Bump the 4 GB cache limit in
     `DownloadManagerProvider` if long seasons ever hit it. On a season row, tap the download button
-    → all its episodes are queued in one go (a toast reports the count); encrypted `#EXT-X-KEY`
-    streams download fine but still need the key online at playback time.
+     → all its episodes are queued in one go (a toast reports the count); encrypted `#EXT-X-KEY`
+     streams download fine but still need the key online at playback time.
+11. **Re-test Phase 5 on a device** (build first: `./gradlew :app:assembleDebug` — no APK has been
+    rebuilt since these changes landed): Library → Favourites → tap the `×` (or long-press) →
+    confirm → the poster disappears and stays gone after a cold start; same for Continue Watching
+    in the Library grid; on Home, tap the `×` on a Continue Watching card → confirm → the card
+    vanishes and its progress is cleared (re-watching starts from the beginning, not the old
+    position); the Detail heart still toggles "Add to Library" ↔ "In Library"; a Cancel tap must
+    not remove anything.
 
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.

@@ -73,6 +73,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             loading.value = false
         }
     }
+
+    /** Remove one entry from Continue Watching, clearing its persisted playback progress. */
+    fun removeContinueWatching(entry: WatchEntry) {
+        viewModelScope.launch { container.libraryStore.removeWatch(entry.item.key) }
+    }
 }
 
 class SectionViewModel(private val container: AppContainer, private val section: MediaType) : ViewModel() {
@@ -331,7 +336,8 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     val history: StateFlow<List<WatchEntry>> =
         container.libraryStore.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun removeFavorite(item: MediaItem) { viewModelScope.launch { container.libraryStore.toggleFavorite(item) } }
+    fun removeFavorite(item: MediaItem) { viewModelScope.launch { container.libraryStore.removeFavorite(item.key) } }
+    fun removeWatch(key: String) { viewModelScope.launch { container.libraryStore.removeWatch(key) } }
     fun clearHistory() { viewModelScope.launch { container.libraryStore.clearHistory() } }
 }
 

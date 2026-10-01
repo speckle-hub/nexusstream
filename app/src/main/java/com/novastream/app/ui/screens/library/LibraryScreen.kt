@@ -2,6 +2,7 @@ package com.novastream.app.ui.screens.library
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,6 +30,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +52,7 @@ import com.novastream.app.data.model.MediaType
 import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.model.Video
 import com.novastream.app.data.remote.Http
+import com.novastream.app.ui.components.ConfirmRemoveDialog
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.GlassSurface
 import com.novastream.app.ui.components.PosterCard
@@ -61,6 +66,9 @@ import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
 
+/** Which curated list a pending removal targets, and which title it targets. */
+private data class PendingRemoval(val favorite: Boolean, val item: MediaItem)
+
 @Composable
 fun LibraryScreen(nav: NavHostController) {
     val vm = novaViewModel { LibraryViewModel(it) }
@@ -72,6 +80,10 @@ fun LibraryScreen(nav: NavHostController) {
     val downloads by container.mangaDownloadManager.downloads.collectAsStateSafe()
     val videoDownloads by container.videoDownloadManager.downloads.collectAsStateSafe()
 
+    // Title awaiting confirmation before it is dropped from Favourites / Continue Watching.
+    var pendingRemoval by remember { mutableStateOf<PendingRemoval?>(null) }
+
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp),
@@ -124,15 +136,44 @@ fun LibraryScreen(nav: NavHostController) {
         if (history.isEmpty()) {
             item { EmptyState("Nothing in progress", "Content you watch will appear here.", icon = Icons.Outlined.History) }
         } else {
-            items(history.chunked(3)) { chunk -> GridRow(chunk.map { it.item }, nav) }
+            items(history.chunked(3)) { chunk ->
+                GridRow(
+                    chunk = chunk.map { it.item },
+                    nav = nav,
+                    onRemove = { pendingRemoval = PendingRemoval(favorite = false, item = it) },
+                )
+            }
         }
 
         item { SectionHeader("Favorites") }
         if (favorites.isEmpty()) {
             item { EmptyState("No favorites yet", "Tap the heart on any title to save it here.", icon = Icons.Outlined.FavoriteBorder) }
         } else {
-            items(favorites.chunked(3)) { chunk -> GridRow(chunk, nav) }
+            items(favorites.chunked(3)) { chunk ->
+                GridRow(
+                    chunk = chunk,
+                    nav = nav,
+                    onRemove = { pendingRemoval = PendingRemoval(favorite = true, item = it) },
+                )
+            }
         }
+    }
+
+    pendingRemoval?.let { pending ->
+        ConfirmRemoveDialog(
+            title = if (pending.favorite) "Remove from favourites?" else "Remove from Continue Watching?",
+            message = if (pending.favorite) {
+                "\u201c${pending.item.title}\u201d will be removed from your library."
+            } else {
+                "\u201c${pending.item.title}\u201d will be removed and its saved progress cleared."
+            },
+            onConfirm = {
+                if (pending.favorite) vm.removeFavorite(pending.item) else vm.removeWatch(pending.item.key)
+                pendingRemoval = null
+            },
+            onDismiss = { pendingRemoval = null },
+        )
+    }
     }
 }
 
@@ -321,13 +362,25 @@ private fun formatBytes(bytes: Long): String = when {
 }
 
 @Composable
-private fun GridRow(chunk: List<MediaItem>, nav: NavHostController) {
+private fun GridRow(
+    chunk: List<MediaItem>,
+    nav: NavHostController,
+    onRemove: ((MediaItem) -> Unit)? = null,
+) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         chunk.forEach { item ->
-            PosterCard(item, { nav.navigate(Routes.detail(item)) }, modifier = Modifier.weight(1f), width = 0)
+            PosterCard(
+                item = item,
+                onClick = { nav.navigate(Routes.detail(item)) },
+                modifier = Modifier.weight(1f),
+                width = 0,
+                // Long-press and the card's "×" open the same confirmation dialog.
+                onLongClick = onRemove?.let { remove -> { remove(item) } },
+                onRemove = onRemove?.let { remove -> { remove(item) } },
+            )
         }
         repeat(3 - chunk.size) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }
     }

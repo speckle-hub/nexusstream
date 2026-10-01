@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -41,7 +43,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +61,7 @@ import coil.compose.AsyncImage
 import com.novastream.app.data.model.CatalogRow
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.WatchEntry
+import com.novastream.app.ui.components.ConfirmRemoveDialog
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.MediaRow
@@ -88,6 +93,10 @@ fun HomeScreen(nav: NavHostController) {
         (withArt.ifEmpty { pool }).take(8)
     }
 
+    // Entry awaiting confirmation before it is dropped from Continue Watching.
+    var pendingRemoval by remember { mutableStateOf<WatchEntry?>(null) }
+
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 44.dp, bottom = 28.dp),
@@ -114,9 +123,11 @@ fun HomeScreen(nav: NavHostController) {
 
         if (continueWatching.isNotEmpty()) {
             item {
-                ContinueWatchingRow(continueWatching) { entry ->
-                    nav.navigate(Routes.detail(entry.item))
-                }
+                ContinueWatchingRow(
+                    entries = continueWatching,
+                    onClick = { nav.navigate(Routes.detail(it.item)) },
+                    onRemove = { pendingRemoval = it },
+                )
             }
         }
 
@@ -146,6 +157,19 @@ fun HomeScreen(nav: NavHostController) {
                 },
             )
         }
+    }
+
+    pendingRemoval?.let { entry ->
+        ConfirmRemoveDialog(
+            title = "Remove from Continue Watching?",
+            message = "\u201c${entry.item.title}\u201d will be removed and its saved progress cleared.",
+            onConfirm = {
+                vm.removeContinueWatching(entry)
+                pendingRemoval = null
+            },
+            onDismiss = { pendingRemoval = null },
+        )
+    }
     }
 }
 
@@ -357,8 +381,13 @@ private fun HomeTopBar(onAddons: () -> Unit, onRefresh: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ContinueWatchingRow(entries: List<WatchEntry>, onClick: (WatchEntry) -> Unit) {
+private fun ContinueWatchingRow(
+    entries: List<WatchEntry>,
+    onClick: (WatchEntry) -> Unit,
+    onRemove: (WatchEntry) -> Unit,
+) {
     val nova = LocalNovaColors.current
     Column(Modifier.fillMaxWidth()) {
         SectionHeader("Continue Watching")
@@ -368,7 +397,10 @@ private fun ContinueWatchingRow(entries: List<WatchEntry>, onClick: (WatchEntry)
         ) {
             items(entries, key = { it.item.key }) { entry ->
                 Column(
-                    modifier = Modifier.width(220.dp).clickable { onClick(entry) },
+                    modifier = Modifier
+                        .width(220.dp)
+                        // Tap opens the title; long-press offers the remove path.
+                        .combinedClickable(onClick = { onClick(entry) }, onLongClick = { onRemove(entry) }),
                 ) {
                     Box(
                         Modifier
@@ -405,6 +437,24 @@ private fun ContinueWatchingRow(entries: List<WatchEntry>, onClick: (WatchEntry)
                                     .fillMaxWidth(entry.progress.coerceIn(0f, 1f))
                                     .height(4.dp)
                                     .background(nova.accent),
+                            )
+                        }
+                        // Small "×" so the entry can be dropped from Continue Watching.
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(26.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.Black.copy(alpha = 0.62f))
+                                .clickable { onRemove(entry) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                "Remove from Continue Watching",
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp),
                             )
                         }
                     }
