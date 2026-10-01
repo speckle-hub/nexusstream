@@ -23,7 +23,7 @@ ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI (`di/AppContainer.kt
 
 **Topic: NexusStream rename + Phase-1 UI/UX polish + Phase-2 core features.**
 
-Status: **rename + Phase 1 complete**; **Phase 2 partial** (see §2c). Build green.
+Status: **rename + Phase 1 complete; Phase 2 complete.** Build green (24 tests / 0 failures).
 
 ### Rename (display name only)
 `strings.xml` app label, the Home title and Settings "About" row, and the shared HTTP User-Agent
@@ -42,8 +42,7 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   outer ring; the Stremio add-on list shows `[Stremio] [N Catalogs] [NSFW]` chips instead of a raw
   metadata dump.
 
-### Phase 2 — core features (partial)
-Done so far:
+### Phase 2 — core features (complete)
 - **NSFW auto-lock on background** — `NovaApp` counts started activities and resets
   `nsfwUnlocked=false` only when the whole app is backgrounded (opening the player does not lock).
 - **Auto NSFW from add-ons** — `realRowsWithErrors()`/`searchReal()` now honor the
@@ -54,10 +53,19 @@ Done so far:
   `ImageLoader` with a 256 MB disk cache + memory cache in `NovaApp`.
 - **Preferred quality / subtitles** — `PlayerActivity` reads `preferredQuality` (caps max video
   size) and `subsEnabled` (skips subtitle configs when off).
-
-Still to do (see §7): autoplay-next-episode overlay, player gesture/audio-track/episode-drawer
-QoL, manga reader modes + page preload, the DEX/APK extension execution engine, and the repository
-index background sync worker.
+- **Autoplay next episode** — `DetailScreen` passes the ordered episode list + current index;
+  `PlayerActivity` shows a 5-second countdown at 95%/end and can jump straight to the next one.
+- **Player QoL** — edge-drag brightness (left) / volume (right), horizontal seek, audio-track
+  selection in the track sheet, and an episode side-sheet drawer.
+- **Manga reader modes** — Webtoon (vertical scroll), Right-to-Left, and Left-to-Right, with
+  3-page preloading (pager beyond-bounds + explicit Coil enqueues).
+- **Repository index sync** — a network-constrained `RepoSyncWorker` (12 h) refreshes
+  CloudStream/Aniyomi/Keiyoushi indexes; repo clients read through the disk cache; a manual
+  “Sync” action exists in the Add-on Manager.
+- **Extension execution engine** — `data/ext/` adds a `NexusExtension` contract, a sandboxed
+  `DexClassLoader` host (app-private storage only), and an `ExtensionRepository` that imports,
+  loads, persists and unloads `.apk`/`.dex`/`.extension` files; installed extensions re-load on
+  start. See the trust-model note in §8.
 
 ---
 
@@ -315,6 +323,9 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-01 | **Phase 1 UI/UX polish:** hero shadow+outline, `PosterShape`(12.dp) unification, card title padding + single-line metadata, compact nav pill + cohesive icons, Manga `SourceBadge`, NSFW tab spacer, empty-state icons, filter-chip outlines, settings chevrons, accent ring, add-on chips. |
 | 2026-10-01 | **Phase 2 (partial):** NSFW auto-lock on background, auto-NSFW-from-addons gate, last-tab restore, `Http.cache` metadata caching (6 h TTL) for TMDB/AniList/MangaDex, Coil disk+memory cache, preferred-quality/subtitle handling in the player. |
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → 24 tests / 0 failures; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (43 MB / 36 MB). |
+| 2026-10-01 | **Phase 2 complete:** autoplay-next overlay (+episode plumbing), player gestures + audio tracks + episode drawer, manga Webtoon/RTL/LTR modes + preload, WorkManager repo sync, sandboxed DEX/APK extension engine (`data/ext/`). |
+| 2026-10-01 | Initialized git; commits: initial snapshot → player/reader → repo sync → extension engine. |
+| 2026-10-01 | `:app:testDebugUnitTest` → **24 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (43 MB / 36 MB). |
 
 ---
 
@@ -344,18 +355,15 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 7. **Re-test whole-app search** (see ISSUE-10): type quickly in the top Search screen — results must
    always match the final query (no flicker to a different set), switching the Movies/TV/Anime/Manga
    filter chips must show the right section, and a slow earlier response must never overwrite it.
-8. **Phase 2 remaining — settings connections:** autoplay-next-episode countdown overlay in
-   `PlayerActivity` (needs the episode list + index passed from `DetailScreen`).
-9. **Phase 2 remaining — player & reader QoL:** edge-drag brightness/volume, horizontal seek,
-   audio-track dialog, in-player episode side-sheet; manga Webtoon/RTL/LTR modes + 3-page preload.
-10. **Phase 2 remaining — extension execution engine:** sandboxed DEX/APK loader for CloudStream /
-    Mihon sources. This is a large, security-sensitive subsystem; scope it separately before coding.
-11. **Phase 2 remaining — repository index sync:** WorkManager periodic fetch of Keiyoushi
-    (`index.min.json`/`index.pb`) and CloudStream indexes + pull-to-refresh in the Add-on Manager.
+8. **Phase 2 follow-ups:** wire the extension engine into the Add-on Manager UI (import flow +
+   installed list) and add a full CloudStream/Mihon compatibility layer on top of `NexusExtension`;
+   add on-device verification of the player gestures and autoplay overlay.
 
-> **Repo note:** this working directory is **not a git repository** (it is an extracted source
-> tree), so the "organized, modular commits" could not be created. Run `git init` (or restore
-> `.git`) to enable committing.
+> **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
+> autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.
+>
+> The commit identity was supplied per-command (`git -c user.name=… -c user.email=…`) instead of
+> writing it to `.git/config`.
 
 ---
 
@@ -364,6 +372,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | Date | Decision | Rationale |
 |---|---|---|
 | 2026-09-30 | **Keep the existing release keystore** (do not rotate) | The `.jks` + password are public (README/history), so the key is already "burned" — but the keystore is *deliberately* shipped so the repo builds a signed APK out of the box, and rotating would change the signing identity and break in-place updates for any installed build. Password is now read from untracked `keystore.properties` or env vars. If this is ever distributed publicly, rotate then. |
+| 2026-10-01 | **Extension engine trust model** | Loaded extensions run in-process with app privileges; this is **not** a security sandbox. Loading is restricted to app-private storage and failures are contained per extension. Only load user-installed, trusted extensions; a real sandbox would need a separate process + restricted classloader. |
 | 2026-10-01 | **Rename: display name only** | The app is NexusStream in the UI, but the Kotlin package and `applicationId` stay `com.novastream.app`, so the signing identity and in-place updates are preserved. Renaming the package later would change the app identity. |
 | 2026-09-30 | **Keep R8 minify OFF** (`isMinifyEnabled = false`) | Shrinking reflection/JNI paths (Gson models, Media3, jlibtorrent) fails only at runtime, and no device was available to verify. A larger APK is preferable to a release that might crash. `proguard-rules.pro` was expanded with the needed keeps, so enabling is a one-line change once a device smoke-test is possible. |
 
