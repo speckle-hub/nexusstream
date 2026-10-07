@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useAnimationFrame, useMotionTemplate, useMotionValue, useTransform } from "framer-motion";
+import { useEffect, useId, useRef, useState } from "react";
+import { motion, useAnimationFrame, useMotionValue, useTransform } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
  * Aceternity Moving Border: a comet of accent light travels the button's rounded-rect path.
+ * The beam is SVG-native and only renders after mount (decorative; avoids SSR/CSR drift).
  */
 export function MovingBorderButton({
   children,
@@ -48,22 +49,37 @@ export function MovingBorderButton({
 function RectBeam({ duration }: { duration: number }) {
   const pathRef = useRef<SVGRectElement>(null);
   const progress = useMotionValue<number>(0);
+  const [mounted, setMounted] = useState(false);
+  const gradientId = `beam-glow-${useId().replace(/:/g, "")}`;
+
+  useEffect(() => setMounted(true), []);
 
   useAnimationFrame((time) => {
     const length = pathRef.current?.getTotalLength();
-    if (length) progress.set((time % duration) / duration * length);
+    if (length) progress.set(((time % duration) / duration) * length);
   });
 
-  const x = useTransform(progress, (v) => pathRef.current?.getPointAtLength(v).x ?? 0);
-  const y = useTransform(progress, (v) => pathRef.current?.getPointAtLength(v).y ?? 0);
-  const transform = useMotionTemplate`translateX(${x}px) translateY(${y}px) translateX(-50%) translateY(-50%)`;
+  const cx = useTransform(progress, (v) => pathRef.current?.getPointAtLength(v).x ?? -100);
+  const cy = useTransform(progress, (v) => pathRef.current?.getPointAtLength(v).y ?? -100);
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" className="absolute h-full w-full" width="100%" height="100%">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+      className="absolute h-full w-full"
+      width="100%"
+      height="100%"
+      aria-hidden
+    >
       <rect ref={pathRef} fill="none" width="100%" height="100%" rx="999" />
-      <motion.div style={{ position: "absolute", top: 0, left: 0, transform }}>
-        <div className="h-20 w-20 rounded-full bg-[radial-gradient(circle,#CFC2FF_0%,#7C5CFF_40%,transparent_70%)] opacity-90" />
-      </motion.div>
+      {mounted && <motion.circle r="16" fill={`url(#${gradientId})`} style={{ cx, cy }} />}
+      <defs>
+        <radialGradient id={gradientId}>
+          <stop offset="0%" stopColor="#CFC2FF" stopOpacity="0.95" />
+          <stop offset="45%" stopColor="#7C5CFF" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#7C5CFF" stopOpacity="0" />
+        </radialGradient>
+      </defs>
     </svg>
   );
 }
