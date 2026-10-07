@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /** Aceternity Text Generate Effect: words blur-fade in one by one. */
@@ -19,7 +19,7 @@ export function TextGenerateEffect({
   return (
     <div className={cn("leading-snug", className)}>
       {tokens.map((word, i) => (
-        <motion.span
+        <m.span
           key={`${word}-${i}`}
           className={cn("inline-block opacity-0", wordClassName)}
           initial={{ opacity: 0, filter: "blur(8px)", y: 6 }}
@@ -29,7 +29,7 @@ export function TextGenerateEffect({
         >
           {word}
           {i < tokens.length - 1 ? " " : ""}
-        </motion.span>
+        </m.span>
       ))}
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Download, FileDown, Github, Smartphone } from "lucide-react";
 import { APK_URL, GITHUB_URL, RELEASES_URL } from "@/lib/utils";
 import { BackgroundBeams } from "../ui/background-beams";
@@ -15,7 +15,7 @@ export function DownloadCta() {
       <div className="absolute left-1/2 top-1/2 h-[380px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/15 blur-[130px]" />
 
       <div className="relative z-10 mx-auto max-w-3xl px-6 text-center">
-        <motion.h2
+        <m.h2
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
@@ -25,9 +25,9 @@ export function DownloadCta() {
           Ready when you are.
           <br />
           <span className="text-gradient">Free forever.</span>
-        </motion.h2>
+        </m.h2>
 
-        <motion.p
+        <m.p
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
@@ -36,9 +36,9 @@ export function DownloadCta() {
         >
           Grab the APK from GitHub Releases and install it like any other app.
           Android 7.0+ · 38 MB · updates install in place.
-        </motion.p>
+        </m.p>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
@@ -58,9 +58,9 @@ export function DownloadCta() {
             <Github className="h-4 w-4" />
             All releases
           </a>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
@@ -69,7 +69,7 @@ export function DownloadCta() {
         >
           <Smartphone className="h-4 w-4 text-accent-soft" />
           No account. No ads. No tracking. Just your library.
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

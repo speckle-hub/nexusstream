@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
+import { m, useMotionTemplate, useMotionValue } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,12 +38,12 @@ export function GlowingCard({
       onPointerLeave={() => setActive(false)}
       className={cn("relative rounded-2xl", className)}
     >
-      <motion.div
+      <m.div
         aria-hidden
         className="pointer-events-none absolute -inset-px rounded-2xl"
         style={{ background: border, opacity: active ? 1 : 0, transition: "opacity 0.4s" }}
       />
-      <motion.div
+      <m.div
         aria-hidden
         className="pointer-events-none absolute inset-0 rounded-2xl"
         style={{ background, opacity: active ? 1 : 0, transition: "opacity 0.4s" }}

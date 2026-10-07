@@ -18,6 +18,9 @@ npm run build    # production build (static, outputs .next)
 
 1. [vercel.com/new](https://vercel.com/new) → import the `speckle-hub/nexusstream` repo.
 2. **Root Directory** → `website` (Edit → select the `website` folder).
-3. Framework preset auto-detects **Next.js** — no env vars needed. Deploy.
+3. Framework preset auto-detects **Next.js**. Deploy.
+4. After the first deploy, set `NEXT_PUBLIC_SITE_URL` (Project Settings → Environment Variables)
+   to your production URL (e.g. `https://nexusstream.vercel.app` or your custom domain) so the
+   OpenGraph/sitemap/canonical URLs are absolute and correct, then redeploy.
 
 Every push to `main` that touches `website/` then redeploys automatically.

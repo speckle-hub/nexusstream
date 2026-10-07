@@ -30,6 +30,7 @@ export function Sparkles({
     let raf = 0;
     let width = 0;
     let height = 0;
+    let visible = false;
 
     type P = { x: number; y: number; r: number; phase: number; drift: number };
     let particles: P[] = [];
@@ -52,6 +53,18 @@ export function Sparkles({
       }));
     };
 
+    const drawStatic = () => {
+      // One calm frame for reduced-motion users / offscreen pause.
+      ctx.clearRect(0, 0, width, height);
+      for (const p of particles) {
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+
     const tick = (t: number) => {
       ctx.clearRect(0, 0, width, height);
       for (const p of particles) {
@@ -69,13 +82,36 @@ export function Sparkles({
       raf = requestAnimationFrame(tick);
     };
 
+    const start = () => {
+      if (raf === 0) raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      cancelAnimationFrame(raf);
+      raf = 0;
+    };
+
     resize();
-    raf = requestAnimationFrame(tick);
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let io: IntersectionObserver | null = null;
+    if (reduced) {
+      drawStatic();
+    } else {
+      // Only burn rAF while the canvas is actually on screen.
+      io = new IntersectionObserver(([entry]) => {
+        visible = entry.isIntersecting;
+        if (visible) start();
+        else stop();
+      });
+      io.observe(canvas);
+    }
+
     return () => {
-      cancelAnimationFrame(raf);
+      stop();
       ro.disconnect();
+      io?.disconnect();
     };
   }, [density, color, maxSize, speed]);
 
