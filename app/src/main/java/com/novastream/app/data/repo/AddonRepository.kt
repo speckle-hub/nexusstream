@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
-/** Manages Stremio addons and the three external provider repositories. */
+/** Manages Stremio addons and any user-added external provider repositories. */
 class AddonRepository(private val store: AddonStore) {
 
     val addons: Flow<List<Addon>> = store.addons
@@ -75,17 +75,17 @@ class AddonRepository(private val store: AddonStore) {
     }
 
     suspend fun ensureDefaults() {
-        // Provider repositories are cheap to seed (they only power the Add-on Manager browser) and
-        // are merged in for existing installs too, so no one has to hunt for Phisher/Hexated/etc.
+        // Prune any retired/dead seed repos from existing installs (the app no longer seeds
+        // provider repositories; users add their own in the Add-on Manager).
         ensureDefaultRepos()
         val current = store.addons.first()
         if (current.isEmpty()) {
             installMany(AddonStore.Defaults.stremioAddons.distinct())
             return
         }
-        // Migration: drop add-ons hosted on retired/dead domains and re-seed the current stream
-        // providers so existing installs keep a working playback source. Also make sure the
-        // first-class stream providers (Torrentio, TPB+) are present even mid-failure.
+        // Migration: drop add-ons hosted on retired domains (dead hosts, and the stream
+        // providers removed in the source-neutrality pass), then re-seed any missing default
+        // add-ons (metadata + subtitles only) so existing installs keep those working.
         val retired = AddonStore.Defaults.retiredHosts
         val removed = current.filter { addon -> retired.any { addon.transportUrl.contains(it) } }
         if (removed.isNotEmpty()) store.saveAddons(current - removed.toSet())
@@ -96,8 +96,8 @@ class AddonRepository(private val store: AddonStore) {
 
     /**
      * Merge any missing default provider repositories into the stored list, after dropping any
-     * [AddonStore.Defaults.retiredRepoUrls] (dead seed URLs) so an upgraded install ends up with
-     * the live mirror instead of a 404ing entry.
+     * [AddonStore.Defaults.retiredRepoUrls]. The default repo list is empty (source-neutral
+     * shipping), so in practice this only prunes the retired seed URLs from existing installs.
      */
     suspend fun ensureDefaultRepos() {
         val stored = store.repos.first().toMutableList()
@@ -117,7 +117,7 @@ class AddonRepository(private val store: AddonStore) {
         if (changed) store.saveRepos(stored)
     }
 
-    /** "torrentio" from "https://torrentio.strem.fun/manifest.json" — used for duplicate checks. */
+    /** "example.com" from "https://example.com/manifest.json" — used for duplicate checks. */
     private fun hostOf(url: String): String = url
         .substringAfter("://", url)
         .substringBefore('/')

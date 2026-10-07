@@ -126,9 +126,8 @@ private fun StremioTab(vm: AddonViewModel) {
                 }
             }
         }
-        // One-tap installs for the highest-quality stream providers. Torrentio and TPB+ are already
-        // seeded on first launch, but they (and MediaFusion / OpenSubtitles) can be re-added here
-        // if a user removes them, so no one has to hunt for a working source.
+        // One-tap (re)installs for the seeded metadata/subtitle add-ons, so a user who removes
+        // one can get it back without hunting for the URL.
         item { Text("Recommended", style = MaterialTheme.typography.titleMedium, color = nova.textSecondary) }
         items(com.novastream.app.data.local.AddonStore.Defaults.recommendedStreamAddons) { (name, manifestUrl) ->
             val host = manifestHost(manifestUrl)
@@ -182,9 +181,37 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
     val csInstalled by vm.cloudStreamInstalled.collectAsStateSafe()
     val mangaInstalled by vm.mangaInstalled.collectAsStateSafe()
     val myRepos = repos.filter { it.kind == kind }
+    var newRepoUrl by rememberSaveable(kind) { mutableStateOf("") }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // No repositories are preinstalled — the user adds their own by URL.
+        item {
+            Column {
+                OutlinedTextField(
+                    value = newRepoUrl,
+                    onValueChange = { newRepoUrl = it },
+                    label = { Text("Add repository URL") },
+                    placeholder = { Text("https://…/repo.json") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val url = newRepoUrl.trim()
+                        if (url.isNotEmpty()) {
+                            vm.addRepo(com.novastream.app.data.model.RemoteRepo(manifestHost(url), url, kind))
+                            newRepoUrl = ""
+                        }
+                    },
+                    enabled = !busy && newRepoUrl.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Add repository") }
+            }
+        }
         item { Text("Repositories", style = MaterialTheme.typography.titleMedium, color = nova.textSecondary) }
+        if (myRepos.isEmpty()) item { EmptyState("No repositories added", "Paste a repository URL above to browse its extensions.") }
         items(myRepos) { repo ->
             GlassSurface(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -199,6 +226,7 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
                             else -> vm.browseKeiyoushi(repo.url)
                         }
                     }, enabled = !busy) { Text(if (busy) "…" else "Browse") }
+                    TextButton(onClick = { vm.removeRepo(repo.url) }) { Text("Remove", color = nova.accent) }
                 }
             }
         }
@@ -226,7 +254,7 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
     }
 }
 
-/** "torrentio.strem.fun" from a manifest URL — used to tell whether an add-on is installed. */
+/** "example.com" from a manifest URL — used to tell whether an add-on is installed. */
 private fun manifestHost(url: String): String = url
     .substringAfter("://", url)
     .substringBefore('/')

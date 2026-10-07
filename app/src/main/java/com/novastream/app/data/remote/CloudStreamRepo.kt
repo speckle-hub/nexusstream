@@ -8,7 +8,7 @@ object CloudStreamRepo {
 
     /**
      * Fetch a CloudStream repo. Supports both a bare plugin array and the repo manifest shape
-     * `{ name, pluginLists: [ "<url to plugins.json>" ] }` (the phisher98 layout), where the real
+     * `{ name, pluginLists: [ "<url to plugins.json>" ] }` (the common CloudStream repo layout), where the real
      * provider array lives one hop away. Inline `extensions` / `data` / `plugins` arrays also work.
      */
     suspend fun fetch(repoUrl: String): List<CloudStreamExt> {
