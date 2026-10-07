@@ -75,19 +75,53 @@ class AddonRepository(private val store: AddonStore) {
     }
 
     suspend fun ensureDefaults() {
+        // Provider repositories are cheap to seed (they only power the Add-on Manager browser) and
+        // are merged in for existing installs too, so no one has to hunt for Phisher/Hexated/etc.
+        ensureDefaultRepos()
         val current = store.addons.first()
         if (current.isEmpty()) {
             installMany(AddonStore.Defaults.stremioAddons.distinct())
             return
         }
         // Migration: drop add-ons hosted on retired/dead domains and re-seed the current stream
-        // providers so existing installs keep a working playback source.
+        // providers so existing installs keep a working playback source. Also make sure the
+        // first-class stream providers (Torrentio, TPB+) are present even mid-failure.
         val retired = AddonStore.Defaults.retiredHosts
         val removed = current.filter { addon -> retired.any { addon.transportUrl.contains(it) } }
-        if (removed.isEmpty()) return
-        store.saveAddons(current - removed.toSet())
-        installMany(AddonStore.Defaults.streamAddons.distinct())
+        if (removed.isNotEmpty()) store.saveAddons(current - removed.toSet())
+        val present = (if (removed.isEmpty()) current else store.addons.first()).map { it.transportUrl }
+        val missing = AddonStore.Defaults.streamAddons.filter { url -> present.none { it.contains(hostOf(url)) } }
+        if (missing.isNotEmpty()) installMany(missing.distinct())
     }
+
+    /**
+     * Merge any missing default provider repositories into the stored list, after dropping any
+     * [AddonStore.Defaults.retiredRepoUrls] (dead seed URLs) so an upgraded install ends up with
+     * the live mirror instead of a 404ing entry.
+     */
+    suspend fun ensureDefaultRepos() {
+        val stored = store.repos.first().toMutableList()
+        var changed = false
+        val retired = AddonStore.Defaults.retiredRepoUrls
+        if (retired.isNotEmpty()) {
+            val before = stored.size
+            stored.removeAll { repo -> retired.any { it == repo.url } }
+            if (stored.size != before) changed = true
+        }
+        AddonStore.Defaults.repos.forEach { repo ->
+            if (stored.none { it.url == repo.url }) {
+                stored.add(repo)
+                changed = true
+            }
+        }
+        if (changed) store.saveRepos(stored)
+    }
+
+    /** "torrentio" from "https://torrentio.strem.fun/manifest.json" — used for duplicate checks. */
+    private fun hostOf(url: String): String = url
+        .substringAfter("://", url)
+        .substringBefore('/')
+        .substringBefore(':')
 
     // ---- Repos --------------------------------------------------------------
 

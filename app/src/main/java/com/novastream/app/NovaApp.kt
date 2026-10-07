@@ -12,13 +12,18 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.novastream.app.data.download.DownloadManagerProvider
+import com.novastream.app.data.local.LibraryStore
 import com.novastream.app.data.remote.Http
 import com.novastream.app.data.remote.TorrentStreamer
+import com.novastream.app.data.sync.NewContentWorker
 import com.novastream.app.data.sync.RepoSyncWorker
 import com.novastream.app.di.AppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 class NovaApp : Application(), ImageLoaderFactory {
@@ -41,22 +46,67 @@ class NovaApp : Application(), ImageLoaderFactory {
         // Give the shared HTTP layer access to the on-disk metadata cache.
         Http.cache = container.cache
         // Keep the cache in sync with the "Cache metadata" setting (initial value + live toggles).
-        Http.cacheEnabled = container.settings.cacheMeta.value
+        collectSafely(container.settings.cacheMeta) { Http.cacheEnabled = it }
+        // Phase 12: mirror the custom HTTP identity + incognito flag into the shared layers.
+        Http.customUserAgent = container.settings.customUserAgent.value
+        Http.customReferer = container.settings.customReferer.value
+        Http.customCookie = container.settings.customCookie.value
+        LibraryStore.incognito = container.settings.incognito.value
+        collectSafely(container.settings.customUserAgent) { Http.customUserAgent = it }
+        collectSafely(container.settings.customReferer) { Http.customReferer = it }
+        collectSafely(container.settings.customCookie) { Http.customCookie = it }
+        collectSafely(container.settings.incognito) { LibraryStore.incognito = it }
+        // Seed default add-ons on first launch. Best-effort, but retried once so a cold boot on a
+        // flaky connection still ends up with working defaults instead of an empty Add-on Manager.
         appScope.launch {
-            container.settings.cacheMeta.collect { Http.cacheEnabled = it }
+            if (runCatching { container.addonRepository.ensureDefaults() }.isFailure) {
+                delay(3_000)
+                runCatching { container.addonRepository.ensureDefaults() }
+            }
         }
-        // Seed default addons on first launch.
-        appScope.launch {
-            runCatching { container.addonRepository.ensureDefaults() }
-        }
-        // Load any previously installed dynamic extensions.
+        // Load any previously installed dynamic extensions (honouring the disabled list).
         appScope.launch {
             runCatching { container.extensionRepository.reloadAll() }
+        }
+        // Apply the user's max-parallel-downloads setting to Media3, and keep it live on change.
+        collectSafely(container.settings.maxParallel) {
+            DownloadManagerProvider.setMaxParallel(this@NovaApp, it)
         }
         // Warm up the in-app torrent engine so Real 18+ / P2P streams play instantly.
         TorrentStreamer.warmUp(this)
         registerNsfwAutoLock()
         scheduleRepoSync()
+        scheduleNewContentCheck()
+    }
+
+    /**
+     * Collects [flow] for the life of the app scope without letting an exception escape.
+     *
+     * `appScope` has no `CoroutineExceptionHandler`, so a single bad emission (the Media3 cache
+     * failing to rebuild, a DataStore read hiccup) reaches the default handler and takes the whole
+     * app down — usually right after a cold boot. Cold-boot collectors go through here instead: a
+     * failed value is skipped and the flow keeps collecting.
+     */
+    private fun <T> collectSafely(flow: Flow<T>, onChange: (T) -> Unit) {
+        appScope.launch { flow.collect { value -> runCatching { onChange(value) } } }
+    }
+
+    /** Periodically probe for new feed content and post a notification when enabled. */
+    private fun scheduleNewContentCheck() {
+        val request = PeriodicWorkRequestBuilder<NewContentWorker>(6, java.util.concurrent.TimeUnit.HOURS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        runCatching {
+            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                NewContentWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request,
+            )
+        }
     }
 
     /** Enqueue the periodic extension-repository index refresh (network-constrained, 12 h). */

@@ -1,21 +1,30 @@
 package com.novastream.app.ui.screens.nsfw
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,14 +35,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.MediaRow
+import com.novastream.app.ui.components.PosterCard
+import com.novastream.app.ui.components.SearchField
+import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
+import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.NsfwViewModel
@@ -41,8 +55,12 @@ import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
 import kotlinx.coroutines.launch
 
+/**
+ * @param embedded when true the content omits its own title row because a host (the Browse tab)
+ *   is already drawing one above it.
+ */
 @Composable
-fun NsfwScreen(nav: NavHostController) {
+fun NsfwScreen(nav: NavHostController, embedded: Boolean = false) {
     val container = LocalContainer.current
     val scope = rememberCoroutineScope()
     val lock by container.settings.nsfwLock.collectAsStateSafe()
@@ -65,11 +83,11 @@ fun NsfwScreen(nav: NavHostController) {
         return
     }
 
-    NsfwContent(nav)
+    NsfwContent(nav, embedded)
 }
 
 @Composable
-private fun NsfwContent(nav: NavHostController) {
+private fun NsfwContent(nav: NavHostController, embedded: Boolean) {
     val vm = novaViewModel { NsfwViewModel(it) }
     val nova = LocalNovaColors.current
     // Saved, not just remembered: opening a detail page disposes this destination, and coming
@@ -85,13 +103,14 @@ private fun NsfwContent(nav: NavHostController) {
     val titles = listOf("NSFW Anime", "NSFW Manga", "Real 18+")
 
     Column(Modifier.fillMaxSize()) {
-        Text(
-            "NSFW",
-            style = MaterialTheme.typography.displaySmall,
-            color = nova.textPrimary,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 16.dp, top = 48.dp, bottom = 8.dp),
-        )
+        if (!embedded) {
+            Text(
+                "NSFW",
+                style = MaterialTheme.typography.displaySmall,
+                color = nova.textPrimary,
+                modifier = Modifier.statusBarsPadding().padding(start = AppSpacing.screen, top = 8.dp, bottom = 8.dp),
+            )
+        }
         ScrollableTabRow(
             selectedTabIndex = tab,
             containerColor = nova.background,
@@ -165,6 +184,7 @@ private fun NsfwSection(
     searchedFor: String? = null,
 ) {
     val nova = LocalNovaColors.current
+    val listState = rememberLazyGridState()
 
     // Process-death restore: the query survived in saved state but this section's ViewModel was
     // recreated empty. Re-run the search exactly once so the results come back with the term.
@@ -184,80 +204,123 @@ private fun NsfwSection(
         results.isEmpty() && !searching -> searchErrors
         else -> emptyList()
     }
+    // Compact, dismissible notice. Hidden until the user refreshes to new errors (keyed on the
+    // error set), and collapsed to a single line by default so it never dominates the page.
+    var errorsHidden by rememberSaveable { mutableStateOf(false) }
+    var errorsExpanded by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(visibleErrors) { errorsHidden = false }
+
     Column(Modifier.fillMaxSize()) {
-        OutlinedTextField(
+        SearchField(
             value = query,
             onValueChange = { onQueryChange(it); onSearch(it) },
-            placeholder = { Text("Search…") },
-            leadingIcon = { Icon(Icons.Filled.Search, null) },
-            singleLine = true,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = "Search…",
+            searching = searching,
+            onClear = { onQueryChange(""); onSearch("") },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 8.dp),
         )
-        if (visibleErrors.isNotEmpty()) {
-            androidx.compose.material3.Surface(
-                color = nova.outline.copy(alpha = 0.25f),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        if (visibleErrors.isNotEmpty() && !errorsHidden) {
+            Surface(
+                color = nova.outline.copy(alpha = 0.20f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 4.dp),
             ) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(
-                        "Some sources are unavailable right now",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = nova.textPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    visibleErrors.forEach { err ->
+                Column(Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { errorsExpanded = !errorsExpanded }
+                            .padding(start = 12.dp, top = 2.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            "\u2022 $err",
+                            text = if (visibleErrors.size == 1) "1 source unavailable"
+                            else "${visibleErrors.size} sources unavailable",
                             style = MaterialTheme.typography.labelMedium,
-                            color = nova.textTertiary,
+                            color = nova.textSecondary,
+                            modifier = Modifier.weight(1f),
                         )
+                        IconButton(
+                            onClick = { errorsHidden = true },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = nova.textTertiary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                    if (errorsExpanded) {
+                        visibleErrors.forEach { err ->
+                            Text(
+                                "\u2022 $err",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = nova.textTertiary,
+                                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 2.dp),
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
                     }
                 }
             }
         }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 24.dp),
+        // One adaptive grid for both rails and posters, matching Search / Library. Results used to
+        // be faked with `chunked(3)` + Rows, which pinned every screen to exactly 3 columns.
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = AppSpacing.posterMin),
+            state = listState,
+            // Hard-clip the viewport so a poster can't paint over the search field / tab row above it.
+            modifier = Modifier.fillMaxSize().clipToBounds(),
+            contentPadding = PaddingValues(
+                start = AppSpacing.screen,
+                end = AppSpacing.screen,
+                bottom = 24.dp + LocalFloatingNavBottomPadding.current,
+            ),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.item),
         ) {
             if (query.isNotBlank()) {
                 when {
-                    results.isEmpty() && (loading || searching) -> item { LoadingRow() }
-                    results.isEmpty() -> item {
+                    results.isEmpty() && (loading || searching) ->
+                        item(span = { GridItemSpan(maxLineSpan) }) { LoadingRow() }
+                    results.isEmpty() ->
+                        item(span = { GridItemSpan(maxLineSpan) }) {
                         EmptyState(
                             "No results",
                             if (searchErrors.isNotEmpty()) "Sources are unavailable right now \u2014 see the notice above."
                             else "Try a different query.",
                         )
                     }
-                    else -> items(results.chunked(3)) { chunk -> Row3(chunk, nav) }
+                    else -> items(results, key = { it.key }) { item ->
+                        PosterCard(
+                            item = item,
+                            onClick = { nav.navigate(Routes.detail(item)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            width = 0,
+                        )
+                    }
                 }
             } else {
-                if (loading && rows.isEmpty()) items(3) { LoadingRow() }
-                if (!loading && rows.isEmpty()) item { EmptyState("Nothing here yet", emptyHint) }
-                items(rows) { row -> MediaRow(row.title, row.items, onClick = { nav.navigate(Routes.detail(it)) }) }
+                if (loading && rows.isEmpty()) {
+                    items(3, span = { GridItemSpan(maxLineSpan) }) { LoadingRow() }
+                }
+                if (!loading && rows.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { EmptyState("Nothing here yet", emptyHint) }
+                }
+                items(rows, span = { GridItemSpan(maxLineSpan) }) { row ->
+                    // Same card width as the Home feed: `MediaRow`'s 132 dp default made every
+                    // NSFW/Real 18+ rail narrower than Home's, which is what read as "narrow cards"
+                    // next to the edge-to-edge Home rows.
+                    MediaRow(
+                        row.title,
+                        row.items,
+                        onClick = { nav.navigate(Routes.detail(it)) },
+                        cardWidth = AppSpacing.railCard,
+                    )
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun Row3(chunk: List<com.novastream.app.data.model.MediaItem>, nav: NavHostController) {
-    androidx.compose.foundation.layout.Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
-    ) {
-        chunk.forEach { item ->
-            com.novastream.app.ui.components.PosterCard(
-                item = item,
-                onClick = { nav.navigate(Routes.detail(item)) },
-                modifier = Modifier.weight(1f),
-                width = 0,
-            )
-        }
-        repeat(3 - chunk.size) {
-            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
         }
     }
 }

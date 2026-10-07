@@ -3,6 +3,8 @@ package com.novastream.app.ui.vm
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.novastream.app.data.adult.AdultRepository
+import com.novastream.app.data.download.DownloadStorageStats
+import com.novastream.app.data.hentai.HentaiRepository
 import com.novastream.app.data.model.Addon
 import com.novastream.app.data.model.CatalogRow
 import com.novastream.app.data.model.CloudStreamExt
@@ -18,6 +20,7 @@ import com.novastream.app.data.model.Video
 import com.novastream.app.data.model.WatchEntry
 import com.novastream.app.data.remote.MangaDexClient
 import com.novastream.app.data.remote.TmdbClient
+import com.novastream.app.data.repo.StreamsResult
 import com.novastream.app.di.AppContainer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -51,15 +54,42 @@ internal inline fun <T> runCatchingCancellable(block: () -> T): Result<T> =
 /** Watched beyond this fraction of its duration, an entry is treated as finished. */
 private const val COMPLETED_THRESHOLD = 0.95f
 
+/**
+ * Total wall-clock budget for filling an NSFW-anime detail with built-in episodes. The lookup
+ * itself is bounded per call (see `HentaiRepository`), but up to three title variants are tried,
+ * so the page needs an overall stop — detail loading must never stack into a minute-long wait.
+ */
+private const val EPISODE_FILL_BUDGET_MS = 10_000L
+
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val rows = MutableStateFlow<List<CatalogRow>>(emptyList())
     val loading = MutableStateFlow(true)
     val error = MutableStateFlow<String?>(null)
 
-    /** In-progress titles, newest first, with anything essentially finished filtered out. */
+    /**
+     * In-progress titles, newest first, with anything essentially finished filtered out.
+     *
+     * Reading entries are excluded here — they are surfaced separately through [continueReading]
+     * so a manga title never lands under a Play CTA.
+     */
     val continueWatching: StateFlow<List<WatchEntry>> =
         container.libraryStore.history
-            .map { list -> list.filter { it.progress < COMPLETED_THRESHOLD } }
+            .map { list ->
+                list.filter { !it.item.isReadable && it.progress < COMPLETED_THRESHOLD }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * In-progress manga (normal + NSFW), newest first — powers the "Continue Reading" row.
+     *
+     * Both kinds of progress live in the same history list (the reader records page/total as the
+     * entry's position/duration, so `progress` is the reading percentage); only the split is new.
+     */
+    val continueReading: StateFlow<List<WatchEntry>> =
+        container.libraryStore.history
+            .map { list ->
+                list.filter { it.item.isReadable && it.progress < COMPLETED_THRESHOLD }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init { refresh() }
@@ -172,6 +202,9 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
     private var mangaGeneration = 0
     private var realGeneration = 0
 
+    /** Guards against overlapping NSFW-anime browse-row loads (initial refresh vs. a reload). */
+    private var animeRowsLoading = false
+
     init { refresh() }
 
     fun refresh() {
@@ -182,11 +215,7 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
             mangaLoading.value = true
             realLoading.value = true
             coroutineScope {
-                launch {
-                    animeRows.value = runCatching { container.catalogRepository.nsfwAnimeRows() }
-                        .getOrDefault(emptyList())
-                    animeLoading.value = false
-                }
+                launch { loadAnimeRows() }
                 launch {
                     mangaRows.value = runCatching { container.catalogRepository.nsfwMangaRows() }
                         .getOrDefault(emptyList())
@@ -211,6 +240,44 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * Fetches the NSFW-anime browse rows, painting AniList rows progressively as each lands.
+     *
+     * The current rows are only replaced when the fetch actually returned — a failed or cancelled
+     * load must never wipe rows the user can already see. It previously assigned
+     * `getOrDefault(emptyList())`, so a flaky/timed-out load overwrote the progressive paint and
+     * left the section stuck on its "Nothing here yet" state.
+     */
+    private suspend fun loadAnimeRows() {
+        if (animeRowsLoading) return
+        animeRowsLoading = true
+        try {
+            val rows = runCatching {
+                container.catalogRepository.nsfwAnimeRows { partial ->
+                    animeRows.value = partial
+                }
+            }.getOrNull()
+            if (rows != null) animeRows.value = rows
+        } finally {
+            animeRowsLoading = false
+            animeLoading.value = false
+        }
+    }
+
+    /**
+     * Reloads the NSFW-anime browse rows if they're still empty. Clearing the search drops the
+     * section back to browse mode; because those rows are fetched only once (at init), a load that
+     * failed back then would otherwise leave the tab on its empty state with no way back to the
+     * catalogue. Triggered on clear so exiting a search always restores the browse rows.
+     */
+    fun reloadAnimeRowsIfEmpty() {
+        if (animeRowsLoading || animeRows.value.isNotEmpty()) return
+        viewModelScope.launch {
+            animeLoading.value = true
+            loadAnimeRows()
+        }
+    }
+
     fun searchAnime(q: String) {
         animeSearchedFor = q
         animeSearchJob?.cancel()
@@ -218,18 +285,29 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
         if (query.length < MIN_SEARCH_CHARS) {
             animeGeneration++
             animeResults.value = emptyList()
+            // Clearing the field cancels the in-flight job; without this the spinner would stay
+            // stuck "searching" forever (the cancelled job never reaches its own reset).
+            animeSearching.value = false
+            // Clearing (or a too-short query) returns the section to its browse rows. If they
+            // never landed, refetch now rather than leaving the tab on "Nothing here yet".
+            if (query.isEmpty()) reloadAnimeRowsIfEmpty()
             return
         }
         val id = ++animeGeneration
         animeSearchJob = viewModelScope.launch {
             delay(SEARCH_DEBOUNCE_MS)
             animeSearching.value = true
-            val found = runCatchingCancellable {
-                container.catalogRepository.search(query, MediaType.NSFW_ANIME)
-            }.getOrDefault(emptyList())
-            if (id != animeGeneration) return@launch
-            animeResults.value = found
-            animeSearching.value = false
+            try {
+                val found = runCatchingCancellable {
+                    container.catalogRepository.search(query, MediaType.NSFW_ANIME)
+                }.getOrDefault(emptyList())
+                if (id != animeGeneration) return@launch
+                animeResults.value = found
+            } finally {
+                // `finally` also runs on cancellation, so the flag is always cleared — but only
+                // when this is still the newest request (a superseding job owns the flag otherwise).
+                if (id == animeGeneration) animeSearching.value = false
+            }
         }
     }
 
@@ -240,18 +318,22 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
         if (query.length < MIN_SEARCH_CHARS) {
             mangaGeneration++
             mangaResults.value = emptyList()
+            mangaSearching.value = false
             return
         }
         val id = ++mangaGeneration
         mangaSearchJob = viewModelScope.launch {
             delay(SEARCH_DEBOUNCE_MS)
             mangaSearching.value = true
-            val found = runCatchingCancellable {
-                container.catalogRepository.search(query, MediaType.NSFW_MANGA)
-            }.getOrDefault(emptyList())
-            if (id != mangaGeneration) return@launch
-            mangaResults.value = found
-            mangaSearching.value = false
+            try {
+                val found = runCatchingCancellable {
+                    container.catalogRepository.search(query, MediaType.NSFW_MANGA)
+                }.getOrDefault(emptyList())
+                if (id != mangaGeneration) return@launch
+                mangaResults.value = found
+            } finally {
+                if (id == mangaGeneration) mangaSearching.value = false
+            }
         }
     }
 
@@ -274,8 +356,16 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
         realSearching.value = true
         realSearchJob = viewModelScope.launch {
             delay(SEARCH_DEBOUNCE_MS)
-            val result = runCatchingCancellable { container.catalogRepository.searchReal(query) }
-                .getOrElse { AdultRepository.Search(emptyList(), listOf(it.message ?: "Search failed")) }
+            // Progressive: paint each source's results as it lands so the slowest (or a hung) site
+            // never holds the whole search back. Only this request's generation may publish.
+            val result = runCatchingCancellable {
+                container.catalogRepository.searchRealProgressive(query) { items, errors ->
+                    if (id == realGeneration) {
+                        realResults.value = items
+                        realSearchErrors.value = errors
+                    }
+                }
+            }.getOrElse { AdultRepository.Search(emptyList(), listOf(it.message ?: "Search failed")) }
             if (id != realGeneration) return@launch
             realResults.value = result.items
             realSearchErrors.value = result.errors
@@ -297,6 +387,9 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
     val loading = MutableStateFlow(false)
     val section = MutableStateFlow<MediaType?>(null)
 
+    /** Past searches, newest first — powers the suggestion chips on the empty state. */
+    val recentSearches: StateFlow<List<String>> = container.settings.recentSearches
+
     private var searchJob: Job? = null
 
     /**
@@ -307,6 +400,8 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setSection(s: MediaType?) { section.value = s }
 
+    fun clearRecentSearches() { viewModelScope.launch { container.settings.clearRecentSearches() } }
+
     /**
      * Debounced, cancellable search.
      *
@@ -314,8 +409,14 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
      * and the responses could land out of order, so an earlier prefix overwrote the final query
      * (results for "bat" showing up under "batman"). Now every keystroke cancels the previous job,
      * waits for a short pause, and only the newest generation is allowed to publish.
+     *
+     * [remember] marks a deliberate search (chip tap / pre-filled query): it is recorded even when
+     * it finds nothing. Plain typing records any query the user actually let run — the 350 ms
+     * debounce above already collapses a typed word into a single request, so this fills the
+     * recent-search list from normal typing instead of only from chip taps (which is why the
+     * "Recent" section on the Search screen looked like it had disappeared).
      */
-    fun search(q: String) {
+    fun search(q: String, remember: Boolean = false) {
         searchJob?.cancel()
         val query = q.trim()
         if (query.isEmpty()) {
@@ -337,6 +438,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
             if (id != generation) return@launch
             results.value = found
             loading.value = false
+            if (found.isNotEmpty() || remember) container.settings.recordSearch(query)
         }
     }
 
@@ -347,19 +449,46 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
 }
 
 class LibraryViewModel(private val container: AppContainer) : ViewModel() {
+    /**
+     * Favourites, defensively re-validated on the way to the UI.
+     *
+     * [LibraryCodec][com.novastream.app.data.local.LibraryCodec] already sanitizes on read, but
+     * this screen is where a malformed entry would turn into a crash (a null `type` reaching
+     * `Routes.detail`), so each entry is checked individually: one bad title is dropped, the rest
+     * of the list still renders.
+     */
     val favorites: StateFlow<List<MediaItem>> =
-        container.libraryStore.favorites.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        container.libraryStore.favorites
+            .map { list -> list.filterSafe { it.id.isNotBlank() } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Continue-watching entries whose title is still usable, de-duplicated by title key. */
     val history: StateFlow<List<WatchEntry>> =
-        container.libraryStore.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        container.libraryStore.history
+            .map { list ->
+                list.filterSafe { it.item.id.isNotBlank() }
+                    .distinctBy { it.item.key }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun removeFavorite(item: MediaItem) { viewModelScope.launch { container.libraryStore.removeFavorite(item.key) } }
     fun removeWatch(key: String) { viewModelScope.launch { container.libraryStore.removeWatch(key) } }
     fun clearHistory() { viewModelScope.launch { container.libraryStore.clearHistory() } }
 }
 
+/**
+ * Keeps every element for which [keep] succeeds and drops the rest — unlike a whole-list
+ * `runCatching`, a single hostile entry can no longer blank an entire section of the Library.
+ */
+private fun <T> List<T>.filterSafe(keep: (T) -> Boolean): List<T> = mapNotNull { entry ->
+    runCatching { entry.takeIf { keep(it) } }.getOrNull()
+}
+
 class DetailViewModel(private val container: AppContainer, private val item: MediaItem) : ViewModel() {
     val detail = MutableStateFlow<MetaDetail?>(null)
     val streams = MutableStateFlow<List<StreamSource>>(emptyList())
+    /** Per-add-on failure reasons when a stream lookup came back empty or partial. */
+    val streamErrors = MutableStateFlow<List<String>>(emptyList())
     val subtitles = MutableStateFlow<List<SubtitleTrack>>(emptyList())
     val related = MutableStateFlow<List<MediaItem>>(emptyList())
     val chapters = MutableStateFlow<List<Video>>(emptyList())
@@ -392,12 +521,12 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
         }
     }
 
-    /** Expand/collapse a season, lazily fetching its episodes for TMDB series. */
-    fun toggleSeason(season: Int) {
-        if (expandedSeason.value == season) {
-            expandedSeason.value = null
-            return
-        }
+    /**
+     * Select a season. Seasons are a picker, not an accordion: the chosen one stays selected and
+     * only its episodes are shown, so the page never stacks every season's episode list on top of
+     * each other. For TMDB-backed series the episodes are fetched here on first selection.
+     */
+    fun selectSeason(season: Int) {
         expandedSeason.value = season
         if (!tmdbDrivenSeasons.value) return
         if (seasonEpisodes.value.containsKey(season)) return
@@ -429,6 +558,10 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
     fun load() {
         viewModelScope.launch {
             loading.value = true; error.value = null
+            // The NSFW-anime episode list and its streams both take a couple of network hops, so
+            // the panel must say "Finding streams…" from the very first frame instead of flashing
+            // "No streams found" while they resolve.
+            streamsLoading.value = true
             seasons.value = emptyList(); seasonEpisodes.value = emptyMap(); expandedSeason.value = null
             val d = runCatching { container.metadataRepository.detail(item) }.getOrNull()
             detail.value = d
@@ -440,11 +573,54 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
                     }.getOrDefault(emptyList())
                 }
                 buildSeasons(d)
+                // AniList ships no episode list for adult titles. The built-in hentai sources
+                // know the real episodes, so they fill it in — everything else on this page
+                // (poster, synopsis, cast, related) still comes from AniList.
+                if (item.type == MediaType.NSFW_ANIME && d.videos.isEmpty()) fillBuiltInEpisodes()
             } else {
                 error.value = "Couldn't load metadata for this title. Check your connection and try again."
             }
             loading.value = false
-            loadStreams(null)
+            // A movie resolves streams for the title itself. A series resolves them for whichever
+            // episode the detail page picks (see its auto-select effect), so issuing a title-level
+            // lookup here would race that coroutine and could leave Play pointing at an empty
+            // "no video id" result — which is exactly how a series ended up unplayable.
+            if (seasons.value.isEmpty()) {
+                loadStreams(null)
+            } else {
+                // Season headers exist but no episodes landed yet: clear the spinner so the page
+                // never sits on a permanent "Finding streams…" if the episode fetch fails.
+                streamsLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Ask the built-in hentai sources which episodes exist for this title and splice them into
+     * the detail. AniList's English title is tried first, then its romaji / native / synonym
+     * titles, because the source sites index the Japanese romanisation far more often than the
+     * localized one.
+     */
+    private suspend fun fillBuiltInEpisodes() {
+        val d = detail.value ?: return
+        val titles = (listOf(d.name) + d.altTitles)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(3)
+        val started = System.currentTimeMillis()
+        for (title in titles) {
+            // Overall budget across all title variants: at some point the page must stop waiting
+            // for an episode list that isn't coming.
+            if (System.currentTimeMillis() - started > EPISODE_FILL_BUDGET_MS) return
+            val found = runCatching { HentaiRepository.episodes(title) }.getOrNull() ?: continue
+            if (found.episodes.isEmpty()) continue
+            val updated = d.copy(
+                videos = found.episodes.map { it.toVideo() },
+                totalEpisodes = d.totalEpisodes ?: found.episodes.size,
+            )
+            detail.value = updated
+            buildSeasons(updated)
+            return
         }
     }
 
@@ -487,7 +663,7 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
                     counts.keys.sorted().map { sn -> SeasonInfo(sn, "Season $sn", null, counts[sn]) }
                 }
             seasons.value = list
-            list.firstOrNull()?.season?.let { toggleSeason(it) }
+            list.firstOrNull()?.season?.let { selectSeason(it) }
             return
         }
 
@@ -508,15 +684,32 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
         }
     }
 
+    /**
+     * Resolve the stream list for [video] (null = the title itself, i.e. a movie).
+     *
+     * A monotonically increasing request id guards the two StateFlows: tapping episode 3 and then
+     * episode 7 issues two overlapping add-on lookups, and without the guard the slower one could
+     * land last and publish the wrong episode's mirrors under episode 7's name.
+     */
     fun loadStreams(video: Video?) {
         selectedVideo.value = video
+        val request = ++streamsRequest
         viewModelScope.launch {
             streamsLoading.value = true
-            streams.value = runCatching { container.streamRepository.streamsFor(item, video?.id) }.getOrDefault(emptyList())
-            subtitles.value = runCatching { container.streamRepository.subtitlesFor(item, video?.id) }.getOrDefault(emptyList())
+            val result = runCatching { container.streamRepository.streamsForDetailed(item, video?.id) }
+                .getOrDefault(StreamsResult())
+            val tracks = runCatching { container.streamRepository.subtitlesFor(item, video?.id) }
+                .getOrDefault(emptyList())
+            if (request != streamsRequest) return@launch
+            streams.value = result.streams
+            streamErrors.value = result.errors
+            subtitles.value = tracks
             streamsLoading.value = false
         }
     }
+
+    /** Increments once per [loadStreams] call; only the newest request is allowed to publish. */
+    private var streamsRequest = 0
 
     fun toggleFavorite() {
         viewModelScope.launch { container.libraryStore.toggleFavorite(item) }
@@ -583,6 +776,7 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             busy.value = true
             catalog.value = container.addonRepository.fetchCloudStream(url)
+            if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
             busy.value = false
         }
     }
@@ -590,6 +784,7 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             busy.value = true
             catalog.value = container.addonRepository.fetchAniyomi(url)
+            if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
             busy.value = false
         }
     }
@@ -597,6 +792,7 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             busy.value = true
             catalog.value = container.addonRepository.fetchKeiyoushi(url)
+            if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
             busy.value = false
         }
     }
@@ -619,9 +815,59 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val autoNsfw = container.settings.autoNsfwFromAddons.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val cacheMeta = container.settings.cacheMeta.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    // ---- Phase 11 ----
+    val dynamicColor = container.settings.dynamicColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val amoledBlack = container.settings.amoledBlack.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val subtitleScale = container.settings.subtitleScale.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
+    val subtitleColor = container.settings.subtitleColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "white")
+    val subtitleBg = container.settings.subtitleBg.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.4f)
+    val subtitleOffset = container.settings.subtitleOffset.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.05f)
+    val playerSpeed = container.settings.playerSpeed.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
+    val audioBoost = container.settings.audioBoost.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val audioNormalize = container.settings.audioNormalize.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaInvert = container.settings.mangaInvert.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaGrayscale = container.settings.mangaGrayscale.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaCrop = container.settings.mangaCrop.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaDoublePage = container.settings.mangaDoublePage.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaZoomLock = container.settings.mangaZoomLock.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaVolumeKeys = container.settings.mangaVolumeKeys.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val mangaWarm = container.settings.mangaWarm.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val subtitleSyncMs = container.settings.subtitleSyncMs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // ---- Phase 12 ----
+    val incognito = container.settings.incognito.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val flagSecure = container.settings.flagSecure.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val appLock = container.settings.appLock.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val customUserAgent = container.settings.customUserAgent.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val customReferer = container.settings.customReferer.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val customCookie = container.settings.customCookie.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val maxParallel = container.settings.maxParallel.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 3)
+    val autoDownloadNext = container.settings.autoDownloadNext.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val autoDownloadWifiOnly = container.settings.autoDownloadWifiOnly.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val autoDeleteWatched = container.settings.autoDeleteWatched.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val storageUri = container.settings.storageUri.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val updateRepo = container.settings.updateRepo.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val notifyNewContent = container.settings.notifyNewContent.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val scrobbleTrakt = container.settings.scrobbleTrakt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val scrobbleAniList = container.settings.scrobbleAniList.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val scrobbleMal = container.settings.scrobbleMal.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val scrobbleKitsu = container.settings.scrobbleKitsu.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val scrobbleSimkl = container.settings.scrobbleSimkl.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val tokenTrakt = container.settings.tokenTrakt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val tokenAniList = container.settings.tokenAniList.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val tokenMal = container.settings.tokenMal.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val tokenKitsu = container.settings.tokenKitsu.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val tokenSimkl = container.settings.tokenSimkl.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
     val cacheSize = MutableStateFlow(0L)
 
-    init { refreshCacheSize() }
+    /** Completed vs temporary vs orphaned download bytes (Phase 14 storage meter). */
+    val downloadStats = MutableStateFlow(DownloadStorageStats())
+
+    init {
+        refreshCacheSize()
+        refreshDownloadStats()
+    }
 
     fun setTheme(v: String) = viewModelScope.launch { container.settings.setTheme(v) }
     fun setAccent(v: String) = viewModelScope.launch { container.settings.setAccent(v) }
@@ -633,6 +879,46 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setNsfwBiometric(v: Boolean) = viewModelScope.launch { container.settings.setNsfwBiometric(v) }
     fun setAutoNsfw(v: Boolean) = viewModelScope.launch { container.settings.setAutoNsfwFromAddons(v) }
     fun setCacheMeta(v: Boolean) = viewModelScope.launch { container.settings.setCacheMeta(v) }
+
+    fun setDynamicColor(v: Boolean) = viewModelScope.launch { container.settings.setDynamicColor(v) }
+    fun setAmoledBlack(v: Boolean) = viewModelScope.launch { container.settings.setAmoledBlack(v) }
+    fun setSubtitleScale(v: Float) = viewModelScope.launch { container.settings.setSubtitleScale(v) }
+    fun setSubtitleColor(v: String) = viewModelScope.launch { container.settings.setSubtitleColor(v) }
+    fun setSubtitleBg(v: Float) = viewModelScope.launch { container.settings.setSubtitleBg(v) }
+    fun setSubtitleOffset(v: Float) = viewModelScope.launch { container.settings.setSubtitleOffset(v) }
+    fun setPlayerSpeed(v: Float) = viewModelScope.launch { container.settings.setPlayerSpeed(v) }
+    fun setAudioBoost(v: Boolean) = viewModelScope.launch { container.settings.setAudioBoost(v) }
+    fun setAudioNormalize(v: Boolean) = viewModelScope.launch { container.settings.setAudioNormalize(v) }
+    fun setMangaInvert(v: Boolean) = viewModelScope.launch { container.settings.setMangaInvert(v) }
+    fun setMangaGrayscale(v: Boolean) = viewModelScope.launch { container.settings.setMangaGrayscale(v) }
+    fun setMangaCrop(v: Boolean) = viewModelScope.launch { container.settings.setMangaCrop(v) }
+    fun setMangaDoublePage(v: Boolean) = viewModelScope.launch { container.settings.setMangaDoublePage(v) }
+    fun setMangaZoomLock(v: Boolean) = viewModelScope.launch { container.settings.setMangaZoomLock(v) }
+    fun setMangaVolumeKeys(v: Boolean) = viewModelScope.launch { container.settings.setMangaVolumeKeys(v) }
+    fun setMangaWarm(v: Boolean) = viewModelScope.launch { container.settings.setMangaWarm(v) }
+    fun setSubtitleSyncMs(v: Int) = viewModelScope.launch { container.settings.setSubtitleSyncMs(v) }
+
+    fun setIncognito(v: Boolean) = viewModelScope.launch { container.settings.setIncognito(v) }
+    fun setFlagSecure(v: Boolean) = viewModelScope.launch { container.settings.setFlagSecure(v) }
+    fun setAppLock(v: Boolean) = viewModelScope.launch { container.settings.setAppLock(v) }
+    fun setCustomHeaders(ua: String, referer: String, cookie: String) = viewModelScope.launch {
+        container.settings.setCustomUserAgent(ua)
+        container.settings.setCustomReferer(referer)
+        container.settings.setCustomCookie(cookie)
+    }
+    fun setMaxParallel(v: Int) = viewModelScope.launch { container.settings.setMaxParallel(v) }
+    fun setAutoDownloadNext(v: Boolean) = viewModelScope.launch { container.settings.setAutoDownloadNext(v) }
+    fun setAutoDownloadWifiOnly(v: Boolean) = viewModelScope.launch { container.settings.setAutoDownloadWifiOnly(v) }
+    fun setAutoDeleteWatched(v: Boolean) = viewModelScope.launch { container.settings.setAutoDeleteWatched(v) }
+    fun setStorageUri(v: String) = viewModelScope.launch { container.settings.setStorageUri(v) }
+    fun setUpdateRepo(v: String) = viewModelScope.launch { container.settings.setUpdateRepo(v) }
+    fun setNotifyNewContent(v: Boolean) = viewModelScope.launch { container.settings.setNotifyNewContent(v) }
+    fun setScrobbleTrakt(v: Boolean) = viewModelScope.launch { container.settings.setScrobbleTrakt(v) }
+    fun setScrobbleAniList(v: Boolean) = viewModelScope.launch { container.settings.setScrobbleAniList(v) }
+    fun setScrobbleMal(v: Boolean) = viewModelScope.launch { container.settings.setScrobbleMal(v) }
+    fun setScrobbleKitsu(v: Boolean) = viewModelScope.launch { container.settings.setScrobbleKitsu(v) }
+    fun setScrobbleSimkl(v: Boolean) = viewModelScope.launch { container.settings.setScrobbleSimkl(v) }
+    fun setToken(provider: String, v: String) = viewModelScope.launch { container.settings.setToken(provider, v) }
     fun setNsfwPin(pin: String?) = viewModelScope.launch { container.settings.setNsfwPin(pin) }
     fun unlockNsfw() = viewModelScope.launch { container.settings.setNsfwUnlocked(true) }
 
@@ -640,6 +926,21 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.cache.clear()
             refreshCacheSize()
+        }
+    }
+
+    /** Remove partial/failed downloads and orphaned cache chunks, then re-measure. */
+    fun clearDownloadCache() {
+        viewModelScope.launch {
+            downloadStats.value = container.videoDownloadManager.clearTemporaryFiles()
+            refreshCacheSize()
+        }
+    }
+
+    fun refreshDownloadStats() {
+        viewModelScope.launch {
+            downloadStats.value = runCatching { container.videoDownloadManager.storageStats() }
+                .getOrDefault(DownloadStorageStats())
         }
     }
 

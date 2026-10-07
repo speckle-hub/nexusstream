@@ -45,8 +45,12 @@ class AddonStore(private val context: Context) {
     object Defaults {
         val repos: List<RemoteRepo> = listOf(
             RemoteRepo("CloudStream (phisher98)", "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/builds/repo.json", com.novastream.app.data.model.AddonKind.CLOUDSTREAM),
+            RemoteRepo("CloudStream (hexated)", "https://raw.githubusercontent.com/JoeTinnySpace/cloudstream-extensions-hexated/builds/repo.json", com.novastream.app.data.model.AddonKind.CLOUDSTREAM),
+            RemoteRepo("CloudStream (community)", "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json", com.novastream.app.data.model.AddonKind.CLOUDSTREAM),
             RemoteRepo("Aniyomi (yuzono)", "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json", com.novastream.app.data.model.AddonKind.ANIYOMI),
-            RemoteRepo("Mihon / Keiyoushi", "https://github.com/keiyoushi/extensions/raw/repo/index.pb", com.novastream.app.data.model.AddonKind.KEIYOUSHI),
+            RemoteRepo("Aniyomi (official)", "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json", com.novastream.app.data.model.AddonKind.ANIYOMI),
+            RemoteRepo("Mihon / Keiyoushi (pb)", "https://github.com/keiyoushi/extensions/raw/repo/index.pb", com.novastream.app.data.model.AddonKind.KEIYOUSHI),
+            RemoteRepo("Mihon / Keiyoushi (json)", "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json", com.novastream.app.data.model.AddonKind.KEIYOUSHI),
         )
         /** Metadata catalogs (posters, descriptions, episode lists). */
         val metadataAddons: List<String> = listOf(
@@ -67,11 +71,42 @@ class AddonStore(private val context: Context) {
         val stremioAddons: List<String> = metadataAddons + streamAddons + subtitleAddons
 
         /**
+         * High-quality add-ons offered as one-tap installs in the Add-on Manager. Not seeded
+         * automatically, because several need per-user configuration and a dead auto-seed would
+         * degrade the out-of-box experience; users pick the ones they want.
+         */
+        val recommendedStreamAddons: List<Pair<String, String>> = listOf(
+            "Torrentio" to "https://torrentio.strem.fun/manifest.json",
+            "ThePirateBay+" to "https://thepiratebay-plus.strem.fun/manifest.json",
+            "MediaFusion" to "https://mediafusion.elfhosted.com/manifest.json",
+            "OpenSubtitles v3" to "https://opensubtitles-v3.strem.io/manifest.json",
+        )
+
+        /**
+         * Reliability order for stream ranking: streams from these add-ons are surfaced first.
+         * Matched case-insensitively against the add-on name/id.
+         */
+        val preferredStreamHosts: List<String> = listOf(
+            "torrentio",
+            "thepiratebay-plus",
+            "mediafusion",
+        )
+
+        /**
          * Hosts that used to be seeded but are now dead. Existing installs are pruned of these
          * on startup and the current stream providers are re-seeded in their place.
          */
         val retiredHosts: List<String> = listOf(
             "v3-chill.strem.io",
+        )
+
+        /**
+         * Provider-repo URLs that used to be seeded but now 404 (the old Hexated org is gone).
+         * [com.novastream.app.data.repo.AddonRepository.ensureDefaultRepos] prunes these from
+         * existing installs so the dead entry is replaced by its live mirror rather than kept.
+         */
+        val retiredRepoUrls: List<String> = listOf(
+            "https://raw.githubusercontent.com/hexated/cloudstream-extensions-hexated/builds/repo.json",
         )
     }
 }

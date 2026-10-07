@@ -1,15 +1,26 @@
 package com.novastream.app.ui.nav
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
@@ -17,7 +28,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -26,16 +36,21 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -46,6 +61,9 @@ import androidx.navigation.navArgument
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
 import com.novastream.app.ui.screens.addons.AddonManagerScreen
+import com.novastream.app.ui.screens.browse.BrowseScreen
+import com.novastream.app.ui.screens.settings.HomeOrderScreen
+import com.novastream.app.ui.screens.sources.SourcesScreen
 import com.novastream.app.ui.screens.collection.CollectionScreen
 import com.novastream.app.ui.screens.detail.DetailScreen
 import com.novastream.app.ui.screens.home.HomeScreen
@@ -55,17 +73,21 @@ import com.novastream.app.ui.screens.nsfw.NsfwScreen
 import com.novastream.app.ui.screens.search.SearchScreen
 import com.novastream.app.ui.screens.settings.SettingsScreen
 import com.novastream.app.ui.theme.LocalNovaColors
+import com.novastream.app.ui.theme.Motion
 import com.novastream.app.ui.vm.LocalContainer
 
 object Routes {
     const val HOME = "home"
     const val MANGA = "manga"
     const val NSFW = "nsfw"
+    const val BROWSE = "browse"
     const val SEARCH = "search"
     const val SEARCH_PATTERN = "search?q={q}"
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
     const val ADDONS = "addons"
+    const val SOURCES = "sources"
+    const val HOME_ORDER = "home_order"
     const val COLLECTION = "collection/{type}"
     const val DETAIL = "detail/{type}/{addonId}/{id}/{title}/{poster}"
 
@@ -82,23 +104,68 @@ object Routes {
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
-// One cohesive Material Filled set for every bottom tab.
+// Five tabs, one cohesive Material Filled icon set.
+//
+// Manga and NSFW used to be permanent tabs of their own, making the bar six items wide — crowded
+// enough to truncate labels, and it gave the gated adult section the same prominence as Home. They
+// are now one "Browse" destination with a segmented control (see BrowseScreen). `Routes.MANGA` /
+// `Routes.NSFW` remain registered below so those screens are still reachable by route; the persisted
+// tab index is versioned (SettingsStore.CURRENT_TAB_LAYOUT_VERSION) so old six-tab indices are
+// discarded rather than silently resolving to a different destination.
 private val tabs = listOf(
     Tab(Routes.HOME, "Home", Icons.Filled.Home),
-    Tab(Routes.MANGA, "Manga", Icons.Filled.AutoStories),
-    Tab(Routes.NSFW, "NSFW", Icons.Filled.VisibilityOff),
     Tab(Routes.SEARCH, "Search", Icons.Filled.Search),
+    Tab(Routes.BROWSE, "Browse", Icons.Filled.AutoStories),
     Tab(Routes.LIBRARY, "Library", Icons.Filled.VideoLibrary),
     Tab(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
 )
 
+/**
+ * Route pattern -> comparable base, ignoring any query/argument tail.
+ *
+ * The Search destination is registered as `search?q={q}` (it carries an optional pre-fill query),
+ * while its tab is `search`. Comparing the raw `destination.route` therefore never matched, which
+ * hid the bottom bar on the Search screen and stopped the tab from highlighting or persisting.
+ * Comparing the part before `?` makes the two equivalent while leaving argument-bearing routes
+ * (`collection/{type}`, `detail/…`) untouched.
+ */
+private fun String.routeBase(): String = substringBefore('?')
+
+/** The bottom-bar tab a destination belongs to, or null when it isn't a tab destination. */
+private fun tabForRoute(route: String?): Tab? =
+    route?.let { r -> tabs.firstOrNull { it.route.routeBase() == r.routeBase() } }
+
+/**
+ * Tab-switch motion.
+ *
+ * Tabs used to swap instantly, which made the app feel like a set of disconnected pages. They now
+ * cross-fade with a small horizontal drift, so the switch reads as one surface changing rather than
+ * a cut. The direction follows tab order (moving right slides in from the right) so the gesture
+ * feels spatial.
+ */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.tabEnter(direction: Int): EnterTransition =
+    fadeIn(animationSpec = tween(Motion.MEDIUM)) +
+        slideInHorizontally(animationSpec = tween(Motion.MEDIUM)) { width -> direction * width / 12 }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.tabExit(direction: Int): ExitTransition =
+    fadeOut(animationSpec = tween(Motion.FAST)) +
+        slideOutHorizontally(animationSpec = tween(Motion.FAST)) { width -> -direction * width / 12 }
+
+/** Push-style motion for the full-screen detail/collection destinations. */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.detailEnter(): EnterTransition =
+    fadeIn(tween(Motion.MEDIUM)) + slideInVertically(tween(Motion.MEDIUM)) { it / 8 }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.detailExit(): ExitTransition =
+    fadeOut(tween(Motion.FAST)) + slideOutVertically(tween(Motion.FAST)) { it / 8 }
+
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun NovaApp(navController: NavHostController = rememberNavController()) {
     val nova = LocalNovaColors.current
     val container = LocalContainer.current
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
-    val showBar = currentRoute in tabs.map { it.route }
+    val showBar = tabForRoute(currentRoute) != null
 
     // Guards tab persistence until the one-shot cold-boot restore has finished, so restoring a
     // saved tab can never be undone by the initial Home route being persisted first.
@@ -119,109 +186,183 @@ fun NovaApp(navController: NavHostController = rememberNavController()) {
                 }
             }
         }
+        // Stamp the layout the persisted index now belongs to, so a future tab-list change is
+        // detected the same way. Done after the read so a stale index is ignored exactly once.
+        container.settings.stampTabLayoutVersion()
         restored = true
     }
 
     // Persist the active tab whenever it changes (after the restore above has settled).
     LaunchedEffect(currentRoute, restored) {
         if (!restored) return@LaunchedEffect
-        val idx = tabs.indexOfFirst { it.route == currentRoute }
+        val idx = tabs.indexOfFirst { it.route.routeBase() == currentRoute?.routeBase() }
         if (idx >= 0) container.settings.setLastTab(idx)
     }
 
-    Scaffold(
-        containerColor = nova.background,
-        bottomBar = {
-            AnimatedVisibility(
-                visible = showBar,
-                enter = slideInVertically(tween(220)) { it / 2 } + fadeIn(tween(220)),
-                exit = slideOutVertically(tween(180)) { it / 2 } + fadeOut(tween(180)),
-            ) {
-                NavigationBar(containerColor = nova.surface.copy(alpha = 0.96f)) {
-                    tabs.forEach { tab ->
-                        NavigationBarItem(
-                            selected = currentRoute == tab.route,
-                            onClick = {
-                                if (currentRoute != tab.route) {
-                                    navController.navigate(tab.route) {
-                                        popUpTo(Routes.HOME) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            },
-                            // A slightly smaller icon keeps the active indicator pill compact.
-                            icon = {
-                                Icon(
-                                    tab.icon,
-                                    contentDescription = tab.label,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            },
-                            label = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = nova.accent,
-                                selectedTextColor = nova.accent,
-                                indicatorColor = nova.accent.copy(alpha = 0.15f),
-                                unselectedIconColor = nova.textTertiary,
-                                unselectedTextColor = nova.textTertiary,
-                            ),
+    // Bottom padding every tab screen adds so its last row clears the floating bar. The bar is
+    // permanently visible — it no longer hides itself on scroll.
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBarBottomPadding = if (showBar) FloatingNavBarHeight + 16.dp + navInset + 12.dp else 0.dp
+
+    Box(Modifier.fillMaxSize().background(nova.background)) {
+        CompositionLocalProvider(
+            LocalFloatingNavBottomPadding provides navBarBottomPadding,
+        ) {
+            // Wraps the whole NavHost so a poster tapped on any screen can morph into the detail
+            // header. Shared elements are matched by key across the two simultaneously-composed
+            // destinations during a navigation transition.
+            SharedTransitionLayout {
+                // Captured from the layout's receiver: Compose 1.7.0 has no
+                // `LocalSharedTransitionScope`, so it's captured once here and published per
+                // destination below.
+                val sharedTransitionScope = this
+                NavHost(
+                    navController = navController,
+                    startDestination = Routes.HOME,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    // ---- Tabs: cross-fade + directional drift ---------------------------
+                    composable(
+                        Routes.HOME,
+                        enterTransition = { tabEnter(1) },
+                        exitTransition = { tabExit(1) },
+                        popEnterTransition = { tabEnter(-1) },
+                        popExitTransition = { tabExit(-1) },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { HomeScreen(navController) } } }
+                    composable(
+                        Routes.MANGA,
+                        enterTransition = { tabEnter(1) },
+                        exitTransition = { tabExit(1) },
+                        popEnterTransition = { tabEnter(-1) },
+                        popExitTransition = { tabExit(-1) },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { MangaScreen(navController) } } }
+                    composable(
+                        Routes.NSFW,
+                        enterTransition = { tabEnter(1) },
+                        exitTransition = { tabExit(1) },
+                        popEnterTransition = { tabEnter(-1) },
+                        popExitTransition = { tabExit(-1) },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { NsfwScreen(navController) } } }
+                    composable(
+                        Routes.BROWSE,
+                        enterTransition = { tabEnter(1) },
+                        exitTransition = { tabExit(1) },
+                        popEnterTransition = { tabEnter(-1) },
+                        popExitTransition = { tabExit(-1) },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { BrowseScreen(navController) } } }
+                    composable(
+                        Routes.SEARCH_PATTERN,
+                        arguments = listOf(navArgument("q") { type = NavType.StringType; defaultValue = "" }),
+                        enterTransition = { tabEnter(1) },
+                        exitTransition = { tabExit(1) },
+                        popEnterTransition = { tabEnter(-1) },
+                        popExitTransition = { tabExit(-1) },
+                    ) { entry ->
+                        with(this) { ProvideSharedScope(sharedTransitionScope, this) { SearchScreen(navController, initialQuery = entry.arguments?.getString("q").orEmpty()) } }
+                    }
+                    composable(
+                        Routes.LIBRARY,
+                        enterTransition = { tabEnter(1) },
+                        exitTransition = { tabExit(1) },
+                        popEnterTransition = { tabEnter(-1) },
+                        popExitTransition = { tabExit(-1) },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { LibraryScreen(navController) } } }
+                    composable(
+                        Routes.SETTINGS,
+                        enterTransition = { tabEnter(1) },
+                        exitTransition = { tabExit(1) },
+                        popEnterTransition = { tabEnter(-1) },
+                        popExitTransition = { tabExit(-1) },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { SettingsScreen(navController) } } }
+
+                    // ---- Pushed destinations: vertical push ----------------------------
+                    composable(
+                        Routes.ADDONS,
+                        enterTransition = { detailEnter() },
+                        exitTransition = { detailExit() },
+                        popEnterTransition = { detailEnter() },
+                        popExitTransition = { detailExit() },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { AddonManagerScreen(navController) } } }
+                    composable(
+                        Routes.SOURCES,
+                        enterTransition = { detailEnter() },
+                        exitTransition = { detailExit() },
+                        popEnterTransition = { detailEnter() },
+                        popExitTransition = { detailExit() },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { SourcesScreen(navController) } } }
+                    composable(
+                        Routes.HOME_ORDER,
+                        enterTransition = { detailEnter() },
+                        exitTransition = { detailExit() },
+                        popEnterTransition = { detailEnter() },
+                        popExitTransition = { detailExit() },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { HomeOrderScreen(navController) } } }
+                    composable(
+                        Routes.COLLECTION,
+                        arguments = listOf(navArgument("type") { type = NavType.StringType }),
+                        enterTransition = { detailEnter() },
+                        exitTransition = { detailExit() },
+                        popEnterTransition = { detailEnter() },
+                        popExitTransition = { detailExit() },
+                    ) { entry ->
+                        val type = MediaType.fromId(entry.arguments?.getString("type")) ?: MediaType.MOVIE
+                        with(this) { ProvideSharedScope(sharedTransitionScope, this) { CollectionScreen(navController, type) } }
+                    }
+                    composable(
+                        Routes.DETAIL,
+                        arguments = listOf(
+                            navArgument("type") { type = NavType.StringType },
+                            navArgument("addonId") { type = NavType.StringType },
+                            navArgument("id") { type = NavType.StringType },
+                            navArgument("title") { type = NavType.StringType },
+                            navArgument("poster") { type = NavType.StringType },
+                        ),
+                        enterTransition = { detailEnter() },
+                        exitTransition = { detailExit() },
+                        popEnterTransition = { detailEnter() },
+                        popExitTransition = { detailExit() },
+                    ) { entry ->
+                        val type = entry.arguments?.getString("type") ?: "movie"
+                        val addonId = entry.arguments?.getString("addonId")?.takeIf { it != "-" }
+                        val id = entry.arguments?.getString("id") ?: ""
+                        val title = entry.arguments?.getString("title")?.takeIf { it != "-" } ?: ""
+                        val poster = entry.arguments?.getString("poster")?.takeIf { it != "-" }
+                        val item = MediaItem(
+                            id = id,
+                            type = MediaType.fromId(type) ?: MediaType.MOVIE,
+                            title = title,
+                            poster = poster,
+                            addonId = addonId,
                         )
+                        with(this) { ProvideSharedScope(sharedTransitionScope, this) { DetailScreen(navController, item) } }
                     }
                 }
             }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().background(nova.background).padding(bottom = if (showBar) padding.calculateBottomPadding() else 0.dp)) {
-            NavHost(
-                navController = navController,
-                startDestination = Routes.HOME,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                composable(Routes.HOME) { HomeScreen(navController) }
-                composable(Routes.MANGA) { MangaScreen(navController) }
-                composable(Routes.NSFW) { NsfwScreen(navController) }
-                composable(
-                    Routes.SEARCH_PATTERN,
-                    arguments = listOf(navArgument("q") { type = NavType.StringType; defaultValue = "" }),
-                ) { entry ->
-                    SearchScreen(navController, initialQuery = entry.arguments?.getString("q").orEmpty())
-                }
-                composable(Routes.LIBRARY) { LibraryScreen(navController) }
-                composable(Routes.SETTINGS) { SettingsScreen(navController) }
-                composable(Routes.ADDONS) { AddonManagerScreen(navController) }
-                composable(
-                    Routes.COLLECTION,
-                    arguments = listOf(navArgument("type") { type = NavType.StringType }),
-                ) { entry ->
-                    val type = MediaType.fromId(entry.arguments?.getString("type")) ?: MediaType.MOVIE
-                    CollectionScreen(navController, type)
-                }
-                composable(
-                    Routes.DETAIL,
-                    arguments = listOf(
-                        navArgument("type") { type = NavType.StringType },
-                        navArgument("addonId") { type = NavType.StringType },
-                        navArgument("id") { type = NavType.StringType },
-                        navArgument("title") { type = NavType.StringType },
-                        navArgument("poster") { type = NavType.StringType },
-                    ),
-                ) { entry ->
-                    val type = entry.arguments?.getString("type") ?: "movie"
-                    val addonId = entry.arguments?.getString("addonId")?.takeIf { it != "-" }
-                    val id = entry.arguments?.getString("id") ?: ""
-                    val title = entry.arguments?.getString("title")?.takeIf { it != "-" } ?: ""
-                    val poster = entry.arguments?.getString("poster")?.takeIf { it != "-" }
-                    val item = MediaItem(
-                        id = id,
-                        type = MediaType.fromId(type) ?: MediaType.MOVIE,
-                        title = title,
-                        poster = poster,
-                        addonId = addonId,
-                    )
-                    DetailScreen(navController, item)
-                }
-            }
+        }
+
+        // Floating pill navigation bar, overlaid at the bottom so lists scroll behind it. It stays
+        // visible at all times (scroll-driven hiding was removed — see FloatingPillNavBar.kt).
+        AnimatedVisibility(
+            visible = showBar,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(tween(Motion.MEDIUM)) { it } + fadeIn(tween(Motion.SLOW)),
+            exit = slideOutVertically(tween(Motion.MEDIUM)) { it } + fadeOut(tween(Motion.FAST)),
+        ) {
+            FloatingPillNavBar(
+                items = tabs.map { FloatingNavItem(it.label, it.icon) },
+                selectedIndex = tabs.indexOfFirst { it.route.routeBase() == currentRoute?.routeBase() }
+                    .coerceAtLeast(0),
+                onSelect = { index ->
+                    val tab = tabs[index]
+                    if (tab.route.routeBase() != currentRoute?.routeBase()) {
+                        navController.navigate(tab.route) {
+                            popUpTo(Routes.HOME) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                },
+            )
         }
     }
 }

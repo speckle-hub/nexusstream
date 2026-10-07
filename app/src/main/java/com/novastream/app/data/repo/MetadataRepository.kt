@@ -4,14 +4,18 @@ import com.novastream.app.data.adult.AdultDetail
 import com.novastream.app.data.adult.AdultRepository
 import com.novastream.app.data.adult.AdultSource
 import com.novastream.app.data.adult.AdultSources
+import com.novastream.app.data.adult.adultTitlesMatch
+import com.novastream.app.data.hentai.HentaiRepository
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
 import com.novastream.app.data.model.MetaDetail
 import com.novastream.app.data.model.Video
 import com.novastream.app.data.remote.AniListClient
+import com.novastream.app.data.remote.JikanClient
 import com.novastream.app.data.remote.MangaDexClient
 import com.novastream.app.data.remote.StremioClient
 import com.novastream.app.data.remote.TmdbClient
+import kotlinx.coroutines.withTimeout
 
 /** Resolves full metadata for any MediaItem regardless of its source. */
 class MetadataRepository(private val addonRepo: AddonRepository) {
@@ -31,18 +35,63 @@ class MetadataRepository(private val addonRepo: AddonRepository) {
         var best: MetaDetail? = null
         var bestScore = -1
         for (source in candidates) {
-            val d = runCatching { source() }.getOrNull() ?: continue
+            val d = runCatching {
+                // Bound every NSFW-anime candidate: these are normally sub-second, and a hung
+                // AniList/Jikan call must degrade to the next source instead of stalling the page.
+                if (item.type == MediaType.NSFW_ANIME) withTimeout(NSFW_SOURCE_TIMEOUT_MS) { source() }
+                else source()
+            }.getOrNull() ?: continue
             if (d.name.isBlank()) continue
+            // Never substitute a different title for the one the user picked. A fallback source
+            // (Jikan's loose `?q=` search above all) can return a plausible-but-unrelated adult
+            // entry; a candidate that isn't recognisably this title is skipped outright instead
+            // of being allowed to win on metadata score.
+            if (item.type == MediaType.NSFW_ANIME && !sameTitle(item, d)) continue
             val score = score(d, item)
             if (score > bestScore) { best = d; bestScore = score }
             // A fully-loaded result (rich metadata + episodes) is good enough — stop early.
             if (score >= 100) break
+            // AniList is the fast primary NSFW-anime source: once it returns a *complete* record
+            // (a synopsis) there is no reason to pay for the slower Jikan fallback.
+            if (item.type == MediaType.NSFW_ANIME && !d.description.isNullOrBlank()) break
         }
         // Real 18+ titles must never surface a "couldn't load" error: fall back to the
         // catalog item itself (title/poster/backdrop) so the page still renders and plays.
         if (best == null && item.type == MediaType.REAL) return fallbackDetail(item)
+        // Same guarantee for NSFW anime: if both AniList and Jikan failed, build the detail from
+        // what the built-in hentai sources know (poster/series/episodes), falling back to the
+        // catalog item itself. The page still renders and plays instead of hard-failing.
+        if (best == null && item.type == MediaType.NSFW_ANIME) return hentaiFallback(item)
         return best
     }
+
+    /**
+     * Last-resort NSFW-anime detail: the catalog item's own metadata, enriched with whatever the
+     * built-in hentai sources can provide (series/poster + an episode list) so the page never
+     * hard-fails. Cached in [HentaiRepository], and
+     * `DetailViewModel` skips its own episode fill when [MetaDetail.videos] is already populated.
+     */
+    private suspend fun hentaiFallback(item: MediaItem): MetaDetail {
+        val base = fallbackDetail(item)
+        val episodes = runCatching { HentaiRepository.episodes(item.title) }.getOrNull()?.episodes.orEmpty()
+        val head = episodes.firstOrNull() ?: return base
+        // The page keeps the title and artwork the user actually selected — only the episode list
+        // is borrowed from the scrapers. This used to *rename* the page to whatever series the
+        // source search returned (`name = head.series`), which is how "Boku to Misaki-sensei"
+        // opened as a completely different title. [HentaiRepository] only returns groups that
+        // match the query; the check here documents (and enforces) the same rule at the seam.
+        if (!adultTitlesMatch(item.title, head.series)) return base
+        return base.copy(
+            poster = base.poster ?: head.poster,
+            background = base.background ?: head.poster ?: base.poster,
+            videos = episodes.map { it.toVideo() },
+            totalEpisodes = episodes.size,
+        )
+    }
+
+    /** True when [d] is recognisably the detail of [item] rather than a different title. */
+    private fun sameTitle(item: MediaItem, d: MetaDetail): Boolean =
+        adultTitlesMatch(item.title, d.name) || d.altTitles.any { adultTitlesMatch(item.title, it) }
 
     /** Maps a built-in adult source result onto the normal detail model. */
     private fun adultMeta(source: AdultSource, item: MediaItem, detail: AdultDetail): MetaDetail {
@@ -104,11 +153,15 @@ class MetadataRepository(private val addonRepo: AddonRepository) {
             }
             "anilist" -> {
                 list += { AniListClient.details(item.id) }
+                // Jikan by title is the NSFW-anime fallback when AniList fails or returns a thin
+                // record (AniList's id cannot be translated back to MAL without that same call).
+                if (item.type == MediaType.NSFW_ANIME) list += { JikanClient.detailsByTitle(item.title) }
             }
             "mangadex" -> {
                 list += { MangaDexClient.details(item.id) }
             }
             "jikan" -> {
+                list += { JikanClient.details(item.id) }
                 list += { AniListClient.details(item.id, byMal = true) }
             }
             else -> {
@@ -148,8 +201,11 @@ class MetadataRepository(private val addonRepo: AddonRepository) {
             item.type == MediaType.REAL -> metaCapable.filter { it.nsfw }
             else -> metaCapable
         }.sortedByDescending { it.id == item.addonId }
+        val isAnime = item.type == MediaType.ANIME || item.type == MediaType.NSFW_ANIME
+        val candidates = StremioClient.candidateRequests(stremioType, item.id, isAnime, null)
         for (addon in ordered) {
-            val d = runCatching { StremioClient.fetchMeta(addon, stremioType, item.id) }.getOrNull()
+            val (aType, aId) = StremioClient.chooseRequest(stremioType to item.id, candidates, addon.idPrefixes)
+            val d = runCatching { StremioClient.fetchMeta(addon, aType, aId) }.getOrNull()
             if (d != null && d.name.isNotBlank()) return d
         }
         return null
@@ -205,11 +261,18 @@ class MetadataRepository(private val addonRepo: AddonRepository) {
                 MediaType.MOVIE -> TmdbClient.discoverMovies()
                 MediaType.SERIES -> TmdbClient.discoverTv()
                 MediaType.ANIME -> AniListClient.byGenre(genre ?: "Action")
-                MediaType.NSFW_ANIME -> AniListClient.nsfwByGenre(genre ?: "Ecchi")
+                // Bounded like every other NSFW-anime hop: the related rail must never be the
+                // thing that keeps the detail spinner up.
+                MediaType.NSFW_ANIME -> withTimeout(NSFW_SOURCE_TIMEOUT_MS) { AniListClient.nsfwByGenre(genre ?: "Ecchi") }
                 MediaType.MANGA -> MangaDexClient.popular()
                 MediaType.NSFW_MANGA -> MangaDexClient.search("", nsfw = true, limit = 20)
                 else -> emptyList()
             }.filter { it.id != item.id }.distinctBy { it.key }.take(20)
         }.getOrDefault(emptyList())
+    }
+
+    private companion object {
+        /** Bounds one NSFW-anime metadata source (AniList / Jikan) so a hung call can't stall the page. */
+        const val NSFW_SOURCE_TIMEOUT_MS = 8_000L
     }
 }

@@ -299,6 +299,7 @@ object TmdbClient {
                 thumbnail = poster(eo.get("still_path")?.asString, "w300"),
                 overview = eo.get("overview")?.asString,
                 released = eo.get("air_date")?.asString,
+                runtimeMin = eo.get("runtime")?.takeIf { it.isJsonPrimitive }?.asInt,
             )
         }
     }

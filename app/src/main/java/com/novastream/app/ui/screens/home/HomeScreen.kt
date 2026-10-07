@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,8 +26,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
@@ -66,10 +70,14 @@ import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.MediaRow
 import com.novastream.app.ui.components.SectionHeader
 import com.novastream.app.ui.components.ShimmerBox
+import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
+import com.novastream.app.ui.screens.settings.applyRowOrder
+import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.rememberPosterPalette
 import com.novastream.app.ui.vm.HomeViewModel
+import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
 import kotlinx.coroutines.delay
@@ -77,10 +85,14 @@ import kotlinx.coroutines.delay
 @Composable
 fun HomeScreen(nav: NavHostController) {
     val vm = novaViewModel { HomeViewModel(it) }
-    val rows by vm.rows.collectAsStateSafe()
+    val rawRows by vm.rows.collectAsStateSafe()
+    // Phase 12: apply the user's saved home-row order (no-op when unset).
+    val homeOrder by LocalContainer.current.settings.homeOrder.collectAsStateSafe()
+    val rows = remember(rawRows, homeOrder) { applyRowOrder(rawRows, homeOrder) }
     val loading by vm.loading.collectAsStateSafe()
     val error by vm.error.collectAsStateSafe()
     val continueWatching by vm.continueWatching.collectAsStateSafe()
+    val continueReading by vm.continueReading.collectAsStateSafe()
 
     // Featured carousel pool: trending titles first (they have backdrops), then the rest of the
     // feed, deduped. Prefer items with real artwork so a premium banner never falls back to a
@@ -101,25 +113,30 @@ fun HomeScreen(nav: NavHostController) {
     Box(Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 44.dp, bottom = 28.dp),
+        modifier = Modifier.fillMaxSize().clipToBounds(),
+        // No top padding: when a hero is present it must draw edge-to-edge behind the status bar.
+        // When there isn't one, the top bar itself supplies the status-bar inset.
+        contentPadding = PaddingValues(bottom = 28.dp + LocalFloatingNavBottomPadding.current),
     ) {
-        item {
-            HomeTopBar(
-                onAddons = { nav.navigate(Routes.ADDONS) },
-                onRefresh = { vm.refresh() },
-            )
-        }
-
-        // ---- Featured carousel ----------------------------------------------
+        // ---- Featured carousel (full-bleed, behind the status bar) -----------
         if (featured.isNotEmpty()) {
             item {
                 FeaturedCarousel(featured) { nav.navigate(Routes.detail(it)) }
             }
-        } else if (loading) {
+        } else {
+            // No hero to overlay: the top bar is a normal first row (with its own inset) and the
+            // loading placeholder sits below it.
             item {
-                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    ShimmerBox(Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(20.dp))
+                HomeTopBar(
+                    onAddons = { nav.navigate(Routes.ADDONS) },
+                    onRefresh = { vm.refresh() },
+                )
+            }
+            if (loading) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        ShimmerBox(Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(20.dp))
+                    }
                 }
             }
         }
@@ -134,19 +151,32 @@ fun HomeScreen(nav: NavHostController) {
             }
         }
 
-        if (loading && rows.isEmpty()) {
-            items(4) { LoadingRow() }
-        }
-        if (!loading && rows.isEmpty()) {
+        // Manga reading progress (normal + NSFW) gets its own row so a reader can jump straight
+        // back into the last chapter they had open.
+        if (continueReading.isNotEmpty()) {
             item {
+                ContinueWatchingRow(
+                    title = "Continue Reading",
+                    reading = true,
+                    entries = continueReading,
+                    onClick = { nav.navigate(Routes.detail(it.item)) },
+                    onRemove = { pendingRemoval = it },
+                )
+            }
+        }
+
+        // Mutually exclusive: an error must not render *on top of* the "Nothing here yet" state
+        // (which it used to, because the empty check ignored `error`).
+        val loadError = error
+        when {
+            loading && rows.isEmpty() -> items(4) { LoadingRow() }
+            loadError != null -> item { EmptyState("Couldn't load content", loadError) }
+            rows.isEmpty() -> item {
                 EmptyState(
                     "Nothing here yet",
                     "Install add-ons from the Add-on Manager to populate your home feed.",
                 )
             }
-        }
-        error?.let {
-            item { EmptyState("Couldn't load content", it) }
         }
 
         items(rows) { row ->
@@ -154,12 +184,37 @@ fun HomeScreen(nav: NavHostController) {
                 title = row.title,
                 items = row.items,
                 onClick = { nav.navigate(Routes.detail(it)) },
-                cardWidth = 150,
+                cardWidth = AppSpacing.railCard,
                 trailing = {
                     SeeAll { nav.navigate(Routes.collection(row.type)) }
                 },
             )
         }
+    }
+
+    // Floating app title / controls over the top of the hero, below the status bar. The hero's own
+    // top scrim (plus the extra one below) keeps the logo legible over bright artwork.
+    if (featured.isNotEmpty()) {
+        // Extra dark gradient right behind the logo/controls so they stay legible no matter how
+        // bright the banner underneath is.
+        Box(
+            Modifier
+                .align(Alignment.TopStart)
+                .zIndex(10f)
+                .fillMaxWidth()
+                .height(130.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent)
+                    )
+                )
+        )
+        HomeTopBar(
+            onAddons = { nav.navigate(Routes.ADDONS) },
+            onRefresh = { vm.refresh() },
+            overArtwork = true,
+            modifier = Modifier.align(Alignment.TopStart).zIndex(10f),
+        )
     }
 
     pendingRemoval?.let { entry ->
@@ -188,7 +243,9 @@ private fun FeaturedCarousel(items: List<MediaItem>, onClick: (MediaItem) -> Uni
     if (items.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { items.size })
 
-    LaunchedEffect(items.size) {
+    // Keyed on the list itself (not just its size), so a refreshed feed restarts the auto-advance
+    // loop even when the item count happens to be unchanged.
+    LaunchedEffect(items) {
         if (items.size <= 1) return@LaunchedEffect
         while (true) {
             delay(5000)
@@ -240,11 +297,14 @@ private fun CarouselDots(count: Int, selected: Int, modifier: Modifier = Modifie
     }
 }
 
-/** Centre-aligned metadata line, e.g. "Movie • Action • 2024 • ★ 7.8". */
+/** Centre-aligned metadata line, e.g. "Movie · 2024 · 7.8".
+ *
+ * Deliberately short — the banner carries the title, this line and the CTA, nothing else (the
+ * overview paragraph used to sit under it and crowded the artwork out of the card).
+ */
 private fun heroMeta(item: MediaItem): String = buildList {
     // Labels are plural ("Movies", "TV Shows"); drop the plural for the single-title row.
     add(item.type.label.removeSuffix("s"))
-    item.genres.firstOrNull()?.let { add(it) }
     item.year?.takeIf { it.isNotBlank() }?.let { add(it) }
     item.rating?.let { add(String.format("%.1f", it)) }
 }.joinToString(" \u00b7 ")
@@ -308,14 +368,12 @@ private fun HeroSlide(item: MediaItem, onClick: (MediaItem) -> Unit) {
                 "FEATURED",
                 style = MaterialTheme.typography.labelSmall,
                 color = glow,
-                fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(6.dp))
             Text(
                 item.title,
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.White,
-                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -329,28 +387,22 @@ private fun HeroSlide(item: MediaItem, onClick: (MediaItem) -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            item.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.80f),
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
             Spacer(Modifier.height(16.dp))
-            // Pill CTA.
+            // Pill CTA — "Play" for video, "Read" for manga (the detail screen labels them the
+            // same way, so the banner never promises a player it won't open).
             Button(
                 onClick = { onClick(item) },
                 shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                 contentPadding = PaddingValues(horizontal = 26.dp, vertical = 11.dp),
             ) {
-                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp))
+                if (item.isReadable) {
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
+                } else {
+                    Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp))
+                }
                 Spacer(Modifier.width(6.dp))
-                Text("Play", fontWeight = FontWeight.Bold)
+                Text(if (item.isReadable) "Read" else "Play", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -369,11 +421,23 @@ private fun SeeAll(onClick: () -> Unit) {
 }
 
 @Composable
-private fun HomeTopBar(onAddons: () -> Unit, onRefresh: () -> Unit) {
+private fun HomeTopBar(
+    onAddons: () -> Unit,
+    onRefresh: () -> Unit,
+    overArtwork: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     val nova = LocalNovaColors.current
+    // Over the hero, white reads against any artwork; in the no-hero case, use the theme colours.
+    val titleColor = if (overArtwork) Color.White else nova.textPrimary
+    val subtitleColor = if (overArtwork) Color.White.copy(alpha = 0.78f) else nova.textTertiary
+    val refreshTint = if (overArtwork) Color.White else nova.textSecondary
+    val addonsTint = if (overArtwork) Color.White else nova.accent
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            // Status-bar inset here so the logo/controls clear the system bar in both layouts.
+            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -381,20 +445,19 @@ private fun HomeTopBar(onAddons: () -> Unit, onRefresh: () -> Unit) {
             Text(
                 "NexusStream",
                 style = MaterialTheme.typography.displaySmall,
-                color = nova.textPrimary,
-                fontWeight = FontWeight.Bold,
+                color = titleColor,
             )
             Text(
                 "Movies \u00b7 TV \u00b7 Anime \u00b7 Manga",
                 style = MaterialTheme.typography.labelMedium,
-                color = nova.textTertiary,
+                color = subtitleColor,
             )
         }
         IconButton(onClick = onRefresh) {
-            Icon(Icons.Filled.Refresh, "Refresh", tint = nova.textSecondary)
+            Icon(Icons.Filled.Refresh, "Refresh", tint = refreshTint)
         }
         IconButton(onClick = onAddons) {
-            Icon(Icons.Filled.Extension, "Add-ons", tint = nova.accent)
+            Icon(Icons.Filled.Extension, "Add-ons", tint = addonsTint)
         }
     }
 }
@@ -405,10 +468,12 @@ private fun ContinueWatchingRow(
     entries: List<WatchEntry>,
     onClick: (WatchEntry) -> Unit,
     onRemove: (WatchEntry) -> Unit,
+    title: String = "Continue Watching",
+    reading: Boolean = false,
 ) {
     val nova = LocalNovaColors.current
     Column(Modifier.fillMaxWidth()) {
-        SectionHeader("Continue Watching")
+        SectionHeader(title)
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -437,7 +502,7 @@ private fun ContinueWatchingRow(
                                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))),
                         )
                         Icon(
-                            Icons.Filled.PlayArrow,
+                            if (reading) Icons.AutoMirrored.Filled.MenuBook else Icons.Filled.PlayArrow,
                             null,
                             tint = Color.White,
                             modifier = Modifier.align(Alignment.Center).size(40.dp),
@@ -457,23 +522,32 @@ private fun ContinueWatchingRow(
                                     .background(nova.accent),
                             )
                         }
-                        // Small "×" so the entry can be dropped from Continue Watching.
+                        // Small "×" so the entry can be dropped from Continue Watching. The visible
+                        // chip stays 26dp to cover as little artwork as possible, but the *touch*
+                        // target is the 48dp accessibility minimum (this is a destructive action).
                         Box(
                             Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
-                                .size(26.dp)
+                                .size(48.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(Color.Black.copy(alpha = 0.62f))
                                 .clickable { onRemove(entry) },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                Icons.Filled.Close,
-                                "Remove from Continue Watching",
-                                tint = Color.White,
-                                modifier = Modifier.size(15.dp),
-                            )
+                            Box(
+                                Modifier
+                                    .size(26.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.Black.copy(alpha = 0.62f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    "Remove from Continue Watching",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.height(6.dp))

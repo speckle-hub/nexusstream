@@ -205,3 +205,40 @@ internal fun adultRelevanceScore(title: String, tokens: List<String>): Int {
     val lower = title.lowercase()
     return tokens.count { lower.contains(it) }
 }
+
+/**
+ * Words that identify no title on their own: articles, prepositions and the Japanese genitive
+ * particle. They are kept by [adultQueryTokens] (for ranking), but they must never be enough to
+ * declare two titles the *same* one — "to" is a substring of "Netokano", which is exactly how
+ * "Boku to Misaki-sensei" ended up resolving to a different series.
+ */
+private val FILLER_TOKENS = setOf(
+    "a", "an", "the", "to", "of", "in", "on", "at", "for", "and", "or", "is", "it",
+    "by", "with", "from", "no", "de", "la", "le", "el", "lo", "ni", "wa", "wo", "ga",
+)
+
+/**
+ * The identifying keywords of a query: [adultQueryTokens] minus the filler words. Falls back to
+ * the raw tokens when the query is nothing but fillers, so a degenerate query stays permissive
+ * instead of silently matching nothing.
+ */
+internal fun adultSignificantTokens(query: String): List<String> {
+    val all = adultQueryTokens(query)
+    return all.filterNot { it in FILLER_TOKENS }.ifEmpty { all }
+}
+
+/**
+ * True when [actual] plausibly names the same title as [expected]: at least one *significant*
+ * word of [expected] appears in [actual]. Punctuation, case and word order are irrelevant, and a
+ * filler-only overlap ("to", "the", "no") never counts — so a loose upstream search result can
+ * not be mistaken for the title the user picked.
+ *
+ * Returns false when [expected] carries no usable keywords at all: a caller deciding "is this
+ * the same title?" must answer no when there is nothing to compare.
+ */
+internal fun adultTitlesMatch(expected: String, actual: String): Boolean {
+    val tokens = adultSignificantTokens(expected)
+    if (tokens.isEmpty()) return false
+    val hay = actual.lowercase()
+    return tokens.any { hay.contains(it) }
+}
