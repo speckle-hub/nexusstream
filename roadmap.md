@@ -1,15 +1,14 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-07 — **Source-neutrality pass for the
-> public GitHub release (§2x):** the app no longer ships any stream providers or provider
-> repositories. All 7 seeded provider repos (CloudStream Phisher/Hexated/community, Aniyomi
-> yuzono/official, Mihon/Keiyoushi pb+json), the seeded **Torrentio / ThePirateBay+** stream
-> add-ons, the **MediaFusion** recommendation and the preferred-host ranking list are removed;
-> only legal **Cinemeta** (metadata) and **OpenSubtitles v3** (subtitles) are seeded, and the
-> Add-on Manager now lets users add/remove their own repository URLs (it previously had no
-> add-repo UI at all). Existing installs are pruned of every removed seed via extended
-> `retiredHosts` / `retiredRepoUrls` migrations. Previous session,
+> resume exactly where it left off. Last updated: 2026-10-07 — **Public GitHub release + the
+> NexusStream website (§2y):** the repo is now **public** at `github.com/speckle-hub/nexusstream`
+> (21 commits; `v1.1.0` tag + GitHub Release with the signed APK attached, so the in-app updater
+> works), and a **Next.js 15 landing site** lives in `website/` — a dark, violet-accented single
+> page (ThreeUI nebula shader hero, pure-CSS phone mockup, ecosystem marquee, glowing bento
+> feature grid, animated stats, HeroUI FAQ, background-beams download CTA wired to the release
+> APK, content-neutrality footer), optimized (first-load JS 240 → **216 kB**, LazyMotion,
+> reduced-motion fallbacks, full SEO pack) and **deployed to Vercel**. Previous session,
 > **Phase 20 — UI grid, Settings crash, reader repairs & Continue Reading (§2u):** the eight reported issues are fixed — adaptive
 > grids are back to **three columns on phones** (and Library gained the side gutters it was
 > missing), the **Recent Searches** section records typed queries again, the floating pill nav no
@@ -40,12 +39,12 @@
 > sessions: Phase 16 (§2r), Phase 15 (§2q), the downloader fix (§2p), the NSFW speed + metadata pass
 > (§2o), Phase 13 (§2j), the Real 18+ expansion to 12 sources (§2k), the static-review pass (§2l),
 > the NSFW-anime expansion to 9 sources (§2m) and the final UI & app checkup (§2n).
-> Source-neutrality status: **implemented and built** — see §2x. Verified this session:
+> Source-neutrality status: **implemented and built** — see §2x. Verified:
 > `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **113/113**, `:app:assembleRelease` ✅
 > (signed); `dist/NovaStream.apk` refreshed (38,280,882 bytes, SHA-256 `969D176D…B0A9D`).
-> Device passes outstanding: §7 items 20–31 (plus the Phase 19 interaction checks); item 31 covers
-> the Sources crash fix. The repo is prepared for a **public GitHub upload** (README rewritten,
-> no secrets tracked).
+> Release/website status: **live** — see §2y (`next build` ✅ static, prerendered; Vercel deploy
+> ✅; hydration fix ✅). Device passes outstanding: §7 items 20–31 (plus the Phase 19 interaction
+> checks); item 31 covers the Sources crash fix.
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
@@ -57,7 +56,8 @@
 Android streaming app (`com.novastream.app`) unifying Stremio add-ons, CloudStream extensions,
 Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Jetpack Compose
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
-(`di/AppContainer.kt`). AGP 8.5.0.
+(`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
+site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
 ~20,900 LOC across 104 Kotlin source files in a single `:app` module (+15 test files). Unit tests
 (113 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
@@ -71,13 +71,13 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 
 ## 2. Current focus
 
-**Topic: source neutrality for the public GitHub release.** The app no longer ships or recommends
-any stream providers or provider repositories — only legal Cinemeta (metadata) and OpenSubtitles
-(subtitles) are seeded; users add their own add-ons/repos via a new add-repo UI in the Add-on
-Manager, and existing installs are pruned of the removed seeds on next launch. Full detail in
-**§2x**.
+**Topic: the public release and the website.** The source-neutral app (§2x) is now public on
+GitHub with a proper `v1.1.0` release, and the project has a marketing site: `website/` is a
+static Next.js 15 + Tailwind + HeroUI + Aceternity-style + ThreeUI landing page, optimized and
+deployed to Vercel from the same repo. Full detail in **§2y**.
 
-Previous focus: Phase 21 (§2v) — NSFW/Browse card alignment & the Sources crash root cause; Phase 20
+Previous focus: source neutrality (§2x) for the public GitHub release; Phase 21 (§2v) — NSFW/Browse
+card alignment & the Sources crash root cause; Phase 20
 (§2u) — grids/recents/hero/Settings crash/reader/Continue Reading. Legacy §2 topic text follows for
 history:
 
@@ -622,6 +622,76 @@ Status: **implemented and built.** Files and verification at the end.
   `retiredRepoUrls` verified in the release dex.
 - **Device pass still required — §7 items 21/23/31.** The Haho chain is verified from the sandbox
   against live markup, but whether ExoPlayer plays the `filegasm` CDN URLs (Referer/token) is hardware.
+
+---
+
+## 2y. Public GitHub release + the NexusStream website (2026-10-07)
+
+**Topic: ship the source-neutral app to a public repo and give it a marketing site.** Two
+deliverables: the GitHub publication itself, and `website/` — a Vercel-deployed landing page.
+
+Status: **both live.** Verification at the end.
+
+### 1. GitHub publication
+- **Pre-flight hygiene (done before pushing):** verified `keystore/`, `keystore.properties` and
+  `local.properties` are untracked and have never been in history; the only secret-ish values in
+  the tree are the embedded TMDB key (owner decision: keep — free read-only key, extractable from
+  the APK anyway) and the *old* README's keystore password in history (harmless — the `.jks`
+  itself is not and must never be committed). README rewritten for NexusStream (feature set,
+  build/signing docs, content-neutrality section, no secrets printed); `.gitignore` gained
+  `.kotlin/`.
+- **Published:** `https://github.com/speckle-hub/nexusstream` (public). Local `master` → `main`,
+  21 commits pushed (`6fcb362` at the time). Repo-local commit identity:
+  `nexusstream-dev <nexusstream-dev@users.noreply.github.com>`.
+- **Release:** annotated tag `v1.1.0` pushed; GitHub Release `NexusStream v1.1.0` created with
+  the signed APK as asset `app-release.apk` (38,280,882 bytes). Direct-download link used by the
+  site: `releases/latest/download/app-release.apk`. This also powers the in-app updater
+  (`UpdateChecker` reads the repo's latest release).
+
+### 2. The website (`website/`)
+- **Stack:** Next.js 15 (App Router, fully static) · TypeScript · Tailwind CSS v3.4 ·
+  framer-motion (LazyMotion) · HeroUI `~2.7` · lucide-react · `@designcodeio/threeui` (ThreeUI
+  Community, MIT). Aceternity-style components are hand-ported into `components/ui/` (no
+  dependency); 21st.dev served as design-pattern reference (its components are prompt/CLI-copied).
+- **Sections:** glass navbar · hero (ThreeUI `NebulaBackground` iframe hue-shifted violet +
+  Spotlight + Sparkles canvas + grid) with a **pure-CSS phone mockup** of the app's home feed
+  (hero banner, poster rails, floating pill nav) and floating notification chips · ecosystem
+  marquee (`InfiniteMovingCards`) · bento feature grid (`BentoGrid` + `GlowingCard`, six cards
+  with mini CSS mockups: player HUD, manga pages, download bars, source toggles, accent swatches,
+  lock) · animated stats (`CountUp`) · HeroUI FAQ accordion · BackgroundBeams download CTA wired
+  to the release APK · footer with the content-neutrality notice.
+- **Fix during bring-up:** hydration mismatch in the moving-border button — a `<div>` inside
+  `<svg>` (invalid nesting) plus SSR/CSR transform drift; rewritten as an SVG-native
+  `<m.circle>` beam, mount-gated, unique gradient IDs per instance.
+- **Optimization pass:** first-load JS 240 → **216 kB**, page chunk 134 → **92 kB**
+  (`LazyMotion domAnimation` + all `motion.*` → `m.*`, `optimizePackageImports`,
+  `poweredByHeader` off); Sparkles pauses offscreen (IntersectionObserver) and renders one static
+  frame under `prefers-reduced-motion`; Nebula swaps to a static gradient under reduced motion;
+  all keyframe animations disabled under reduced motion. SEO pack: `metadataBase`
+  (`NEXT_PUBLIC_SITE_URL`, default baked to the deployment URL), Twitter card, SVG favicon
+  (the N logo), build-time generated `opengraph-image` (1200×630), `sitemap.xml`, `robots.txt`,
+  branded 404.
+- **Deployment:** Vercel, root directory `website`, no build-time env needed;
+  `NEXT_PUBLIC_SITE_URL` documented in `website/README.md` for canonical/OG/sitemap URLs.
+  Initial URL: `https://website-zeta-one-92.vercel.app` (project rename adds a prettier domain
+  alongside the original — re-point the fallback if adopted). Every push to `main` touching
+  `website/` redeploys.
+
+### Files (new)
+`website/` — `package.json`, `next.config.mjs`, `tailwind.config.ts`, `tsconfig.json`,
+`postcss.config.mjs`, `app/{layout,page,providers,globals.css,icon.svg,opengraph-image.tsx,
+sitemap.ts,robots.ts,not-found.tsx}`, `components/ui/*` (spotlight, sparkles, nebula, bento-grid,
+glowing-card, moving-border, infinite-moving-cards, text-generate-effect, background-beams,
+count-up), `components/PhoneMockup.tsx`, `components/sections/*` (Navbar, LogoMark, Hero,
+EcosystemMarquee, Features, Stats, Faq, DownloadCta, Footer), `lib/utils.ts`, `README.md`.
+
+### Verification (2026-10-07)
+- `npm install` ✅ (HeroUI pinned `~2.7.11` — 2.8 bundles Tailwind v4 types/runtime, incompatible
+  with the Tailwind v3.4 setup; see §8).
+- `next build` ✅ — all routes prerendered static (`/`, `/_not-found`, `/icon.svg`,
+  `/opengraph-image`, `/robots.txt`, `/sitemap.xml`); first-load JS 216 kB.
+- Dev-server smoke: page renders, hydration error fixed, Download button fetches the release APK ✅.
+- Vercel deploy ✅ (owner-verified in the dashboard).
 
 ---
 
@@ -2530,6 +2600,10 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-07 | **Repo prepared for public GitHub upload:** README rewritten for NexusStream (current feature set, build/signing docs via untracked `keystore.properties`, no secrets printed); `.gitignore` gained `.kotlin/`; verified nothing sensitive is tracked (keystore/`, `keystore.properties`, `local.properties` have never been committed). Pending work committed as "Implement Phases 7-21" + "Prepare README and gitignore for publishing". |
 | 2026-10-07 | **Source-neutrality pass (§2x):** `AddonStore.Defaults.repos` and `Defaults.streamAddons` are now **empty** — all 7 seeded provider repos (CloudStream Phisher/Hexated/community, Aniyomi yuzono/official, Keiyoushi pb+json) and the seeded Torrentio/ThePirateBay+ stream add-ons are removed; the Add-on Manager's one-tap row now offers only **Cinemeta** and **OpenSubtitles v3**; `preferredStreamHosts` is empty so streams rank quality → seeders. `retiredHosts`/`retiredRepoUrls` extended so existing installs are pruned of every removed seed on next launch. `ProviderTab` gained the Add-on Manager's first **add-repository-URL** UI (plus per-repo remove and an empty state) — the provider tabs were previously unusable without seeds. Detail empty-stream hint and related comments/tests neutralized; README gained a "Content neutrality" section. `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/repo/StreamRanking.kt`, `data/model/Models.kt`, `data/remote/CloudStreamRepo.kt`, `ui/screens/addons/AddonManagerScreen.kt`, `ui/screens/detail/DetailScreen.kt`, `StreamRankingTest.kt`, `README.md`, `.gitignore`. |
 | 2026-10-07 | **Source-neutrality verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **113 tests / 0 failures** ✅ (StreamRankingTest fixtures renamed to neutral hosts — first run caught a space-vs-hyphen mismatch in the renamed data); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,280,882 bytes**, SHA-256 `969D176D…B0A9D`). **Device pass:** fresh install should seed only Cinemeta + OpenSubtitles; upgraded installs should drop the removed add-ons/repos. |
+| 2026-10-07 | **Published to GitHub (§2y):** repo public at `github.com/speckle-hub/nexusstream` — local `master` renamed to `main`, 21 commits pushed, repo-local identity `nexusstream-dev`. Annotated tag `v1.1.0` pushed; GitHub Release created with the signed APK attached (`app-release.apk`, 38,280,882 bytes) — the in-app updater is now functional. |
+| 2026-10-07 | **Website built (§2y):** new `website/` — Next.js 15 + TypeScript + Tailwind v3.4 + framer-motion + HeroUI `~2.7` + ThreeUI nebula, with hand-ported Aceternity-style primitives. Sections: glass navbar, layered hero with a pure-CSS phone mockup of the app, ecosystem marquee, glowing bento feature grid, animated stats, HeroUI FAQ, beams download CTA wired to the release APK, content-neutrality footer. `next build` ✅ (static). |
+| 2026-10-07 | **Website fix:** hydration mismatch in the moving-border button (`<div>` inside `<svg>` + SSR/CSR transform drift) — rewritten SVG-native (`<m.circle>`, mount-gated, unique gradient IDs). |
+| 2026-10-07 | **Website optimization pass:** first-load JS 240 → **216 kB**, page chunk 134 → **92 kB** (LazyMotion `domAnimation`, `motion.*` → `m.*`, `optimizePackageImports`); Sparkles pauses offscreen, Nebula/all keyframes honor `prefers-reduced-motion`; SEO pack — `metadataBase` (`NEXT_PUBLIC_SITE_URL`), Twitter card, SVG favicon, generated `opengraph-image`, `sitemap.xml`, `robots.txt`, branded 404; `poweredByHeader` off. Deployed to **Vercel** (root dir `website`, auto-redeploy on push). |
 
 ---
 
@@ -2850,7 +2924,10 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 
 | Date | Decision | Rationale |
 |---|---|
-| 2026-10-07 | **Ship source-neutral for the public repo: no preinstalled stream providers or provider repos** | A public app that auto-installs Torrentio/TPB+ and points at piracy-provider repos is a DMCA/takedown magnet and arguably facilitates infringement; the same app with a neutral add-on *manager* is precedented (Kodi, CloudStream's repo-less distribution). Only legal seeds remain (Cinemeta metadata, OpenSubtitles). Cost: out-of-box playback needs one user-installed stream add-on, so the Detail empty-state and Add-on Manager now explain that path; the provider tabs gained a real add-repo UI since seeds no longer exist. Player/extension/torrent *protocol* support stays — neutral technology, same posture as VLC/ffmpeg. Removed seeds are pruned from existing installs via the retired-lists so an upgraded install matches a fresh one. |---|
+| 2026-10-07 | **Ship source-neutral for the public repo: no preinstalled stream providers or provider repos** | A public app that auto-installs Torrentio/TPB+ and points at piracy-provider repos is a DMCA/takedown magnet and arguably facilitates infringement; the same app with a neutral add-on *manager* is precedented (Kodi, CloudStream's repo-less distribution). Only legal seeds remain (Cinemeta metadata, OpenSubtitles). Cost: out-of-box playback needs one user-installed stream add-on, so the Detail empty-state and Add-on Manager now explain that path; the provider tabs gained a real add-repo UI since seeds no longer exist. Player/extension/torrent *protocol* support stays — neutral technology, same posture as VLC/ffmpeg. Removed seeds are pruned from existing installs via the retired-lists so an upgraded install matches a fresh one. |
+| 2026-10-07 | **Website lives in `website/` inside the app repo, deployed to Vercel (not GitHub Pages or a second repo)** | One repo = one place for issues, releases and the site; Vercel's root-directory deploy builds only `website/` and redeploys on every push to `main`, and Next.js is the native stack of the requested component libraries (Aceternity/HeroUI/ThreeUI are React). A separate repo would only buy independent history the project doesn't need. |
+| 2026-10-07 | **HeroUI pinned to `~2.7.11` with Tailwind v3.4** | HeroUI 2.8 bundles Tailwind v4 types (the build fails type-checking the `heroui()` plugin) and its runtime targets the TW4 CSS-first config. The Aceternity-style components and the existing config are TW3-style (`tailwind.config.ts`), so the site stays on the last TW3-native HeroUI line. Revisit when the Aceternity ports are migrated to CSS-first config. |
+| 2026-10-07 | **framer-motion via LazyMotion `domAnimation` + `m.*` everywhere** | The full `motion` bundle costs ~24 kB of the first-load JS on a page that only uses plain DOM/SVG animations; LazyMotion cut the page chunk 134 → 92 kB with no visual change. Rule for future components: never import `motion`, always `m` from `framer-motion`. |---|
 | 2026-10-06 | **Phase 20: keep `GridCells.Adaptive`, retuned to 88 dp, rather than reverting to `GridCells.Fixed(3)`** | Fixed(3) would hit the reported "three columns on a phone" exactly but re-breaks what Phase 7 fixed — a 7" phone and a tablet would again get identically-sized cards, and the last row would need phantom fillers back. Dropping the adaptive minimum to 88 dp lands three columns on every phone width from 320–411 dp (the 360 dp case was `floor(340/120) = 2`) while still widening on large screens. Trade-off: a ~96 dp card on very wide tablets where 108 dp used to give slightly larger art. |
 | 2026-10-06 | **Phase 20: the floating pill nav is permanently visible — scroll-driven hiding removed** | The `NestedScrollConnection` hide-on-scroll shipped in Phase 18 in one session and was reported as both "inverted" and "intrusive": cumulative-drag direction heuristics are inherently surprising, and hiding primary navigation costs more than the pixels it saves. Keeping `LocalFloatingNavBottomPadding` means nothing changed except the bar's visibility. |
 | 2026-10-06 | **Phase 21: the Sources-dashboard crash was a Gson null-field decode, not the early `return@Column` Phase 20 removed** | Phase 20 inferred the crash from the two screens' unusual `return` shape and the report survived it, which falsifies the theory. The actual mechanism is the same one Phase 13 documented for the Library: Gson bypasses Kotlin constructors via `Unsafe` and writes missing JSON fields as `null` into **non-null** slots, so `Text(desc.name)` throws inside its parameter check and a null `id` breaks `LazyColumn`'s keys. The durable fix is therefore the established repo pattern — a tolerant, per-entry, JVM-testable codec — rather than more UI-level guarding, because the UI cannot distinguish "legitimately absent" from "corrupted" once the null has been decoded. |
