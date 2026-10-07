@@ -5,9 +5,9 @@ import com.novastream.app.data.model.StreamSource
 /**
  * Pure ranking helpers for Stremio stream lists.
  *
- * "Prefer the most reliable sources first" needs a deterministic, testable order: known-good
- * add-ons (Torrentio and friends) lead, then higher quality, then healthier swarms (more seeders).
- * Kept Android-free so it can be unit-tested.
+ * "Prefer the most reliable sources first" needs a deterministic, testable order: caller-supplied
+ * preferred add-ons lead (none are preferred by default), then higher quality, then healthier
+ * swarms (more seeders). Kept Android-free so it can be unit-tested.
  */
 object StreamRanking {
 
@@ -23,8 +23,8 @@ object StreamRanking {
     }
 
     /**
-     * Seeder count advertised in a stream's text. Torrentio renders it as `👤 1234`; other add-ons
-     * write `1234 seeders` or `Seeds: 1234`. Returns null when nothing plausible is present.
+     * Seeder count advertised in a stream's text. Add-ons render it as `👤 1234`,
+     * `1234 seeders` or `Seeds: 1234`. Returns null when nothing plausible is present.
      */
     fun seedersOf(vararg texts: String?): Int? {
         val hay = texts.filterNotNull().joinToString(" ")

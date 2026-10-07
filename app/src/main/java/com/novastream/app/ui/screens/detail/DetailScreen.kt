@@ -618,7 +618,7 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                 emptyHint = if (item.type == MediaType.REAL)
                     "This NSFW add-on returned no streams. Make sure it is enabled and try again."
                 else
-                    "No playable streams found. Install or enable a stream add-on (Torrentio is bundled by default) under Settings \u2192 Add-on Manager.",
+                    "No playable streams found. Install or enable a stream add-on under Settings \u2192 Add-on Manager.",
                 onDismiss = { streamSheetOpen = false },
                 onPlay = { play(it) },
                 onDownload = { downloadStream(it) },

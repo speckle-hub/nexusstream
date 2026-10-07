@@ -1,20 +1,15 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-06 — **Phase 21 — NSFW/Browse card
-> alignment & the real Sources-dashboard crash fix (§2v):** the two device-reported issues are
-> fixed. (1) The **NSFW and Browse/Manga rails now draw the same poster width as the Home feed** —
-> `MediaRow`'s untouched **132 dp** default was still in place on both while Home passed **150 dp**
-> by hand, so one poster was a different size on every screen; a new `AppSpacing.railCard` (150 dp)
-> is now the single source of truth and NSFW/Browse's remaining hardcoded gutters come from
-> `AppSpacing` (the results grid already distributed its full width — verified against
-> `GridCells.Adaptive` in the Compose 1.7.0 sources, which leaves no side margins). (2) The
-> **Settings → Sources dashboard crash is root-caused**: Phase 20's early-`return@Column` theory was
-> wrong — an `extensions.json` entry missing a field decodes through Gson onto a Kotlin **non-null**
-> slot as a silent `null`, so `Text(desc.name)` threw the compiler's null-check NPE and `LazyColumn`
-> received a null/duplicate key. A new tolerant per-entry `ExtensionCodec` (the `LibraryCodec`
-> pattern from Phase 13) drops undecodable entries, defaults `name` to the id, de-dupes ids and can
-> never throw; **8 new unit tests** cover it. Previous session,
+> resume exactly where it left off. Last updated: 2026-10-07 — **Source-neutrality pass for the
+> public GitHub release (§2x):** the app no longer ships any stream providers or provider
+> repositories. All 7 seeded provider repos (CloudStream Phisher/Hexated/community, Aniyomi
+> yuzono/official, Mihon/Keiyoushi pb+json), the seeded **Torrentio / ThePirateBay+** stream
+> add-ons, the **MediaFusion** recommendation and the preferred-host ranking list are removed;
+> only legal **Cinemeta** (metadata) and **OpenSubtitles v3** (subtitles) are seeded, and the
+> Add-on Manager now lets users add/remove their own repository URLs (it previously had no
+> add-repo UI at all). Existing installs are pruned of every removed seed via extended
+> `retiredHosts` / `retiredRepoUrls` migrations. Previous session,
 > **Phase 20 — UI grid, Settings crash, reader repairs & Continue Reading (§2u):** the eight reported issues are fixed — adaptive
 > grids are back to **three columns on phones** (and Library gained the side gutters it was
 > missing), the **Recent Searches** section records typed queries again, the floating pill nav no
@@ -45,13 +40,12 @@
 > sessions: Phase 16 (§2r), Phase 15 (§2q), the downloader fix (§2p), the NSFW speed + metadata pass
 > (§2o), Phase 13 (§2j), the Real 18+ expansion to 12 sources (§2k), the static-review pass (§2l),
 > the NSFW-anime expansion to 9 sources (§2m) and the final UI & app checkup (§2n).
-> Phase 21 status: **implemented and built** — see §2 and §2v. Verified this session:
-> `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **111/111**, `:app:assembleRelease` ✅
-> (signed); `dist/NovaStream.apk` refreshed (38,264,498 bytes, SHA-256 `a2007861…8c10`; the prior
-> Phase 20 build was `aae43aa3…eabd4`), with `ExtensionCodec` / `railCard` / `SourcesScreen`
-> verified present in the release dex. Device passes outstanding: §7 items 20–31 (plus the Phase 19
-> interaction checks); item 31 covers this session and is the **only** way to confirm the Sources
-> crash fix on hardware.
+> Source-neutrality status: **implemented and built** — see §2x. Verified this session:
+> `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **113/113**, `:app:assembleRelease` ✅
+> (signed); `dist/NovaStream.apk` refreshed (38,280,882 bytes, SHA-256 `969D176D…B0A9D`).
+> Device passes outstanding: §7 items 20–31 (plus the Phase 19 interaction checks); item 31 covers
+> the Sources crash fix. The repo is prepared for a **public GitHub upload** (README rewritten,
+> no secrets tracked).
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
@@ -76,6 +70,16 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 ---
 
 ## 2. Current focus
+
+**Topic: source neutrality for the public GitHub release.** The app no longer ships or recommends
+any stream providers or provider repositories — only legal Cinemeta (metadata) and OpenSubtitles
+(subtitles) are seeded; users add their own add-ons/repos via a new add-repo UI in the Add-on
+Manager, and existing installs are pruned of the removed seeds on next launch. Full detail in
+**§2x**.
+
+Previous focus: Phase 21 (§2v) — NSFW/Browse card alignment & the Sources crash root cause; Phase 20
+(§2u) — grids/recents/hero/Settings crash/reader/Continue Reading. Legacy §2 topic text follows for
+history:
 
 **Topic: Phase 21 — NSFW / Browse layout padding & width alignment, and a real fix for the
 Settings → Sources dashboard crash.** (1) The NSFW (and Browse → Manga) media rails were still
@@ -618,6 +622,69 @@ Status: **implemented and built.** Files and verification at the end.
   `retiredRepoUrls` verified in the release dex.
 - **Device pass still required — §7 items 21/23/31.** The Haho chain is verified from the sandbox
   against live markup, but whether ExoPlayer plays the `filegasm` CDN URLs (Referer/token) is hardware.
+
+---
+
+## 2x. Source neutrality — public-release prep (2026-10-07)
+
+**Topic: make the public GitHub repo defensible — the app must not ship pointing at
+infringing-capable sources.** The player/extension engines stay (neutral technology, like a
+browser or VLC's protocol support); everything the app *preinstalls or recommends* is now legal.
+
+Status: **implemented and built.** Files and verification at the end.
+
+### What was removed
+- **All 7 seeded provider repositories** (`AddonStore.Defaults.repos` → empty): CloudStream
+  Phisher / Hexated (JoeTinnySpace mirror) / community, Aniyomi yuzono / official, Mihon/Keiyoushi
+  pb + json. The repo *clients* (`CloudStreamRepo`/`AniyomiRepo`/`KeiyoushiRepo`) stay — they parse
+  formats for repos the user adds.
+- **Seeded stream add-ons** (`Defaults.streamAddons` → empty): Torrentio and ThePirateBay+ are no
+  longer installed on first launch or re-seeded by the `ensureDefaults()` migration.
+- **Recommended stream providers**: the Add-on Manager's one-tap row no longer offers Torrentio /
+  ThePirateBay+ / MediaFusion; it now (re)offers only the two seeded legal add-ons (Cinemeta,
+  OpenSubtitles v3).
+- **Preferred-host ranking** (`Defaults.preferredStreamHosts` → empty): `StreamRanking.rank` keeps
+  the mechanism but nothing is preferred by default, so streams rank by quality → seeders.
+
+### What stays (deliberately)
+- **Cinemeta** (metadata) and **OpenSubtitles v3** (subtitles) remain seeded — legal services.
+- All free-API metadata paths (TMDB / AniList / MangaDex / Jikan / Kitsu), the Media3 player,
+  torrent/HLS *protocol* support (user-supplied links), the extension engine, and the built-in
+  adult/hentai sources (unchanged per the owner's decision).
+- `RepoSyncWorker` and the Add-on Manager browser work for user-added repos.
+
+### Migration for existing installs
+- `Defaults.retiredHosts` += `torrentio.strem.fun`, `thepiratebay-plus.strem.fun`,
+  `mediafusion.elfhosted.com` → `ensureDefaults()` prunes those add-ons on next launch.
+- `Defaults.retiredRepoUrls` += all 7 previously seeded repo URLs → `ensureDefaultRepos()` prunes
+  them; with `Defaults.repos` empty, nothing is merged back.
+
+### UI gap closed
+The Add-on Manager's provider tabs had **no add-repo UI at all** (repos were only ever seeded), so
+removing the seeds would have made CloudStream/Aniyomi/Mihon dead ends. `ProviderTab` now has an
+"Add repository URL" field (name derived from the host), a remove action per repo, and an empty
+state explaining how to add one.
+
+### Also updated
+Detail screen's empty-stream hint (no longer names a bundled provider), `StreamRanking` /
+`AddonRepository` / `Models` / `CloudStreamRepo` comments, `StreamRankingTest` (neutral fixture
+names), README (new "Content neutrality" section; Sources & extensions rewritten), `.gitignore`
+(`.kotlin/`), README build/signing docs for a fresh clone.
+
+### Files
+`data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/repo/StreamRanking.kt`,
+`data/model/Models.kt`, `data/remote/CloudStreamRepo.kt`, `ui/screens/addons/AddonManagerScreen.kt`,
+`ui/screens/detail/DetailScreen.kt`, `app/src/test/java/com/novastream/app/StreamRankingTest.kt`,
+`README.md`, `.gitignore`.
+
+### Verification (2026-10-07)
+- `:app:compileDebugKotlin` → BUILD SUCCESSFUL (only pre-existing deprecation warnings).
+- `:app:testDebugUnitTest` → **113/113, 0 failures** (StreamRankingTest fixtures renamed after the
+  first run caught a space-vs-hyphen matching mistake in the renamed test data).
+- `:app:assembleRelease` → BUILD SUCCESSFUL, signed; `dist/NovaStream.apk` refreshed
+  (**38,280,882 bytes**, SHA-256 `969D176D…B0A9D`).
+- **Device pass:** on next launch an existing install should drop the removed add-ons/repos; a
+  fresh install gets only Cinemeta + OpenSubtitles and empty provider tabs with the add-URL field.
 
 ---
 
@@ -2460,6 +2527,9 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-06 | **Phase 21 verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **111 tests / 0 failures / 0 errors** ✅ (15 result files; +8 `ExtensionCodecTest`); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,264,498 bytes**, SHA-256 `a2007861…8c10`; `ExtensionCodec` / `railCard` / `SourcesScreen` verified in the release dex). **Device pass pending — §7 item 31** (no device or emulator was available: no AVDs installed and no `adb` target attached). |
 | 2026-10-06 | **Source hygiene — dead seeds fixed & dead hosts retired (§2w, from the §3 live probe):** `AddonStore.Defaults.repos` now seeds the live `JoeTinnySpace/cloudstream-extensions-hexated` mirror (the old `hexated/…` URL 404s on every branch) and a new `Defaults.retiredRepoUrls` + `AddonRepository.ensureDefaultRepos()` prunes the dead URL from existing installs. `HahoSource` was re-pointed from its two 404 paths to the live `GET /anime?q=`, parsing the `anime-loop` series cards and expanding each into `/anime/{slug}/{n}` episodes (in parallel, capped at 3 series); `HentaiTubes.mediaUrls` now also reads `<source … type="video/…">` tags so Haho's extension-less filegasm streams resolve (subtitle tracks excluded). Dead hosts removed: `HpjavSource` (hpjav.tv DNS-dead) and `AvgleSource` (api.avgle.com 520) from `AdultSources.all`, `HentaigasmSource` (timeouts) and `HanimeSource` (search API DNS-dead + JS-shell page) from `HentaiSources.all`; objects/tests retained. `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/hentai/HahoSource.kt`, `data/hentai/HentaiTubes.kt`, `data/adult/AdultSources.kt`, `data/hentai/HentaiSources.kt`, `AdultSourcesExtraTest.kt`, `HentaiSourcesExtraTest.kt`. |
 | 2026-10-06 | **Source hygiene verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **113 tests / 0 failures / 0 errors** ✅ (15 result files; +2 net — the Haho JSON test became two HTML tests and a new `mediaUrls` source-tag case); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,280,882 bytes**, SHA-256 `52cef604…2ec9d`; `JoeTinnySpace` / `retiredRepoUrls` verified in the release dex). Live-probed during the pass: hexated mirror 200 (old 404), Haho `/anime?q=` 200 with 2 series, its series page's 6 episodes, and the episode→`/embed`→`<source type="video/…">` filegasm URLs; hpjav.tv + search.htv-services.com DNS-dead, api.avgle.com down, hentaigasm.com timeout. **Device pass still required — §7 items 21/23/31.** |
+| 2026-10-07 | **Repo prepared for public GitHub upload:** README rewritten for NexusStream (current feature set, build/signing docs via untracked `keystore.properties`, no secrets printed); `.gitignore` gained `.kotlin/`; verified nothing sensitive is tracked (keystore/`, `keystore.properties`, `local.properties` have never been committed). Pending work committed as "Implement Phases 7-21" + "Prepare README and gitignore for publishing". |
+| 2026-10-07 | **Source-neutrality pass (§2x):** `AddonStore.Defaults.repos` and `Defaults.streamAddons` are now **empty** — all 7 seeded provider repos (CloudStream Phisher/Hexated/community, Aniyomi yuzono/official, Keiyoushi pb+json) and the seeded Torrentio/ThePirateBay+ stream add-ons are removed; the Add-on Manager's one-tap row now offers only **Cinemeta** and **OpenSubtitles v3**; `preferredStreamHosts` is empty so streams rank quality → seeders. `retiredHosts`/`retiredRepoUrls` extended so existing installs are pruned of every removed seed on next launch. `ProviderTab` gained the Add-on Manager's first **add-repository-URL** UI (plus per-repo remove and an empty state) — the provider tabs were previously unusable without seeds. Detail empty-stream hint and related comments/tests neutralized; README gained a "Content neutrality" section. `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/repo/StreamRanking.kt`, `data/model/Models.kt`, `data/remote/CloudStreamRepo.kt`, `ui/screens/addons/AddonManagerScreen.kt`, `ui/screens/detail/DetailScreen.kt`, `StreamRankingTest.kt`, `README.md`, `.gitignore`. |
+| 2026-10-07 | **Source-neutrality verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **113 tests / 0 failures** ✅ (StreamRankingTest fixtures renamed to neutral hosts — first run caught a space-vs-hyphen mismatch in the renamed data); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,280,882 bytes**, SHA-256 `969D176D…B0A9D`). **Device pass:** fresh install should seed only Cinemeta + OpenSubtitles; upgraded installs should drop the removed add-ons/repos. |
 
 ---
 
@@ -2779,7 +2849,8 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 ## 8. Decisions log
 
 | Date | Decision | Rationale |
-|---|---|---|
+|---|---|
+| 2026-10-07 | **Ship source-neutral for the public repo: no preinstalled stream providers or provider repos** | A public app that auto-installs Torrentio/TPB+ and points at piracy-provider repos is a DMCA/takedown magnet and arguably facilitates infringement; the same app with a neutral add-on *manager* is precedented (Kodi, CloudStream's repo-less distribution). Only legal seeds remain (Cinemeta metadata, OpenSubtitles). Cost: out-of-box playback needs one user-installed stream add-on, so the Detail empty-state and Add-on Manager now explain that path; the provider tabs gained a real add-repo UI since seeds no longer exist. Player/extension/torrent *protocol* support stays — neutral technology, same posture as VLC/ffmpeg. Removed seeds are pruned from existing installs via the retired-lists so an upgraded install matches a fresh one. |---|
 | 2026-10-06 | **Phase 20: keep `GridCells.Adaptive`, retuned to 88 dp, rather than reverting to `GridCells.Fixed(3)`** | Fixed(3) would hit the reported "three columns on a phone" exactly but re-breaks what Phase 7 fixed — a 7" phone and a tablet would again get identically-sized cards, and the last row would need phantom fillers back. Dropping the adaptive minimum to 88 dp lands three columns on every phone width from 320–411 dp (the 360 dp case was `floor(340/120) = 2`) while still widening on large screens. Trade-off: a ~96 dp card on very wide tablets where 108 dp used to give slightly larger art. |
 | 2026-10-06 | **Phase 20: the floating pill nav is permanently visible — scroll-driven hiding removed** | The `NestedScrollConnection` hide-on-scroll shipped in Phase 18 in one session and was reported as both "inverted" and "intrusive": cumulative-drag direction heuristics are inherently surprising, and hiding primary navigation costs more than the pixels it saves. Keeping `LocalFloatingNavBottomPadding` means nothing changed except the bar's visibility. |
 | 2026-10-06 | **Phase 21: the Sources-dashboard crash was a Gson null-field decode, not the early `return@Column` Phase 20 removed** | Phase 20 inferred the crash from the two screens' unusual `return` shape and the report survived it, which falsifies the theory. The actual mechanism is the same one Phase 13 documented for the Library: Gson bypasses Kotlin constructors via `Unsafe` and writes missing JSON fields as `null` into **non-null** slots, so `Text(desc.name)` throws inside its parameter check and a null `id` breaks `LazyColumn`'s keys. The durable fix is therefore the established repo pattern — a tolerant, per-entry, JVM-testable codec — rather than more UI-level guarding, because the UI cannot distinguish "legitimately absent" from "corrupted" once the null has been decoded. |

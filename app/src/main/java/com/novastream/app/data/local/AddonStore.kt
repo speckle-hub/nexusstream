@@ -43,25 +43,20 @@ class AddonStore(private val context: Context) {
     suspend fun saveMangaExt(list: List<MangaExt>) = context.dataStore.edit { it[K_MANGA] = Http.gson.toJson(list) }
 
     object Defaults {
-        val repos: List<RemoteRepo> = listOf(
-            RemoteRepo("CloudStream (phisher98)", "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/builds/repo.json", com.novastream.app.data.model.AddonKind.CLOUDSTREAM),
-            RemoteRepo("CloudStream (hexated)", "https://raw.githubusercontent.com/JoeTinnySpace/cloudstream-extensions-hexated/builds/repo.json", com.novastream.app.data.model.AddonKind.CLOUDSTREAM),
-            RemoteRepo("CloudStream (community)", "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json", com.novastream.app.data.model.AddonKind.CLOUDSTREAM),
-            RemoteRepo("Aniyomi (yuzono)", "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json", com.novastream.app.data.model.AddonKind.ANIYOMI),
-            RemoteRepo("Aniyomi (official)", "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json", com.novastream.app.data.model.AddonKind.ANIYOMI),
-            RemoteRepo("Mihon / Keiyoushi (pb)", "https://github.com/keiyoushi/extensions/raw/repo/index.pb", com.novastream.app.data.model.AddonKind.KEIYOUSHI),
-            RemoteRepo("Mihon / Keiyoushi (json)", "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json", com.novastream.app.data.model.AddonKind.KEIYOUSHI),
-        )
+        /**
+         * The app ships source-neutral: no provider repositories and no stream providers are
+         * preinstalled. Only legal metadata (Cinemeta) and subtitle (OpenSubtitles) add-ons are
+         * seeded; users add their own repositories and add-ons in the Add-on Manager.
+         */
+        val repos: List<RemoteRepo> = emptyList()
+
         /** Metadata catalogs (posters, descriptions, episode lists). */
         val metadataAddons: List<String> = listOf(
             "https://v3-cinemeta.strem.io/manifest.json",
         )
 
-        /** Stream providers so playback works out of the box (torrent engines are bundled). */
-        val streamAddons: List<String> = listOf(
-            "https://torrentio.strem.fun/manifest.json",
-            "https://thepiratebay-plus.strem.fun/manifest.json",
-        )
+        /** No stream providers are seeded; users install their own via the Add-on Manager. */
+        val streamAddons: List<String> = emptyList()
 
         /** Subtitle providers. */
         val subtitleAddons: List<String> = listOf(
@@ -71,42 +66,47 @@ class AddonStore(private val context: Context) {
         val stremioAddons: List<String> = metadataAddons + streamAddons + subtitleAddons
 
         /**
-         * High-quality add-ons offered as one-tap installs in the Add-on Manager. Not seeded
-         * automatically, because several need per-user configuration and a dead auto-seed would
-         * degrade the out-of-box experience; users pick the ones they want.
+         * Legal, configuration-free add-ons offered as one-tap (re)installs in the Add-on
+         * Manager, so a user who removes one of the seeded add-ons can get it back.
          */
         val recommendedStreamAddons: List<Pair<String, String>> = listOf(
-            "Torrentio" to "https://torrentio.strem.fun/manifest.json",
-            "ThePirateBay+" to "https://thepiratebay-plus.strem.fun/manifest.json",
-            "MediaFusion" to "https://mediafusion.elfhosted.com/manifest.json",
+            "Cinemeta" to "https://v3-cinemeta.strem.io/manifest.json",
             "OpenSubtitles v3" to "https://opensubtitles-v3.strem.io/manifest.json",
         )
 
         /**
          * Reliability order for stream ranking: streams from these add-ons are surfaced first.
-         * Matched case-insensitively against the add-on name/id.
+         * Empty by default — the app ships no preferred providers, so ranking falls back to
+         * quality, then seeders. Matched case-insensitively against the add-on name/id.
          */
-        val preferredStreamHosts: List<String> = listOf(
-            "torrentio",
-            "thepiratebay-plus",
-            "mediafusion",
-        )
+        val preferredStreamHosts: List<String> = emptyList()
 
         /**
-         * Hosts that used to be seeded but are now dead. Existing installs are pruned of these
-         * on startup and the current stream providers are re-seeded in their place.
+         * Hosts that used to be seeded but must no longer be: existing installs are pruned of
+         * these on startup. Includes the stream providers removed in the source-neutrality pass,
+         * so an upgraded install matches a fresh one.
          */
         val retiredHosts: List<String> = listOf(
             "v3-chill.strem.io",
+            "torrentio.strem.fun",
+            "thepiratebay-plus.strem.fun",
+            "mediafusion.elfhosted.com",
         )
 
         /**
-         * Provider-repo URLs that used to be seeded but now 404 (the old Hexated org is gone).
-         * [com.novastream.app.data.repo.AddonRepository.ensureDefaultRepos] prunes these from
-         * existing installs so the dead entry is replaced by its live mirror rather than kept.
+         * Provider-repo URLs that used to be seeded. [com.novastream.app.data.repo.AddonRepository.ensureDefaultRepos]
+         * prunes these from existing installs — both dead URLs (the old Hexated org) and every
+         * repository removed in the source-neutrality pass.
          */
         val retiredRepoUrls: List<String> = listOf(
             "https://raw.githubusercontent.com/hexated/cloudstream-extensions-hexated/builds/repo.json",
+            "https://raw.githubusercontent.com/JoeTinnySpace/cloudstream-extensions-hexated/builds/repo.json",
+            "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/builds/repo.json",
+            "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json",
+            "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
+            "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json",
+            "https://github.com/keiyoushi/extensions/raw/repo/index.pb",
+            "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json",
         )
     }
 }

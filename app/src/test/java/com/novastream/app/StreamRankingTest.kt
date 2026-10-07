@@ -11,8 +11,8 @@ class StreamRankingTest {
     // ---- seedersOf -------------------------------------------------------------
 
     @Test
-    fun `parses the Torrentio person glyph seeder count`() {
-        assertEquals(1234, StreamRanking.seedersOf("1080p \uD83D\uDC64 1,234"))
+    fun `parses the person glyph seeder count`() {
+        assertEquals(1234, StreamRanking.seedersOf("1080p 👤 1,234"))
     }
 
     @Test
@@ -32,17 +32,17 @@ class StreamRankingTest {
 
     @Test
     fun `known add-ons rank ahead of unknown ones`() {
-        val preferred = listOf("torrentio", "thepiratebay-plus")
-        val torrentio = StreamSource(addonName = "Torrentio")
+        val preferred = listOf("acme", "contoso")
+        val known = StreamSource(addonName = "Acme Streams")
         val unknown = StreamSource(addonName = "Some Random Addon")
-        assertEquals(true, StreamRanking.preferredIndex(torrentio, preferred) <
+        assertEquals(true, StreamRanking.preferredIndex(known, preferred) <
             StreamRanking.preferredIndex(unknown, preferred))
     }
 
     @Test
     fun `matching is case-insensitive against name or id`() {
-        val preferred = listOf("torrentio")
-        assertEquals(0, StreamRanking.preferredIndex(StreamSource(addonId = "TORRENTIO"), preferred))
+        val preferred = listOf("acme")
+        assertEquals(0, StreamRanking.preferredIndex(StreamSource(addonId = "ACME"), preferred))
     }
 
     // ---- rank ------------------------------------------------------------------
@@ -52,9 +52,9 @@ class StreamRankingTest {
         val ranked = StreamRanking.rank(
             listOf(
                 StreamSource(url = "http://a", quality = "4K", addonName = "Unknown"),
-                StreamSource(url = "http://b", quality = "720p", addonName = "Torrentio"),
+                StreamSource(url = "http://b", quality = "720p", addonName = "Acme Streams"),
             ),
-            preferredHosts = listOf("torrentio"),
+            preferredHosts = listOf("acme"),
         )
         assertEquals("http://b", ranked.first().url)
     }
@@ -63,11 +63,11 @@ class StreamRankingTest {
     fun `within one add-on higher quality then more seeders win`() {
         val ranked = StreamRanking.rank(
             listOf(
-                StreamSource(url = "http://a", quality = "1080p", seeders = 5, addonName = "Torrentio"),
-                StreamSource(url = "http://b", quality = "4K", seeders = 1, addonName = "Torrentio"),
-                StreamSource(url = "http://c", quality = "1080p", seeders = 500, addonName = "Torrentio"),
+                StreamSource(url = "http://a", quality = "1080p", seeders = 5, addonName = "Acme Streams"),
+                StreamSource(url = "http://b", quality = "4K", seeders = 1, addonName = "Acme Streams"),
+                StreamSource(url = "http://c", quality = "1080p", seeders = 500, addonName = "Acme Streams"),
             ),
-            preferredHosts = listOf("torrentio"),
+            preferredHosts = listOf("acme"),
         )
         assertEquals(listOf("http://b", "http://c", "http://a"), ranked.map { it.url })
     }

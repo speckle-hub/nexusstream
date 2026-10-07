@@ -88,8 +88,8 @@ data class StreamSource(
      */
     val alternates: List<String> = emptyList(),
     /**
-     * Torrent swarms seeders reported by the add-on (Torrentio puts it in the title). Used to rank
-     * the most reliable streams first so the top entry is the one most likely to play smoothly.
+     * Torrent swarm seeder count reported by the add-on. Used to rank the most reliable streams
+     * first so the top entry is the one most likely to play smoothly.
      */
     val seeders: Int? = null,
 ) {

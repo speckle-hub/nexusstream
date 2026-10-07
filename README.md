@@ -50,10 +50,13 @@ Built with **Kotlin 2.0 (K2) + Jetpack Compose 1.7 (Material 3)**, **Media3 ExoP
   auto-delete watched downloads, storage meter with orphan cleanup.
 
 ### Sources & extensions
-- Add-on manager for all four ecosystems: **Stremio** (full protocol), **CloudStream**
-  (Phisher / Hexated / community repos), **Aniyomi** and **Mihon/Keiyoushi**.
-- Recommended one-tap stream providers (Torrentio, ThePirateBay+, MediaFusion, OpenSubtitles v3);
-  reliability-first stream ranking (preferred hosts → quality → seeders).
+- **Source-neutral by default:** the app ships with **no stream providers and no provider
+  repositories preinstalled**. Only legal metadata (Cinemeta) and subtitle (OpenSubtitles v3)
+  add-ons are seeded; users add their own add-ons and repositories in the Add-on Manager.
+- Add-on manager supports all four ecosystems for user-added sources: **Stremio** (full protocol),
+  **CloudStream**, **Aniyomi** and **Mihon/Keiyoushi** repo formats.
+- Stream ranking (quality → seeders) with per-add-on timeouts, error reporting and a short
+  result cache.
 - Sandboxed `.apk`/`.dex` extension engine with a Sources dashboard (enable/disable, latency
   test), custom global HTTP identity (UA/Referer/Cookie), and repo index sync.
 
@@ -141,3 +144,12 @@ R8 minify is currently **off** (`proguard-rules.pro` is prepared — enabling is
   fork.
 - `roadmap.md` is the project's living working document (full history, decisions log, device-test
   checklist).
+
+## Content neutrality
+
+NexusStream is a **player and organizer**, not a content source. It ships with no stream
+providers, no provider repositories and no catalogs of its own — all media metadata comes from
+free public APIs (TMDB, AniList, MangaDex, Jikan, Cinemeta) and subtitles from OpenSubtitles.
+Any streaming capability comes exclusively from third-party add-ons that **the user chooses to
+install**; the project does not endorse or encourage infringing use, and asks users to respect
+the licenses of content in their region.
