@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /** Compact Aceternity-style Background Beams: gradient pulses travel along SVG paths. */
@@ -16,7 +16,7 @@ export function BackgroundBeams({ className }: { className?: string }) {
     <div className={cn("absolute inset-0 overflow-hidden", className)} aria-hidden>
       <svg className="absolute h-full w-full" viewBox="-400 -250 1800 900" fill="none" preserveAspectRatio="xMidYMid slice">
         {paths.map((d, i) => (
-          <motion.path
+          <m.path
             key={i}
             d={d}
             stroke={`url(#beam-${i})`}

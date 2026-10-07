@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { motion, useAnimationFrame, useMotionValue, useTransform } from "framer-motion";
+import { m, useAnimationFrame, useMotionValue, useTransform } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -72,7 +72,7 @@ function RectBeam({ duration }: { duration: number }) {
       aria-hidden
     >
       <rect ref={pathRef} fill="none" width="100%" height="100%" rx="999" />
-      {mounted && <motion.circle r="16" fill={`url(#${gradientId})`} style={{ cx, cy }} />}
+      {mounted && <m.circle r="16" fill={`url(#${gradientId})`} style={{ cx, cy }} />}
       <defs>
         <radialGradient id={gradientId}>
           <stop offset="0%" stopColor="#CFC2FF" stopOpacity="0.95" />

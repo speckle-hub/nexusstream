@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Download, Github, Sparkle } from "lucide-react";
 import { Chip } from "@heroui/react";
 import { APK_URL, GITHUB_URL } from "@/lib/utils";
@@ -25,7 +25,7 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-14 px-6 lg:grid-cols-[1.15fr_0.85fr] lg:gap-6">
         <div className="text-center lg:text-left">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55 }}
@@ -38,9 +38,9 @@ export function Hero() {
             >
               v1.1.0 · Free & open source
             </Chip>
-          </motion.div>
+          </m.div>
 
-          <motion.h1
+          <m.h1
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.08 }}
@@ -49,7 +49,7 @@ export function Hero() {
             Every stream.
             <br />
             <span className="text-gradient">One app.</span>
-          </motion.h1>
+          </m.h1>
 
           <TextGenerateEffect
             className="mx-auto mt-6 max-w-xl text-base text-muted md:text-lg lg:mx-0"
@@ -57,7 +57,7 @@ export function Hero() {
             words="NexusStream unifies Stremio add-ons, CloudStream extensions, Aniyomi and Mihon repos into one beautiful Android app — movies, TV, anime and manga, with a player and reader that feel purpose-built."
           />
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.55 }}
@@ -76,9 +76,9 @@ export function Hero() {
               <Github className="h-4 w-4" />
               View on GitHub
             </a>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.8 }}
@@ -90,10 +90,10 @@ export function Hero() {
                 {s}
               </span>
             ))}
-          </motion.div>
+          </m.div>
         </div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 40, rotate: 4 }}
           animate={{ opacity: 1, y: 0, rotate: 0 }}
           transition={{ duration: 0.9, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -103,7 +103,7 @@ export function Hero() {
           <div className="animate-float-slow [transform:rotateX(4deg)_rotateY(-8deg)]">
             <PhoneMockup className="relative" />
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

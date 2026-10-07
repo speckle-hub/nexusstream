@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion, useInView, useSpring, useTransform } from "framer-motion";
+import { m, useInView, useSpring, useTransform } from "framer-motion";
 
 /** Animated counter that springs to its target when scrolled into view. */
 export function CountUp({ to, suffix = "", className }: { to: number; suffix?: string; className?: string }) {
@@ -16,7 +16,7 @@ export function CountUp({ to, suffix = "", className }: { to: number; suffix?: s
 
   return (
     <span ref={ref} className={className}>
-      <motion.span>{text}</motion.span>
+      <m.span>{text}</m.span>
     </span>
   );
 }
