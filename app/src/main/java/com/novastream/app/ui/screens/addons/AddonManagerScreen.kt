@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +64,8 @@ import com.novastream.app.ui.vm.novaViewModel
 fun AddonManagerScreen(nav: NavHostController) {
     val vm = novaViewModel { AddonViewModel(it) }
     val nova = LocalNovaColors.current
-    var tab by remember { mutableIntStateOf(0) }
+    // rememberSaveable: rotation must not drop the user back to the Stremio tab.
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     val titles = listOf("Stremio", "CloudStream", "Aniyomi", "Mihon")
     val message by vm.message.collectAsStateSafe()
 
@@ -74,9 +77,11 @@ fun AddonManagerScreen(nav: NavHostController) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(top = 40.dp, start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, start = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.Filled.ArrowBack, "Back", tint = nova.textPrimary) }
-            Text("Add-on Manager", style = MaterialTheme.typography.headlineSmall, color = nova.textPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             IconButton(onClick = { vm.syncRepos() }) { Icon(Icons.Filled.Sync, "Sync repositories", tint = nova.accent) }
             IconButton(onClick = { vm.updateAll() }) { Icon(Icons.Filled.Refresh, "Update all", tint = nova.accent) }
         }
@@ -121,6 +126,31 @@ private fun StremioTab(vm: AddonViewModel) {
                 }
             }
         }
+        // One-tap installs for the highest-quality stream providers. Torrentio and TPB+ are already
+        // seeded on first launch, but they (and MediaFusion / OpenSubtitles) can be re-added here
+        // if a user removes them, so no one has to hunt for a working source.
+        item { Text("Recommended", style = MaterialTheme.typography.titleMedium, color = nova.textSecondary) }
+        items(com.novastream.app.data.local.AddonStore.Defaults.recommendedStreamAddons) { (name, manifestUrl) ->
+            val host = manifestHost(manifestUrl)
+            val installed = addons.any { it.transportUrl.contains(host) }
+            GlassSurface(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(name, style = MaterialTheme.typography.titleMedium, color = nova.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(manifestUrl, style = MaterialTheme.typography.labelMedium, color = nova.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    if (installed) {
+                        MetaChip("Installed")
+                    } else {
+                        IconButton(onClick = { vm.install(manifestUrl) }, enabled = !busy) {
+                            Icon(Icons.Filled.Download, "Install $name", tint = nova.accent)
+                        }
+                    }
+                }
+            }
+        }
+
         item { Text("Installed (${addons.size})", style = MaterialTheme.typography.titleMedium, color = nova.textSecondary) }
         if (addons.isEmpty()) item { EmptyState("No add-ons installed", "Paste a Stremio manifest URL above.") }
         items(addons, key = { it.id }) { addon ->
@@ -195,6 +225,12 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
         }
     }
 }
+
+/** "torrentio.strem.fun" from a manifest URL — used to tell whether an add-on is installed. */
+private fun manifestHost(url: String): String = url
+    .substringAfter("://", url)
+    .substringBefore('/')
+    .substringBefore(':')
 
 /** A compact, clean metadata tag (replaces raw "·"-joined text dumps). */
 @Composable

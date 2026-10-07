@@ -41,6 +41,15 @@ data class MediaItem(
 ) {
     /** Composite key that encodes the owning addon so meta lookups are deterministic. */
     val key: String get() = "${addonId ?: "local"}::$id"
+
+    /**
+     * True when this title is *read* rather than watched (manga, including the NSFW variant).
+     *
+     * Used to split the shared history list into the Home/Library "Continue Watching" and
+     * "Continue Reading" sections — both write the same [com.novastream.app.data.model.WatchEntry]
+     * shape, but only the reading entries should ever appear under a Play CTA.
+     */
+    val isReadable: Boolean get() = type == MediaType.MANGA || type == MediaType.NSFW_MANGA
 }
 
 /** Stream source returned by a Stremio stream addon. */
@@ -65,6 +74,24 @@ data class StreamSource(
     val headers: Map<String, String> = emptyMap(),
     /** Raw Stremio "sources" entries, e.g. "tracker:udp://...", "dht:...". */
     val sources: List<String> = emptyList(),
+    /**
+     * Optional chapter/intro/outro markers (milliseconds). When an add-on or HLS manifest supplies
+     * them the player shows real "Skip Intro"/"Skip Outro" actions; when absent it falls back to a
+     * conservative heuristic window. See `PlayerActivity`.
+     */
+    val introStartMs: Long? = null,
+    val introEndMs: Long? = null,
+    val outroStartMs: Long? = null,
+    /**
+     * Backup mirror URLs tried in order when [url] fails mid-playback (Phase 12 multi-source
+     * failover). Populated by sources that resolve the same stream through several hosts.
+     */
+    val alternates: List<String> = emptyList(),
+    /**
+     * Torrent swarms seeders reported by the add-on (Torrentio puts it in the title). Used to rank
+     * the most reliable streams first so the top entry is the one most likely to play smoothly.
+     */
+    val seeders: Int? = null,
 ) {
     /** A directly playable HTTP/HTTPS URL, when the add-on provided one. */
     val playableUrl: String? get() = url ?: externalUrl
@@ -104,6 +131,8 @@ data class Video(
     val thumbnail: String? = null,
     val released: String? = null,
     val overview: String? = null,
+    /** Runtime in whole minutes, when the source knows it (TMDB season episodes do). */
+    val runtimeMin: Int? = null,
 )
 
 /** A season header for the detail page (expandable). */
@@ -182,6 +211,13 @@ data class Addon(
     val logo: String? = null,
     val types: List<String> = emptyList(),
     val resources: List<String> = emptyList(),
+    /**
+     * Stremio `idPrefixes`: the id namespaces this add-on serves (`tt`, `kitsu:`, `anilist:`, …).
+     * Empty means the add-on did not restrict ids (the protocol default). The union of the
+     * manifest-level list and any per-resource lists. Used to pick the request id form and to
+     * avoid asking an add-on for ids it cannot answer.
+     */
+    val idPrefixes: List<String> = emptyList(),
     val catalogs: List<CatalogDef> = emptyList(),
     val enabled: Boolean = true,
     val nsfw: Boolean = false,

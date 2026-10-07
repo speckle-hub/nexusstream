@@ -1,23 +1,31 @@
 package com.novastream.app.data.ext
 
 import android.content.Context
-import com.google.gson.Gson
+import com.novastream.app.data.local.SettingsStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** File-backed store of installed extension descriptors. */
+/**
+ * File-backed store of installed extension descriptors.
+ *
+ * Reads and writes go through [ExtensionCodec], which sanitizes **per entry** — a malformed (or
+ * partially written) record used to decode into an [ExtensionDescriptor] with null fields, and the
+ * Sources dashboard crashed the moment it tried to render one. A single bad entry is now dropped
+ * while every usable entry survives, and the read can never throw.
+ */
 class ExtensionStore(context: Context) {
 
     private val file = File(context.filesDir, "extensions.json")
 
     fun list(): List<ExtensionDescriptor> = runCatching {
-        if (!file.exists()) emptyList()
-        else Gson().fromJson(file.readText(), Array<ExtensionDescriptor>::class.java)?.toList() ?: emptyList()
+        if (!file.exists()) emptyList() else ExtensionCodec.decode(file.readText())
     }.getOrDefault(emptyList())
 
     fun save(list: List<ExtensionDescriptor>) {
-        runCatching { file.writeText(Gson().toJson(list)) }
+        runCatching { file.writeText(ExtensionCodec.encode(list)) }
     }
 
     fun add(descriptor: ExtensionDescriptor) {
@@ -36,15 +44,47 @@ class ExtensionStore(context: Context) {
 class ExtensionRepository(
     private val store: ExtensionStore,
     private val context: Context,
+    private val settings: SettingsStore,
 ) {
 
-    fun installed(): List<ExtensionDescriptor> = store.list()
+    /** Installed descriptors, never throwing and never carrying a null field (see [ExtensionCodec]). */
+    fun installed(): List<ExtensionDescriptor> =
+        runCatching { store.list() }.getOrDefault(emptyList())
 
     fun loadedExtensions(): List<NexusExtension> = ExtensionHost.all()
 
-    /** Re-load every installed extension (e.g. on app start). Failures are dropped per extension. */
+    /**
+     * Re-load every installed extension (e.g. on app start), **except** those the user disabled in
+     * the Sources dashboard — otherwise the disable switch was session-only and every restart
+     * silently re-enabled every extension.
+     *
+     * Cold-boot resilience: failures are contained **per extension** *and* retried once, and the
+     * descriptor read itself is retried once, because both are transient far more often than they
+     * are real (the dex opt directory may still be settling after an update, storage may not be
+     * ready yet). A source that still fails to load is simply absent this session — it never takes
+     * the other sources (or the app) down with it, and this function never throws.
+     */
     suspend fun reloadAll(): List<NexusExtension> = withContext(Dispatchers.IO) {
-        store.list().mapNotNull { ExtensionHost.load(it, context.filesDir).getOrNull() }
+        val disabled = runCatching { settings.disabledSources.first() }.getOrDefault(emptyList())
+        val descriptors = runCatching { store.list() }.getOrElse {
+            delay(READ_RETRY_DELAY_MS)
+            runCatching { store.list() }.getOrDefault(emptyList())
+        }
+        val loaded = LinkedHashMap<String, NexusExtension>()
+        descriptors.filterNot { it.id in disabled }.forEach { descriptor ->
+            var plugin = ExtensionHost.load(descriptor, context.filesDir).getOrNull()
+            if (plugin == null) {
+                delay(READ_RETRY_DELAY_MS)
+                plugin = ExtensionHost.load(descriptor, context.filesDir).getOrNull()
+            }
+            if (plugin != null) loaded[descriptor.id] = plugin
+        }
+        loaded.values.toList()
+    }
+
+    private companion object {
+        /** Pause before the single retry of a cold-boot read/load. */
+        const val READ_RETRY_DELAY_MS = 300L
     }
 
     /**

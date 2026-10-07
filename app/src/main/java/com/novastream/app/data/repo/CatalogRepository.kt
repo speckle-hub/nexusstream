@@ -15,6 +15,8 @@ import com.novastream.app.data.remote.TmdbClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /** Aggregates content rows from TMDB, AniList, MangaDex and Stremio addon catalogs. */
 class CatalogRepository(
@@ -78,19 +80,39 @@ class CatalogRepository(
 
     // ---- NSFW ---------------------------------------------------------------
 
-    suspend fun nsfwAnimeRows(): List<CatalogRow> = coroutineScope {
-        val jobs = listOf(
-            async { safeRow("Popular", MediaType.NSFW_ANIME) { AniListClient.nsfwPopular() } },
-            async { safeRow("Trending", MediaType.NSFW_ANIME) { AniListClient.nsfwTrending() } },
-            async { safeRow("Top Rated", MediaType.NSFW_ANIME) { AniListClient.nsfwTopRated() } },
-            async { safeRow("Recently Released", MediaType.NSFW_ANIME) { AniListClient.nsfwRecent() } },
-            async { safeRow("Ecchi", MediaType.NSFW_ANIME) { AniListClient.nsfwByGenre("Ecchi") } },
-            async { safeRow("Hentai", MediaType.NSFW_ANIME) { AniListClient.nsfwByGenre("Hentai") } },
-            async { safeRow("Romance", MediaType.NSFW_ANIME) { AniListClient.nsfwByGenre("Romance") } },
-            async { safeRow("Jikan Top", MediaType.NSFW_ANIME) { JikanClient.nsfwTop() } },
+    /**
+     * NSFW-anime home rows, painted progressively. Every row fetch runs concurrently under
+     * [ROW_TIMEOUT_MS] and [onUpdate] fires as each row lands (always in registry order), so the
+     * section drops its skeleton on the first AniList row (about a second) instead of waiting for
+     * the slowest source — Jikan's flaky endpoints used to gate the tab for as long as they liked.
+     */
+    suspend fun nsfwAnimeRows(onUpdate: (List<CatalogRow>) -> Unit = {}): List<CatalogRow> = coroutineScope {
+        val fetchers: List<suspend () -> CatalogRow?> = listOf(
+            { nsfwRow("Popular") { AniListClient.nsfwPopular() } },
+            { nsfwRow("Trending") { AniListClient.nsfwTrending() } },
+            { nsfwRow("Top Rated") { AniListClient.nsfwTopRated() } },
+            { nsfwRow("Recently Released") { AniListClient.nsfwRecent() } },
+            { nsfwRow("Ecchi") { AniListClient.nsfwByGenre("Ecchi") } },
+            { nsfwRow("Hentai") { AniListClient.nsfwByGenre("Hentai") } },
+            { nsfwRow("Romance") { AniListClient.nsfwByGenre("Romance") } },
+            { nsfwRow("Jikan Top") { JikanClient.nsfwTop() } },
         )
-        jobs.mapNotNull { it.await() } + stremioNsfwRows(MediaType.NSFW_ANIME)
+        val slots = arrayOfNulls<CatalogRow>(fetchers.size)
+        fetchers.forEachIndexed { index, fetch ->
+            launch {
+                slots[index] = runCatching { fetch() }.getOrNull()
+                onUpdate(slots.filterNotNull())
+            }
+        }
+        // coroutineScope joins the row jobs above, so every slot write is published by here.
+        slots.filterNotNull() + stremioNsfwRows(MediaType.NSFW_ANIME)
     }
+
+    /** One built-in NSFW-anime row under [ROW_TIMEOUT_MS]; a slow or failing source just drops its row. */
+    private suspend fun nsfwRow(title: String, block: suspend () -> List<MediaItem>): CatalogRow? =
+        runCatching { withTimeout(ROW_TIMEOUT_MS) { block() } }.getOrNull()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { CatalogRow(title, it, type = MediaType.NSFW_ANIME) }
 
     suspend fun nsfwMangaRows(): List<CatalogRow> = coroutineScope {
         val jobs = listOf(
@@ -145,7 +167,11 @@ class CatalogRepository(
             StremioClient.catalogsFor(addon, section).map { cat ->
                 async {
                     runCatching {
-                        val items = StremioClient.fetchCatalog(addon, cat.type, cat.id)
+                        // Mirrors stremioRowsFor: NSFW add-on catalogs get the same hard cap, so a
+                        // hung add-on degrades its own row instead of gating the whole NSFW tab.
+                        val items = withTimeout(CATALOG_TIMEOUT_MS) {
+                            StremioClient.fetchCatalog(addon, cat.type, cat.id)
+                        }
                         if (items.isEmpty()) null
                         else CatalogRow("${addon.name} \u00b7 ${cat.name}", items, addon.id, cat.id, section)
                     }.getOrNull()
@@ -162,34 +188,92 @@ class CatalogRepository(
      * are queried **only** as a fallback when the built-ins return nothing, so add-on results can
      * never pollute or outrank the built-in ones (and SFW add-ons are never consulted).
      */
-    suspend fun searchReal(query: String): AdultRepository.Search = coroutineScope {
-        val builtIn = AdultRepository.searchDetailed(query)
+    suspend fun searchReal(query: String): AdultRepository.Search =
+        searchRealProgressive(query) { _, _ -> }
+
+    /**
+     * Progressive Real 18+ search: built-in sources publish [onUpdate] as each one finishes, so
+     * the first results appear immediately instead of waiting on the slowest (or a hung) site.
+     * NSFW Stremio add-ons are queried only as a fallback when the built-ins return nothing.
+     */
+    suspend fun searchRealProgressive(
+        query: String,
+        onUpdate: suspend (items: List<MediaItem>, errors: List<String>) -> Unit,
+    ): AdultRepository.Search = coroutineScope {
+        val builtIn = AdultRepository.searchDetailedProgressive(query) { items, errors ->
+            onUpdate(items, errors)
+        }
         if (builtIn.items.isNotEmpty()) return@coroutineScope builtIn
 
         val autoNsfw = settings.autoNsfwFromAddons.first()
         val stremio = if (!autoNsfw) emptyList() else runCatching {
-            addonRepo.enabledAddons().filter { it.nsfw }.flatMap { addon ->
-                StremioClient.catalogsFor(addon, MediaType.REAL)
-                    .filter { cat -> cat.extra.any { it.name == "search" } }
-                    .map { cat ->
-                        async {
-                            runCatching { StremioClient.search(addon, cat.type, cat.id, query) }
-                                .getOrDefault(emptyList())
-                        }
-                    }
-            }.flatMap { it.await() }
+            addonSearch(query, MediaType.REAL, nsfwOnly = true)
         }.getOrDefault(emptyList())
 
-        AdultRepository.Search(
-            items = stremio.filter { it.type == MediaType.REAL }.distinctBy { it.key },
-            errors = builtIn.errors,
-        )
+        val items = stremio.filter { it.type == MediaType.REAL }.distinctBy { it.key }
+        onUpdate(items, builtIn.errors)
+        AdultRepository.Search(items = items, errors = builtIn.errors)
     }
 
     suspend fun search(query: String, section: MediaType): List<MediaItem> {
         // Real 18+ has its own path so built-in sources are authoritative.
         if (section == MediaType.REAL) return searchReal(query).items
+        // NSFW anime prefers AniList (fast) and only reaches for Jikan/scrapers when needed.
+        if (section == MediaType.NSFW_ANIME) return searchNsfwAnime(query)
         return searchInternal(query, section)
+    }
+
+    /**
+     * NSFW-anime search. **AniList is the fast primary source** and the answer for any title it
+     * knows; Jikan is consulted only when AniList returns nothing (bounded), and the installed
+     * Stremio NSFW add-ons are a pure **fallback** used only when both built-ins come back empty
+     * — the same built-ins-authoritative rule Real 18+ already uses (ISSUE-9). That is what keeps
+     * a normal search at AniList speed instead of waiting on add-on hosts: every hop is bounded
+     * ([ANILIST_TIMEOUT_MS], [JIKAN_TIMEOUT_MS], [ADDON_TIMEOUT_MS]), so even the degraded path
+     * returns in seconds rather than the minute it could previously stall for.
+     */
+    private suspend fun searchNsfwAnime(query: String): List<MediaItem> {
+        val primary = runCatching {
+            withTimeout(ANILIST_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
+        }.getOrDefault(emptyList())
+            .filter { it.type == MediaType.NSFW_ANIME }
+            .distinctBy { it.key }
+        if (primary.isNotEmpty()) return primary
+
+        val jikan = runCatching {
+            withTimeout(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }
+        }.getOrDefault(emptyList())
+            .filter { it.type == MediaType.NSFW_ANIME }
+            .distinctBy { it.key }
+        if (jikan.isNotEmpty()) return jikan
+
+        // Built-ins found nothing: only then do the NSFW add-ons get a (capped) say.
+        val addons = runCatching {
+            withTimeout(ADDON_TIMEOUT_MS) { addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true) }
+        }.getOrDefault(emptyList())
+        return addons.filter { it.type == MediaType.NSFW_ANIME }.distinctBy { it.key }
+    }
+
+    /** Search every eligible add-on's searchable catalogs for [section], in parallel. */
+    private suspend fun addonSearch(
+        query: String,
+        section: MediaType,
+        nsfwOnly: Boolean,
+    ): List<MediaItem> = coroutineScope {
+        val candidateAddons = addonRepo.enabledAddons().let { addons ->
+            if (nsfwOnly) addons.filter { it.nsfw } else addons
+        }
+        candidateAddons.flatMap { addon ->
+            StremioClient.catalogsFor(addon, section)
+                .filter { cat -> cat.extra.any { it.name == "search" } }
+                .map { cat ->
+                    async {
+                        runCatching {
+                            withTimeout(ADDON_TIMEOUT_MS) { StremioClient.search(addon, cat.type, cat.id, query) }
+                        }.getOrDefault(emptyList())
+                    }
+                }
+        }.flatMap { it.await() }
     }
 
     private suspend fun searchInternal(query: String, section: MediaType): List<MediaItem> = coroutineScope {
@@ -204,7 +288,8 @@ class CatalogRepository(
             MediaType.ANIME -> results += runCatching { AniListClient.searchAnime(query) }.getOrDefault(emptyList())
             MediaType.MANGA -> results += runCatching { MangaDexClient.search(query) }.getOrDefault(emptyList())
             MediaType.NSFW_ANIME -> {
-                // Strictly adult: AniList isAdult:true + Jikan rating=rx only.
+                // Routed through searchNsfwAnime() before this method is reached; kept as a strict
+                // adult-only pair here for any future caller.
                 results += runCatching { AniListClient.nsfwSearch(query) }.getOrDefault(emptyList())
                 results += runCatching { JikanClient.nsfwSearch(query) }.getOrDefault(emptyList())
             }
@@ -214,19 +299,7 @@ class CatalogRepository(
 
         // Stremio addon search. For NSFW sections ONLY NSFW-flagged add-ons are queried,
         // so regular (SFW) add-ons can never leak normal content into NSFW results.
-        val candidateAddons = addonRepo.enabledAddons().let { addons ->
-            if (isNsfwSection) addons.filter { it.nsfw } else addons
-        }
-        val jobs = candidateAddons.flatMap { addon ->
-            StremioClient.catalogsFor(addon, section)
-                .filter { cat -> cat.extra.any { it.name == "search" } }
-                .map { cat ->
-                    async {
-                        runCatching { StremioClient.search(addon, cat.type, cat.id, query) }.getOrDefault(emptyList())
-                    }
-                }
-        }
-        jobs.forEach { results += it.await() }
+        results += addonSearch(query, section, nsfwOnly = isNsfwSection)
 
         // Final safety net: NSFW sections must never surface non-adult built-in items.
         val filtered = if (isNsfwSection) {
@@ -235,6 +308,30 @@ class CatalogRepository(
             results
         }
         filtered.distinctBy { it.key }
+    }
+
+    private companion object {
+        /**
+         * Caps the AniList primary for NSFW-anime search. AniList is normally sub-second; the cap
+         * only exists so a hung GraphQL call degrades to Jikan/add-ons instead of holding the
+         * search open for a full OkHttp timeout (20 s connect / 30 s read).
+         */
+        const val ANILIST_TIMEOUT_MS = 8_000L
+
+        /** Caps the Jikan fallback so an upstream 504 can't stall an AniList-primary search. */
+        const val JIKAN_TIMEOUT_MS = 6_000L
+
+/** Caps every Stremio add-on search so one slow host can't stall the whole list. */
+        const val ADDON_TIMEOUT_MS = 6_000L
+
+        /** Caps a Stremio catalog-row fetch; a hung add-on is dropped rather than blocking Home. */
+        const val CATALOG_TIMEOUT_MS = 7_000L
+
+        /**
+         * Caps one built-in home row (NSFW anime). Every row fetch used to be unbounded, so the
+         * flakiest source (Jikan's documented 504s, 429 backoff) gated the whole tab's spinner.
+         */
+        const val ROW_TIMEOUT_MS = 10_000L
     }
 
     suspend fun globalSearch(query: String): List<MediaItem> = coroutineScope {
@@ -247,7 +344,11 @@ class CatalogRepository(
         jobs.forEach { results += it.await() }
         val addonJobs = addonRepo.enabledAddons().flatMap { addon ->
             addon.catalogs.filter { c -> c.extra.any { it.name == "search" } }.map { cat ->
-                async { runCatching { StremioClient.search(addon, cat.type, cat.id, query) }.getOrDefault(emptyList()) }
+                async {
+                    runCatching {
+                        withTimeout(ADDON_TIMEOUT_MS) { StremioClient.search(addon, cat.type, cat.id, query) }
+                    }.getOrDefault(emptyList())
+                }
             }
         }
         addonJobs.forEach { results += it.await() }
@@ -264,7 +365,9 @@ class CatalogRepository(
                 .map { cat ->
                     async {
                         runCatching {
-                            val items = StremioClient.fetchCatalog(addon, cat.type, cat.id)
+                            val items = withTimeout(CATALOG_TIMEOUT_MS) {
+                                StremioClient.fetchCatalog(addon, cat.type, cat.id)
+                            }
                             if (items.isEmpty()) null
                             else CatalogRow("${addon.name} · ${cat.name}", items, addon.id, cat.id, StremioClient.mapType(cat.type, addon))
                         }.getOrNull()
@@ -275,5 +378,7 @@ class CatalogRepository(
     }
 
     suspend fun loadCatalog(addon: Addon, catalog: CatalogDef, extra: Map<String, String> = emptyMap()): List<MediaItem> =
-        runCatching { StremioClient.fetchCatalog(addon, catalog.type, catalog.id, extra) }.getOrDefault(emptyList())
+        runCatching {
+            withTimeout(CATALOG_TIMEOUT_MS) { StremioClient.fetchCatalog(addon, catalog.type, catalog.id, extra) }
+        }.getOrDefault(emptyList())
 }

@@ -38,6 +38,13 @@ data class MangaDownload(
     val status: DownloadStatus = DownloadStatus.QUEUED,
     val error: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * True when the owning title is NSFW. Kept (as the trailing field, so older `meta.json`
+     * snapshots simply default to false) because `MangaDownload` carries no `MediaType` and the
+     * Library's NSFW filter would otherwise have no way to tell an adult chapter from a regular
+     * one.
+     */
+    val nsfw: Boolean = false,
 ) {
     /** Stable key across manga and chapter. */
     val key: String get() = "$mangaId::$chapterId"

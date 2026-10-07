@@ -1,6 +1,10 @@
 package com.novastream.app.ui.screens.library
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,10 +16,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -31,17 +39,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.novastream.app.data.download.DownloadStatus
@@ -52,16 +65,25 @@ import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
 import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.model.Video
+import com.novastream.app.data.model.WatchEntry
+import com.novastream.app.data.integrations.WatchStats
+import com.novastream.app.data.local.LibraryCodec
 import com.novastream.app.data.remote.Http
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import com.novastream.app.ui.components.ConfirmRemoveDialog
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.GlassSurface
+import com.novastream.app.ui.components.PillSegmentedControl
 import com.novastream.app.ui.components.PosterCard
 import com.novastream.app.ui.components.SectionHeader
+import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.player.MangaReaderActivity
 import com.novastream.app.ui.player.PlayerActivity
+import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
+import com.novastream.app.ui.theme.Motion
 import com.novastream.app.ui.vm.LibraryViewModel
 import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
@@ -70,6 +92,52 @@ import com.novastream.app.ui.vm.novaViewModel
 /** Which curated list a pending removal targets, and which title it targets. */
 private data class PendingRemoval(val favorite: Boolean, val item: MediaItem)
 
+/**
+ * The category chip bar under the segmented control. Both content sections (Downloads and My
+ * Library) are filterable by the same set of categories, so one enum drives both.
+ */
+private enum class LibraryFilter(val label: String) {
+    ALL("All"),
+    MOVIES("Movies"),
+    TV("TV Shows"),
+    ANIME("Anime"),
+    NSFW("NSFW");
+
+    /**
+     * Whether a title of [type] belongs here. `null` (an unknown/legacy type) only passes
+     * [ALL] — it is never misfiled into a specific category.
+     *
+     * Manga is deliberately grouped with Anime rather than getting its own chip: the catalogue
+     * tabs pair the two, and a separate chip would either strand manga behind "All" or clutter the
+     * bar with a rarely-used entry.
+     */
+    fun accepts(type: MediaType?): Boolean = when (this) {
+        ALL -> true
+        MOVIES -> type == MediaType.MOVIE
+        TV -> type == MediaType.SERIES
+        ANIME -> type == MediaType.ANIME || type == MediaType.MANGA
+        NSFW -> type == MediaType.NSFW_ANIME || type == MediaType.NSFW_MANGA || type == MediaType.REAL
+    }
+}
+
+private fun MediaItem.matches(filter: LibraryFilter): Boolean = filter.accepts(type)
+
+/** Downloads carry the original [MediaItem] as JSON, which is decoded tolerantly. */
+private fun VideoDownload.matches(filter: LibraryFilter): Boolean =
+    filter.accepts(LibraryCodec.decodeFavorites(itemJson).firstOrNull()?.type)
+
+private fun MangaDownload.matches(filter: LibraryFilter): Boolean =
+    filter.accepts(if (nsfw) MediaType.NSFW_MANGA else MediaType.MANGA)
+
+/**
+ * The Library screen, split into two top sections behind a segmented control:
+ *
+ *  1. **Downloads** — purely offline media (downloaded videos + downloaded manga chapters).
+ *  2. **My Library** — saved media and progress (Continue Watching + Favourites).
+ *
+ * They used to be stacked in one long vertical list, so offline downloads were buried between the
+ * watch history and the favourites grid.
+ */
 @Composable
 fun LibraryScreen(nav: NavHostController) {
     val vm = novaViewModel { LibraryViewModel(it) }
@@ -83,84 +151,37 @@ fun LibraryScreen(nav: NavHostController) {
 
     // Title awaiting confirmation before it is dropped from Favourites / Continue Watching.
     var pendingRemoval by remember { mutableStateOf<PendingRemoval?>(null) }
+    // rememberSaveable so returning to the Library tab keeps the section the user was on.
+    var section by rememberSaveable { mutableIntStateOf(0) }
+    // Category chip selection, also saved so switching tabs does not reset the filter.
+    var filterIndex by rememberSaveable { mutableIntStateOf(0) }
+    val filter = LibraryFilter.entries[filterIndex.coerceIn(0, LibraryFilter.entries.lastIndex)]
 
-    // Keeps the Library scroll position when returning from another tab or a detail screen.
-    val listState = rememberLazyListState()
-
-    Box(Modifier.fillMaxSize()) {
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp),
-    ) {
-        item {
-            Text(
-                "My Library",
-                style = MaterialTheme.typography.displaySmall,
-                color = nova.textPrimary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp),
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            "Library",
+            style = MaterialTheme.typography.displaySmall,
+            color = nova.textPrimary,
+            modifier = Modifier.statusBarsPadding().padding(start = AppSpacing.screen, top = 8.dp, bottom = 8.dp),
+        )
+        PillSegmentedControl(
+            labels = listOf("Downloads", "My Library", "Stats"),
+            selected = section,
+            onSelect = { section = it },
+            modifier = Modifier.padding(horizontal = AppSpacing.screen, vertical = 4.dp),
+        )
+        // The chips only mean something for the two content sections — Stats is a global view.
+        if (section != 2) {
+            LibraryFilterBar(
+                selected = filterIndex,
+                onSelect = { filterIndex = it },
+                modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
             )
         }
-
-        // ---- Offline manga downloads ----------------------------------------
-        item { SectionHeader("Downloaded Chapters") }
-        if (downloads.isEmpty()) {
-            item {
-                EmptyState(
-                    "No chapters downloaded",
-                    "Download chapters from the manga reader to read them offline.",
-                    icon = Icons.Outlined.Download,
-                )
-            }
-        } else {
-            val ordered = downloads.values.sortedByDescending { it.updatedAt }
-            items(ordered, key = { it.key }) { d ->
-                MangaDownloadRow(d) { context.openChapter(d) }
-            }
-        }
-
-        // ---- Offline video downloads ----------------------------------------
-        item { SectionHeader("Downloaded Videos") }
-        if (videoDownloads.isEmpty()) {
-            item {
-                EmptyState(
-                    "No videos downloaded",
-                    "Download a movie or episode from its detail page to watch offline.",
-                    icon = Icons.Outlined.Download,
-                )
-            }
-        } else {
-            val ordered = videoDownloads.sortedByDescending { it.updatedAt }
-            items(ordered, key = { it.id }) { d ->
-                VideoDownloadRow(d) { context.playDownloaded(d) }
-            }
-        }
-
-        item { SectionHeader("Continue Watching") }
-        if (history.isEmpty()) {
-            item { EmptyState("Nothing in progress", "Content you watch will appear here.", icon = Icons.Outlined.History) }
-        } else {
-            items(history.chunked(3)) { chunk ->
-                GridRow(
-                    chunk = chunk.map { it.item },
-                    nav = nav,
-                    onRemove = { pendingRemoval = PendingRemoval(favorite = false, item = it) },
-                )
-            }
-        }
-
-        item { SectionHeader("Favorites") }
-        if (favorites.isEmpty()) {
-            item { EmptyState("No favorites yet", "Tap the heart on any title to save it here.", icon = Icons.Outlined.FavoriteBorder) }
-        } else {
-            items(favorites.chunked(3)) { chunk ->
-                GridRow(
-                    chunk = chunk,
-                    nav = nav,
-                    onRemove = { pendingRemoval = PendingRemoval(favorite = true, item = it) },
-                )
-            }
+        when (section) {
+            0 -> DownloadsGrid(downloads, videoDownloads, filter, context)
+            1 -> ActivityGrid(nav, history, favorites, filter) { pendingRemoval = it }
+            else -> StatsTab(favorites, history)
         }
     }
 
@@ -179,6 +200,364 @@ fun LibraryScreen(nav: NavHostController) {
             onDismiss = { pendingRemoval = null },
         )
     }
+}
+
+/** Downloads section: offline video downloads and downloaded manga chapters only. */
+@Composable
+private fun DownloadsGrid(
+    downloads: Map<String, MangaDownload>,
+    videoDownloads: List<VideoDownload>,
+    filter: LibraryFilter,
+    context: Context,
+) {
+    val listState = rememberLazyGridState()
+    val videos = videoDownloads.filter { it.matches(filter) }
+    val chapters = downloads.values.filter { it.matches(filter) }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = AppSpacing.posterMin),
+        state = listState,
+        modifier = Modifier.fillMaxSize().clipToBounds(),
+        contentPadding = PaddingValues(
+            start = AppSpacing.screen,
+            end = AppSpacing.screen,
+            bottom = 24.dp + LocalFloatingNavBottomPadding.current,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.item),
+    ) {
+        if (filter != LibraryFilter.ALL && videos.isEmpty() && chapters.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                EmptyState(
+                    "Nothing in ${filter.label}",
+                    "Downloads in this category will appear here.",
+                    icon = Icons.Outlined.Download,
+                )
+            }
+            return@LazyVerticalGrid
+        }
+
+        // Under "All" both sections always render (with their own empty states, as before); a
+        // specific category only renders the sections that actually have matching downloads.
+        if (filter == LibraryFilter.ALL || videos.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionHeader("Downloaded Videos", modifier = Modifier.zIndex(10f))
+            }
+            if (videos.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyState(
+                        "No videos downloaded",
+                        "Download a movie or episode from its detail page to watch offline.",
+                        icon = Icons.Outlined.Download,
+                    )
+                }
+            } else {
+                val ordered = videos.sortedByDescending { it.updatedAt }
+                items(ordered, key = { "vid:${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { d ->
+                    VideoDownloadRow(d) { context.playDownloaded(d) }
+                }
+            }
+        }
+
+        if (filter == LibraryFilter.ALL || chapters.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionHeader("Downloaded Chapters", modifier = Modifier.zIndex(10f))
+            }
+            if (chapters.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyState(
+                        "No chapters downloaded",
+                        "Download chapters from the manga reader to read them offline.",
+                        icon = Icons.Outlined.Download,
+                    )
+                }
+            } else {
+                val ordered = chapters.sortedByDescending { it.updatedAt }
+                items(ordered, key = { "ch:${it.key}" }, span = { GridItemSpan(maxLineSpan) }) { d ->
+                    MangaDownloadRow(d) { context.openChapter(d) }
+                }
+            }
+        }
+    }
+}
+
+/** My Library section: saved titles and in-progress watch history. */
+@Composable
+private fun ActivityGrid(
+    nav: NavHostController,
+    history: List<WatchEntry>,
+    favorites: List<MediaItem>,
+    filter: LibraryFilter,
+    onRemove: (PendingRemoval) -> Unit,
+) {
+    val listState = rememberLazyGridState()
+    val watched = history.filter { it.item.matches(filter) && !it.item.isReadable }
+    // Reading progress lands in the same history list as watch progress, but it belongs to its own
+    // section: a manga title must never show up under a Play CTA.
+    val reading = history.filter { it.item.matches(filter) && it.item.isReadable }
+    val saved = favorites.filter { it.matches(filter) }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = AppSpacing.posterMin),
+        state = listState,
+        modifier = Modifier.fillMaxSize().clipToBounds(),
+        contentPadding = PaddingValues(
+            start = AppSpacing.screen,
+            end = AppSpacing.screen,
+            bottom = 24.dp + LocalFloatingNavBottomPadding.current,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.item),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader("Continue Watching", modifier = Modifier.zIndex(10f))
+        }
+        if (watched.isEmpty() && reading.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                if (filter == LibraryFilter.ALL) {
+                    EmptyState("Nothing in progress", "Content you watch or read will appear here.", icon = Icons.Outlined.History)
+                } else {
+                    EmptyState(
+                        "Nothing in ${filter.label}",
+                        "In-progress titles in this category will appear here.",
+                        icon = Icons.Outlined.History,
+                    )
+                }
+            }
+        } else if (watched.isNotEmpty()) {
+            // Prefixed keys: history and favourites share one grid, so an identical title in both
+            // would otherwise collide (both keyed on `item.key`) and reuse the wrong card state.
+            items(watched.map { it.item }, key = { "hist:${it.key}" }) { item ->
+                PosterCard(
+                    item = item,
+                    onClick = { nav.navigate(Routes.detail(item)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    width = 0,
+                    // Long-press and the card's "×" open the same confirmation dialog.
+                    onLongClick = { onRemove(PendingRemoval(favorite = false, item = item)) },
+                    onRemove = { onRemove(PendingRemoval(favorite = false, item = item)) },
+                )
+            }
+        }
+
+        // ---- Continue Reading (manga, normal + NSFW) -------------------------
+        if (reading.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionHeader("Continue Reading", modifier = Modifier.zIndex(10f))
+            }
+            items(reading.map { it.item }, key = { "read:${it.key}" }) { item ->
+                PosterCard(
+                    item = item,
+                    onClick = { nav.navigate(Routes.detail(item)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    width = 0,
+                    onLongClick = { onRemove(PendingRemoval(favorite = false, item = item)) },
+                    onRemove = { onRemove(PendingRemoval(favorite = false, item = item)) },
+                )
+            }
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader("Favorites", modifier = Modifier.zIndex(10f))
+        }
+        if (saved.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                if (filter == LibraryFilter.ALL) {
+                    EmptyState("No favorites yet", "Tap the heart on any title to save it here.", icon = Icons.Outlined.FavoriteBorder)
+                } else {
+                    EmptyState(
+                        "Nothing in ${filter.label}",
+                        "Favourites in this category will appear here.",
+                        icon = Icons.Outlined.FavoriteBorder,
+                    )
+                }
+            }
+        } else {
+            items(saved, key = { "fav:${it.key}" }) { item ->
+                PosterCard(
+                    item = item,
+                    onClick = { nav.navigate(Routes.detail(item)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    width = 0,
+                    onLongClick = { onRemove(PendingRemoval(favorite = true, item = item)) },
+                    onRemove = { onRemove(PendingRemoval(favorite = true, item = item)) },
+                )
+            }
+        }
+    }
+}
+
+/** Watch/read statistics dashboard (Phase 12). */
+@Composable
+private fun StatsTab(favorites: List<MediaItem>, history: List<WatchEntry>) {
+    val nova = LocalNovaColors.current
+    // Defensive: stats are derived from the same history that used to be able to carry a null
+    // `type`; a failure here must degrade to an empty dashboard, not take the Library tab down.
+    val stats = remember(favorites, history) {
+        runCatching { WatchStats.compute(history, favorites) }
+            .getOrElse { WatchStats.compute(emptyList(), emptyList()) }
+    }
+    val listState = rememberLazyGridState()
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 160.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().clipToBounds(),
+        contentPadding = PaddingValues(
+            start = AppSpacing.screen,
+            end = AppSpacing.screen,
+            top = AppSpacing.screen,
+            bottom = AppSpacing.screen + LocalFloatingNavBottomPadding.current,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.item),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            StatCard("Watch time", "${String.format("%.1f", stats.watchedHours)} h")
+        }
+        item { StatCard("Titles in progress", stats.watchedItems.toString()) }
+        item { StatCard("Completed", stats.completed.toString()) }
+        item { StatCard("Favourites", stats.favorites.toString()) }
+
+        if (stats.byType.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionHeader("By type", modifier = Modifier.zIndex(10f))
+            }
+            stats.byType.forEach { (type, count) ->
+                item { StatCard(type, count.toString()) }
+            }
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader("Top genres", modifier = Modifier.zIndex(10f))
+        }
+        if (stats.topGenres.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                EmptyState("No stats yet", "Watch or save a few titles to build your dashboard.", icon = Icons.Outlined.History)
+            }
+        } else {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                GlassSurface(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        stats.topGenres.forEach { (genre, count) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(genre, style = MaterialTheme.typography.bodyMedium, color = nova.textPrimary, modifier = Modifier.width(140.dp))
+                                LinearProgressIndicator(
+                                    progress = { count.toFloat() / stats.topGenres.first().second.coerceAtLeast(1) },
+                                    modifier = Modifier.weight(1f).height(8.dp),
+                                    color = nova.accent,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatCard(label: String, value: String) {
+    val nova = LocalNovaColors.current
+    GlassSurface(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineMedium, color = nova.accent)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
+        }
+    }
+}
+
+/**
+ * A compact pill segmented control, matching the Browse tab's control so the two-level navigation
+ * feels consistent.
+ */
+@Composable
+private fun LibrarySegmentedControl(
+    labels: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val nova = LocalNovaColors.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(nova.surfaceElevated)
+            .border(BorderStroke(1.dp, nova.outline.copy(alpha = 0.6f)), RoundedCornerShape(14.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        labels.forEachIndexed { index, label ->
+            val active = index == selected
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (active) nova.accent.copy(alpha = 0.18f) else androidx.compose.ui.graphics.Color.Transparent)
+                    .clickable { onSelect(index) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (active) nova.accent else nova.textSecondary,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The horizontal category chip bar (Phase 13). Sits directly under the segmented control and
+ * filters whichever content section is open. It deliberately lives *outside* the scrollable grid,
+ * so changing a chip re-filters in place instead of scrolling the user back to the top.
+ */
+@Composable
+private fun LibraryFilterBar(
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val nova = LocalNovaColors.current
+    val shape = RoundedCornerShape(50)
+    LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = AppSpacing.screen),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(LibraryFilter.entries.size) { index ->
+            val filter = LibraryFilter.entries[index]
+            val active = index == selected
+            // Animate the selected chip's fill + outline so switching filters reads as one control
+            // changing state rather than two chips blinking.
+            val chipBg by animateColorAsState(
+                targetValue = if (active) nova.accent.copy(alpha = 0.18f) else nova.surfaceElevated,
+                animationSpec = tween(Motion.FAST),
+                label = "chipBg",
+            )
+            val chipBorder by animateColorAsState(
+                targetValue = if (active) nova.accent else nova.outline.copy(alpha = 0.6f),
+                animationSpec = tween(Motion.FAST),
+                label = "chipBorder",
+            )
+            Box(
+                Modifier
+                    .clip(shape)
+                    .background(chipBg)
+                    .border(BorderStroke(1.dp, chipBorder), shape)
+                    .clickable { onSelect(index) }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Text(
+                    filter.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (active) nova.accent else nova.textSecondary,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
+        }
     }
 }
 
@@ -201,7 +580,11 @@ private fun Context.playDownloaded(d: VideoDownload) {
 private fun MangaDownloadRow(d: MangaDownload, onClick: () -> Unit) {
     val nova = LocalNovaColors.current
     val manager = LocalContainer.current.mangaDownloadManager
-    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onClick) {
+    // Full-width rows: span the grid line so the card fills the row instead of being cell-sized.
+    GlassSurface(
+        Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 4.dp),
+        onClick = onClick,
+    ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (!d.cover.isNullOrBlank()) {
                 AsyncImage(
@@ -245,7 +628,7 @@ private fun MangaDownloadRow(d: MangaDownload, onClick: () -> Unit) {
                     DownloadStatus.COMPLETED -> Text(
                         "Downloaded · ${formatBytes(d.bytes)}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = androidx.compose.ui.graphics.Color(0xFF35E0A1),
+                        color = Color(0xFF35E0A1),
                     )
                     DownloadStatus.PAUSED -> Text(
                         "Paused · ${d.downloaded}/${d.total}",
@@ -280,7 +663,10 @@ private fun MangaDownloadRow(d: MangaDownload, onClick: () -> Unit) {
 private fun VideoDownloadRow(d: VideoDownload, onClick: () -> Unit) {
     val nova = LocalNovaColors.current
     val manager = LocalContainer.current.videoDownloadManager
-    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onClick) {
+    GlassSurface(
+        Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 4.dp),
+        onClick = onClick,
+    ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (!d.poster.isNullOrBlank()) {
                 AsyncImage(
@@ -323,7 +709,7 @@ private fun VideoDownloadRow(d: VideoDownload, onClick: () -> Unit) {
                     VideoDownloadStatus.COMPLETED -> Text(
                         "Downloaded · ${formatBytes(d.bytes)}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = androidx.compose.ui.graphics.Color(0xFF35E0A1),
+                        color = Color(0xFF35E0A1),
                     )
                     VideoDownloadStatus.PAUSED -> Text(
                         "Paused · ${(d.progress * 100).toInt()}%",
@@ -364,29 +750,4 @@ private fun formatBytes(bytes: Long): String = when {
     bytes >= 1_000_000 -> String.format("%.1f MB", bytes / 1_000_000.0)
     bytes >= 1_000 -> String.format("%.1f KB", bytes / 1_000.0)
     else -> "$bytes B"
-}
-
-@Composable
-private fun GridRow(
-    chunk: List<MediaItem>,
-    nav: NavHostController,
-    onRemove: ((MediaItem) -> Unit)? = null,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        chunk.forEach { item ->
-            PosterCard(
-                item = item,
-                onClick = { nav.navigate(Routes.detail(item)) },
-                modifier = Modifier.weight(1f),
-                width = 0,
-                // Long-press and the card's "×" open the same confirmation dialog.
-                onLongClick = onRemove?.let { remove -> { remove(item) } },
-                onRemove = onRemove?.let { remove -> { remove(item) } },
-            )
-        }
-        repeat(3 - chunk.size) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }
-    }
 }

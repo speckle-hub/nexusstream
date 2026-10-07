@@ -4,7 +4,9 @@ import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.novastream.app.data.local.MetadataCache
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -64,6 +66,29 @@ object Http {
      */
     @Volatile
     var cacheEnabled: Boolean = true
+
+    /**
+     * Global custom HTTP identity (Phase 12), configured under Settings → Network. When set these
+     * override the app's defaults on *every* outbound request, so a user can spoof a source's
+     * expected User-Agent / Referer / Cookie without per-add-on code. Explicit per-request headers
+     * (e.g. an adult source's own Referer) still win because they are applied afterwards.
+     */
+    @Volatile
+    var customUserAgent: String = ""
+
+    @Volatile
+    var customReferer: String = ""
+
+    @Volatile
+    var customCookie: String = ""
+}
+
+/** Applies the optional global User-Agent / Referer / Cookie overrides to a request builder. */
+private fun Request.Builder.globalIdentity(): Request.Builder {
+    header("User-Agent", Http.customUserAgent.ifBlank { UA })
+    if (Http.customReferer.isNotBlank()) header("Referer", Http.customReferer)
+    if (Http.customCookie.isNotBlank()) header("Cookie", Http.customCookie)
+    return this
 }
 
 /** Freshness window for cached metadata responses (TMDB / AniList / MangaDex). */
@@ -102,25 +127,69 @@ suspend fun httpPostJsonCached(
 /** Default browser-like user agent so addons / APIs behave. */
 const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 NexusStream/1.0"
 
+/** Attempts for idempotent GETs, on top of OkHttp's own connection retry. */
+private const val GET_ATTEMPTS = 3
+
+/** Base pause between those attempts; grows linearly (250 ms, 500 ms). */
+private const val GET_RETRY_BACKOFF_MS = 250L
+
+/**
+ * True when re-sending the exact same request could plausibly succeed: a transport failure
+ * (timeout, reset, DNS hiccup) or a 5xx / 408 / 429 response. Other 4xx answers are final —
+ * retrying them would only add latency to a request that can never succeed.
+ */
+private fun isTransientFailure(t: Throwable): Boolean {
+    if (t !is java.io.IOException) return false
+    val msg = t.message ?: return true
+    if (!msg.startsWith("HTTP ")) return true
+    val code = msg.removePrefix("HTTP ").substringBefore(' ').trim().toIntOrNull() ?: return false
+    return code >= 500 || code == 408 || code == 429
+}
+
+/**
+ * GET with a bounded retry for transient failures.
+ *
+ * Cold-boot metadata (TMDB / AniList / MangaDex posters + descriptions) used to make exactly one
+ * attempt, so a single flaky handshake on launch left rows and detail pages without artwork or a
+ * synopsis for the next 6 hours (the result of the failed call is not cached, but the row was
+ * painted empty). Two extra attempts with a short backoff turn that into a momentary blip.
+ */
 suspend fun httpGet(
     url: String,
     headers: Map<String, String> = emptyMap(),
-): String = withContext(Dispatchers.IO) {
-    val builder = Request.Builder().url(url).get()
-        .header("User-Agent", UA)
-        .header("Accept", "application/json, text/plain, */*")
-    headers.forEach { (k, v) -> builder.header(k, v) }
-    Http.client.newCall(builder.build()).execute().use { resp: Response ->
-        if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
-        resp.body?.string() ?: ""
+): String {
+    var attempt = 0
+    while (true) {
+        try {
+            return withContext(Dispatchers.IO) { singleHttpGet(url, headers) }
+        } catch (e: CancellationException) {
+            // Never retry (or swallow) a cancelled caller — see runCatchingCancellable.
+            throw e
+        } catch (e: Exception) {
+            attempt++
+            if (attempt >= GET_ATTEMPTS || !isTransientFailure(e)) throw e
+            delay(GET_RETRY_BACKOFF_MS * attempt)
+        }
     }
 }
+
+private suspend fun singleHttpGet(url: String, headers: Map<String, String>): String =
+    withContext(Dispatchers.IO) {
+        val builder = Request.Builder().url(url).get()
+            .globalIdentity()
+            .header("Accept", "application/json, text/plain, */*")
+        headers.forEach { (k, v) -> builder.header(k, v) }
+        Http.client.newCall(builder.build()).execute().use { resp: Response ->
+            if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
+            resp.body?.string() ?: ""
+        }
+    }
 
 suspend fun httpGetBytes(
     url: String,
     headers: Map<String, String> = emptyMap(),
 ): ByteArray = withContext(Dispatchers.IO) {
-    val builder = Request.Builder().url(url).get().header("User-Agent", UA)
+    val builder = Request.Builder().url(url).get().globalIdentity()
     headers.forEach { (k, v) -> builder.header(k, v) }
     Http.client.newCall(builder.build()).execute().use { resp: Response ->
         if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
@@ -135,8 +204,35 @@ suspend fun httpPostJson(
 ): String = withContext(Dispatchers.IO) {
     val builder = Request.Builder().url(url)
         .post(okhttp3.RequestBody.create("application/json; charset=utf-8".toMediaType(), body))
-        .header("User-Agent", UA)
+        .globalIdentity()
         .header("Content-Type", "application/json")
+    headers.forEach { (k, v) -> builder.header(k, v) }
+    Http.client.newCall(builder.build()).execute().use { resp: Response ->
+        if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
+        resp.body?.string() ?: ""
+    }
+}
+
+/**
+ * Form-encoded POST (`application/x-www-form-urlencoded`) with browser-like defaults.
+ *
+ * WordPress admin-ajax.php endpoints — the ones the built-in scrapers use to lazily load a
+ * player mirror — only accept this shape, and every header (including `User-Agent`) can be
+ * overridden through [headers] so the request looks like the site's own XHR.
+ */
+suspend fun httpPostForm(
+    url: String,
+    fields: Map<String, String>,
+    headers: Map<String, String> = emptyMap(),
+): String = withContext(Dispatchers.IO) {
+    val body = fields.entries.joinToString("&") {
+        "${java.net.URLEncoder.encode(it.key, "UTF-8")}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
+    }
+    val builder = Request.Builder().url(url)
+        .post(okhttp3.RequestBody.create("application/x-www-form-urlencoded; charset=utf-8".toMediaType(), body))
+        .globalIdentity()
+        .header("Accept", "*/*")
+        .header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
     headers.forEach { (k, v) -> builder.header(k, v) }
     Http.client.newCall(builder.build()).execute().use { resp: Response ->
         if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")

@@ -36,10 +36,26 @@ object StremioClient {
 
     fun parseManifest(json: JsonObject, transportUrl: String): Addon {
         val types = json.getAsJsonArray("types")?.map { it.asString } ?: emptyList()
-        val resources = json.getAsJsonArray("resources")?.map { el ->
-            if (el.isJsonPrimitive) el.asString
-            else el.asJsonObject.get("name")?.asString ?: ""
-        }?.filter { it.isNotBlank() } ?: emptyList()
+        // resources may be plain strings ("stream") or objects ({"name":"stream","types":[…],
+        // "idPrefixes":[…]}). Collect the names, and union every declared idPrefixes (manifest-level
+        // and per-resource) so the request router knows which ids this add-on understands.
+        val resources = mutableListOf<String>()
+        val prefixes = LinkedHashSet<String>()
+        json.getAsJsonArray("resources")?.forEach { el ->
+            when {
+                el.isJsonPrimitive -> resources.add(el.asString)
+                el.isJsonObject -> {
+                    val o = el.asJsonObject
+                    o.get("name")?.asString?.let { resources.add(it) }
+                    o.getAsJsonArray("idPrefixes")?.forEach { p ->
+                        if (p.isJsonPrimitive) prefixes.add(p.asString)
+                    }
+                }
+            }
+        }
+        json.getAsJsonArray("idPrefixes")?.forEach { p ->
+            if (p.isJsonPrimitive) prefixes.add(p.asString)
+        }
 
         val catalogs = mutableListOf<CatalogDef>()
         json.getAsJsonArray("catalogs")?.forEach { el ->
@@ -75,7 +91,8 @@ object StremioClient {
             version = json.get("version")?.asString,
             logo = json.get("logo")?.asString,
             types = types,
-            resources = resources,
+            resources = resources.filter { it.isNotBlank() },
+            idPrefixes = prefixes.filter { it.isNotBlank() },
             catalogs = catalogs,
             enabled = true,
             nsfw = nsfw,
@@ -213,9 +230,21 @@ object StremioClient {
         val ytId = o.get("ytId")?.asString
         val externalUrl = o.get("externalUrl")?.asString
         if (url == null && infoHash == null && ytId == null && externalUrl == null) return null
-        val title = o.get("title")?.asString
         val name = o.get("name")?.asString
         val sources = o.getAsJsonArray("sources")?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString } ?: emptyList()
+        // behaviorHints (Stremio protocol): proxyHeaders.request carries headers the CDN needs
+        // (Referer/Cookie/User-Agent) — without them a hotlink-protected stream silently fails —
+        // and filename is a better display title than the add-on's generic label. `notWebReady` is
+        // intentionally ignored: it only warns *web* players, and this is a native ExoPlayer app.
+        val hints = o.getAsJsonObject("behaviorHints")
+        val proxyHeaders = hints?.getAsJsonObject("proxyHeaders")
+            ?.getAsJsonObject("request")
+            ?.entrySet()
+            ?.mapNotNull { (k, v) -> if (v.isJsonPrimitive) k to v.asString else null }
+            ?.toMap()
+            .orEmpty()
+        val filename = hints?.get("filename")?.takeIf { it.isJsonPrimitive }?.asString
+        val title = o.get("title")?.asString ?: filename
         return StreamSource(
             url = url,
             ytId = ytId,
@@ -230,6 +259,7 @@ object StremioClient {
             addonName = addon?.name,
             isTorrent = infoHash != null,
             sources = sources,
+            headers = proxyHeaders,
         )
     }
 
@@ -296,4 +326,53 @@ object StremioClient {
     }
 
     fun JsonArray?.toList(): List<JsonElement> = this?.toList() ?: emptyList()
+
+    // ---- id routing (idPrefixes) -------------------------------------------
+
+    /**
+     * True when an add-on declaring [idPrefixes] will accept [id]. An empty list means the add-on
+     * did not restrict ids (the Stremio default), so anything is accepted.
+     */
+    fun acceptsId(id: String, idPrefixes: List<String>): Boolean =
+        idPrefixes.isEmpty() || idPrefixes.any { id.startsWith(it) }
+
+    /**
+     * Alternative (type, id) forms for a request, most-specific first, before the historical
+     * default pair. Two cases the bare id gets wrong:
+     *  - a `tt…:S:E` episode id sent under the `anime` type is really a *series* request;
+     *  - an AniList item is keyed by a bare numeric id, but Stremio anime add-ons address titles by
+     *    namespace, so `anilist:<id>` is offered.
+     * Pure so it can be unit-tested without a network call.
+     */
+    fun candidateRequests(
+        defaultType: String,
+        baseId: String,
+        isAnime: Boolean,
+        videoId: String?,
+    ): List<Pair<String, String>> {
+        val id = videoId ?: baseId
+        val out = LinkedHashSet<Pair<String, String>>()
+        if (id.startsWith("tt") && id.contains(':')) out.add("series" to id)
+        if (isAnime && id == baseId && baseId.isNotBlank() && baseId.all { it.isDigit() }) {
+            out.add("anime" to "anilist:$baseId")
+        }
+        out.add(defaultType to id)
+        return out.toList()
+    }
+
+    /**
+     * The (type, id) pair to send to an add-on, honouring its `idPrefixes`.
+     *
+     * [default] is used verbatim when the add-on declares no prefixes (so behaviour is unchanged
+     * for those). Otherwise the first candidate the add-on accepts wins; when nothing matches we
+     * fall back to [default] rather than dropping the add-on entirely.
+     */
+    fun chooseRequest(
+        default: Pair<String, String>,
+        candidates: List<Pair<String, String>>,
+        idPrefixes: List<String>,
+    ): Pair<String, String> {
+        if (idPrefixes.isEmpty()) return default
+        return candidates.firstOrNull { acceptsId(it.second, idPrefixes) } ?: default
+    }
 }
