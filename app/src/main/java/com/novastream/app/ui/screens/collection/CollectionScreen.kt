@@ -23,6 +23,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +39,7 @@ import com.novastream.app.data.model.MediaType
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.PosterCard
+import com.novastream.app.ui.components.PosterQuickActionsSheet
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
@@ -53,6 +57,7 @@ fun CollectionScreen(nav: NavHostController, section: MediaType) {
 
     val items = rows.flatMap { it.items }.distinctBy { it.key }
     val listState = rememberLazyGridState()
+    var actionsFor by remember { mutableStateOf<com.novastream.app.data.model.MediaItem?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -96,9 +101,17 @@ fun CollectionScreen(nav: NavHostController, section: MediaType) {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 items(items, key = { it.key }) { item ->
-                    PosterCard(item, { nav.navigate(Routes.detail(item)) }, modifier = Modifier.fillMaxWidth(), width = 0)
+                    PosterCard(item, { nav.navigate(Routes.detail(item)) }, modifier = Modifier.fillMaxWidth(), width = 0, onLongClick = { actionsFor = item })
                 }
             }
         }
+    }
+
+    actionsFor?.let { target ->
+        PosterQuickActionsSheet(
+            item = target,
+            onDismiss = { actionsFor = null },
+            onOpen = { nav.navigate(Routes.detail(target)); actionsFor = null },
+        )
     }
 }

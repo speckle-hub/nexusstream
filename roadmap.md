@@ -1,7 +1,14 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-08 — **Phase 22 — Critical architecture,
+> resume exactly where it left off. Last updated: 2026-10-08 — **QoL features (v1.2.0):**
+> configurable double-tap seek (Settings → Player → “Double-tap seek”, 5/10/15/30 s, persisted
+> as `doubleTapMs`), “Clear” action with confirmation on the Continue Watching / Continue
+> Reading home rows, long-press `PosterQuickActionsSheet` (Open / Favourites / Share) wired into
+> every poster rail and grid, Search result sorting (Relevant/Title/Year/Rating), and the player’s
+> screen brightness is now remembered across launches (`playerBrightness`). Verified:
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓, `:app:assembleRelease` ✓ (signed);
+> `dist/NovaStream.apk` refreshed. Previous session, Last updated: 2026-10-08 — **Phase 22 — Critical architecture,
 > security & lifecycle fixes:**
 > - **Lifecycle-aware collection everywhere:** `FlowExt.collectAsStateSafe()` and every direct
 >   `collectAsState()` call (MainActivity, PlayerActivity, MangaReaderActivity, DetailScreen) now

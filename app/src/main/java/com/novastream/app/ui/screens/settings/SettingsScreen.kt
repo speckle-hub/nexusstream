@@ -99,6 +99,7 @@ fun SettingsScreen(nav: NavHostController) {
     val subtitleBg by vm.subtitleBg.collectAsStateSafe()
     val subtitleOffset by vm.subtitleOffset.collectAsStateSafe()
     val playerSpeed by vm.playerSpeed.collectAsStateSafe()
+    val doubleTapMs by vm.doubleTapMs.collectAsStateSafe()
     val audioBoost by vm.audioBoost.collectAsStateSafe()
     val audioNormalize by vm.audioNormalize.collectAsStateSafe()
     val mangaInvert by vm.mangaInvert.collectAsStateSafe()
@@ -219,6 +220,10 @@ fun SettingsScreen(nav: NavHostController) {
             SettingsRow("Preferred quality", quality) {
                 val opts = listOf("Auto", "4K", "1080p", "720p", "480p")
                 vm.setPreferredQuality(opts[(opts.indexOf(quality).coerceAtLeast(0) + 1) % opts.size])
+            }
+            SettingsRow("Double-tap seek", "${doubleTapMs / 1000} s") {
+                val opts = listOf(5_000, 10_000, 15_000, 30_000)
+                vm.setDoubleTapMs(opts[(opts.indexOf(doubleTapMs).coerceAtLeast(0) + 1) % opts.size])
             }
             SwitchRow("Autoplay next episode", null, autoplay) { vm.setAutoplay(it) }
             SwitchRow("Subtitles enabled", "Auto-load matching subtitles", subs) { vm.setSubs(it) }

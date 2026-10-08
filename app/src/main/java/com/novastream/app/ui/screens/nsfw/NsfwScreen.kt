@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -185,6 +186,7 @@ private fun NsfwSection(
 ) {
     val nova = LocalNovaColors.current
     val listState = rememberLazyGridState()
+    var actionsFor by remember { mutableStateOf<com.novastream.app.data.model.MediaItem?>(null) }
 
     // Process-death restore: the query survived in saved state but this section's ViewModel was
     // recreated empty. Re-run the search exactly once so the results come back with the term.
@@ -266,6 +268,7 @@ private fun NsfwSection(
                 }
             }
         }
+
         // One adaptive grid for both rails and posters, matching Search / Library. Results used to
         // be faked with `chunked(3)` + Rows, which pinned every screen to exactly 3 columns.
         LazyVerticalGrid(
@@ -299,6 +302,7 @@ private fun NsfwSection(
                             onClick = { nav.navigate(Routes.detail(item)) },
                             modifier = Modifier.fillMaxWidth(),
                             width = 0,
+                            onLongClick = { actionsFor = item },
                         )
                     }
                 }

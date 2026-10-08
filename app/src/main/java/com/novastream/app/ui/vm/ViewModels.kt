@@ -108,6 +108,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun removeContinueWatching(entry: WatchEntry) {
         viewModelScope.launch { container.libraryStore.removeWatch(entry.item.key) }
     }
+
+    /** Drop every entry currently in Continue Watching (reading progress is kept). */
+    fun clearContinueWatching() {
+        viewModelScope.launch { continueWatching.value.forEach { container.libraryStore.removeWatch(it.item.key) } }
+    }
+
+    /** Drop every entry currently in Continue Reading (video progress is kept). */
+    fun clearContinueReading() {
+        viewModelScope.launch { continueReading.value.forEach { container.libraryStore.removeWatch(it.item.key) } }
+    }
 }
 
 class SectionViewModel(private val container: AppContainer, private val section: MediaType) : ViewModel() {
@@ -825,6 +835,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val playerSpeed = container.settings.playerSpeed.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
     val audioBoost = container.settings.audioBoost.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val audioNormalize = container.settings.audioNormalize.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val doubleTapMs = container.settings.doubleTapMs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10_000)
     val mangaInvert = container.settings.mangaInvert.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val mangaGrayscale = container.settings.mangaGrayscale.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val mangaCrop = container.settings.mangaCrop.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -887,6 +898,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setSubtitleBg(v: Float) = viewModelScope.launch { container.settings.setSubtitleBg(v) }
     fun setSubtitleOffset(v: Float) = viewModelScope.launch { container.settings.setSubtitleOffset(v) }
     fun setPlayerSpeed(v: Float) = viewModelScope.launch { container.settings.setPlayerSpeed(v) }
+    fun setDoubleTapMs(v: Int) = viewModelScope.launch { container.settings.setDoubleTapMs(v) }
     fun setAudioBoost(v: Boolean) = viewModelScope.launch { container.settings.setAudioBoost(v) }
     fun setAudioNormalize(v: Boolean) = viewModelScope.launch { container.settings.setAudioNormalize(v) }
     fun setMangaInvert(v: Boolean) = viewModelScope.launch { container.settings.setMangaInvert(v) }

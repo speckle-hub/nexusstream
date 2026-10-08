@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +51,7 @@ import com.novastream.app.data.model.MediaType
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.PosterCard
 import com.novastream.app.ui.components.PosterCardSkeleton
+import com.novastream.app.ui.components.PosterQuickActionsSheet
 import com.novastream.app.ui.components.SearchField
 import com.novastream.app.ui.components.TagChip
 import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
@@ -89,6 +91,16 @@ fun SearchScreen(nav: NavHostController, initialQuery: String = "") {
     }
 
     val resultsListState = rememberLazyGridState()
+    var actionsFor by remember { mutableStateOf<com.novastream.app.data.model.MediaItem?>(null) }
+    var sortLabel by rememberSaveable { mutableStateOf("Relevant") }
+    val sortedResults = remember(results, sortLabel) {
+        when (sortLabel) {
+            "Title" -> results.sortedBy { it.title.lowercase() }
+            "Year" -> results.sortedByDescending { it.year.orEmpty() }
+            "Rating" -> results.sortedByDescending { it.rating ?: 0.0 }
+            else -> results
+        }
+    }
 
     val filters = listOf(
         null to "All",
@@ -137,6 +149,19 @@ fun SearchScreen(nav: NavHostController, initialQuery: String = "") {
                 }
             }
         }
+        }
+
+        // Sort options for the result set. "Relevant" keeps the add-on merge order.
+        if (results.isNotEmpty()) {
+            val sortOptions = listOf("Relevant", "Title", "Year", "Rating")
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = AppSpacing.screen, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(sortOptions) { label ->
+                    TagChip(label, selected = sortLabel == label) { sortLabel = label }
+                }
+            }
         }
 
         // One adaptive grid for results. Previously results were faked with `chunked(3)` + Rows,
@@ -193,16 +218,25 @@ fun SearchScreen(nav: NavHostController, initialQuery: String = "") {
                     EmptyState("No results", "Nothing matched “$query”. Try another keyword.", icon = Icons.Outlined.SearchOff)
                 }
             } else {
-                items(results, key = { it.key }) { item ->
+                items(sortedResults, key = { it.key }) { item ->
                     PosterCard(
                         item = item,
                         onClick = { nav.navigate(Routes.detail(item)) },
                         modifier = Modifier.fillMaxWidth(),
                         width = 0,
+                        onLongClick = { actionsFor = item },
                     )
                 }
             }
         }
+    }
+
+    actionsFor?.let { target ->
+        PosterQuickActionsSheet(
+            item = target,
+            onDismiss = { actionsFor = null },
+            onOpen = { nav.navigate(Routes.detail(target)); actionsFor = null },
+        )
     }
 }
 
