@@ -1,7 +1,11 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-08 — **Phase 23 — QoL features (H):**
+> resume exactly where it left off. Last updated: 2026-10-08 — **v1.3.0 released:**
+> Phase 23 QoL set shipped — `v1.3.0` tagged (versionCode 5), GitHub Release created with
+> `app-release.apk`, website CTA/hero bumped to v1.3.0 (`fae0507`). `dist/NovaStream.apk`
+> refreshed; Vercel redeploy still pending a fresh credential check in this environment.
+> Previous session, Last updated: 2026-10-08 — **Phase 23 — QoL features (H):**
 > settings filter search box at the top of the Settings screen (group visibility is driven by the
 > query matching group titles or any of their rows); per-episode watched toggle (check icon) on
 > `EpisodeRow` — marking watched records a completed `WatchEntry`, toggling off clears the title's
