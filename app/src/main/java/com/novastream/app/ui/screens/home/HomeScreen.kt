@@ -76,6 +76,7 @@ import com.novastream.app.ui.screens.settings.applyRowOrder
 import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.rememberPosterPalette
+import com.novastream.app.ui.theme.rememberReducedMotion
 import com.novastream.app.ui.vm.HomeViewModel
 import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
@@ -175,11 +176,20 @@ fun HomeScreen(nav: NavHostController) {
         val loadError = error
         when {
             loading && rows.isEmpty() -> items(4) { LoadingRow() }
-            loadError != null -> item { EmptyState("Couldn't load content", loadError) }
+            loadError != null -> item {
+                EmptyState(
+                    "Couldn't load content",
+                    loadError,
+                    actionLabel = "Retry",
+                    onAction = { vm.refresh() },
+                )
+            }
             rows.isEmpty() -> item {
                 EmptyState(
                     "Nothing here yet",
                     "Install add-ons from the Add-on Manager to populate your home feed.",
+                    actionLabel = "Retry",
+                    onAction = { vm.refresh() },
                 )
             }
         }
@@ -265,10 +275,13 @@ private fun FeaturedCarousel(items: List<MediaItem>, onClick: (MediaItem) -> Uni
     if (items.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { items.size })
 
+    // Honour the system "remove animations" preference: a carousel that slides on its own is
+    // exactly the kind of decorative motion reduced-motion users ask to be spared.
+    val reducedMotion = rememberReducedMotion()
     // Keyed on the list itself (not just its size), so a refreshed feed restarts the auto-advance
     // loop even when the item count happens to be unchanged.
-    LaunchedEffect(items) {
-        if (items.size <= 1) return@LaunchedEffect
+    LaunchedEffect(items, reducedMotion) {
+        if (reducedMotion || items.size <= 1) return@LaunchedEffect
         while (true) {
             delay(5000)
             if (!pagerState.isScrollInProgress) {

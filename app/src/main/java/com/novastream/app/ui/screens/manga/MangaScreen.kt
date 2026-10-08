@@ -115,7 +115,14 @@ fun MangaScreen(nav: NavHostController, embedded: Boolean = false) {
         }
 
         if (loading && rows.isEmpty()) items(4) { LoadingRow() }
-        if (!loading && rows.isEmpty()) item { EmptyState("No manga found", "Check your connection and try again.") }
+        if (!loading && rows.isEmpty()) item {
+            EmptyState(
+                "No manga found",
+                "Check your connection and try again.",
+                actionLabel = "Retry",
+                onAction = { vm.refresh() },
+            )
+        }
 
         items(rows) { row ->
             // Same card width as Home so a Manga rail card is the same size as a Home rail card.

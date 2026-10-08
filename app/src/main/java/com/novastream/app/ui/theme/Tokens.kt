@@ -1,5 +1,6 @@
 package com.novastream.app.ui.theme
 
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 
 /**
@@ -67,3 +68,14 @@ object Motion {
     /** How far a card shrinks while held. */
     const val PRESS_SCALE = 0.96f
 }
+
+/**
+ * Tabular figures for numeric readouts.
+ *
+ * Proportionally-spaced digits are *narrower* for a `1` than a `8`, so a counter, byte total or ETA
+ * visibly re-flows each time a digit changes — the text jitters and its neighbours shift. Tabular
+ * figures give every digit one advance width, so the number grows/moves without the layout dancing.
+ *
+ * No-op for word text (only digits are affected), so it is safe to apply to mixed labels.
+ */
+val TextStyle.tnum: TextStyle get() = copy(fontFeatureSettings = "tnum")

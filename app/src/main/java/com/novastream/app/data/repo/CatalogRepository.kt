@@ -254,14 +254,25 @@ class CatalogRepository(
         return addons.filter { it.type == MediaType.NSFW_ANIME }.distinctBy { it.key }
     }
 
-    /** Search every eligible add-on's searchable catalogs for [section], in parallel. */
+    /**
+     * Search every eligible add-on's searchable catalogs for [section], in parallel.
+     *
+     * [includeNsfw] is the NSFW-Hub opt-in: for a regular (SFW) section, NSFW-flagged add-ons are
+     * excluded unless the user explicitly enabled `nsfwGlobalSearch` from inside the hub, so adult
+     * add-ons can never leak into a general search. NSFW sections always stay NSFW-only.
+     */
     private suspend fun addonSearch(
         query: String,
         section: MediaType,
         nsfwOnly: Boolean,
+        includeNsfw: Boolean = false,
     ): List<MediaItem> = coroutineScope {
         val candidateAddons = addonRepo.enabledAddons().let { addons ->
-            if (nsfwOnly) addons.filter { it.nsfw } else addons
+            when {
+                nsfwOnly -> addons.filter { it.nsfw }
+                includeNsfw -> addons
+                else -> addons.filter { !it.nsfw }
+            }
         }
         candidateAddons.flatMap { addon ->
             StremioClient.catalogsFor(addon, section)
@@ -297,9 +308,10 @@ class CatalogRepository(
             MediaType.REAL -> Unit // Never reached: search() routes REAL through searchReal().
         }
 
-        // Stremio addon search. For NSFW sections ONLY NSFW-flagged add-ons are queried,
-        // so regular (SFW) add-ons can never leak normal content into NSFW results.
-        results += addonSearch(query, section, nsfwOnly = isNsfwSection)
+        // Stremio addon search. For NSFW sections ONLY NSFW-flagged add-ons are queried; for SFW
+        // sections NSFW-flagged add-ons are excluded unless the user opted in from the NSFW Hub.
+        val allowNsfwAddons = settings.nsfwGlobalSearch.first()
+        results += addonSearch(query, section, nsfwOnly = isNsfwSection, includeNsfw = allowNsfwAddons)
 
         // Final safety net: NSFW sections must never surface non-adult built-in items.
         val filtered = if (isNsfwSection) {
@@ -342,15 +354,20 @@ class CatalogRepository(
             async { runCatching { MangaDexClient.search(query) }.getOrDefault(emptyList()) },
         )
         jobs.forEach { results += it.await() }
-        val addonJobs = addonRepo.enabledAddons().flatMap { addon ->
-            addon.catalogs.filter { c -> c.extra.any { it.name == "search" } }.map { cat ->
-                async {
-                    runCatching {
-                        withTimeout(ADDON_TIMEOUT_MS) { StremioClient.search(addon, cat.type, cat.id, query) }
-                    }.getOrDefault(emptyList())
+        // NSFW-flagged add-ons are only consulted when the user explicitly opted in from the
+        // isolated NSFW Hub; otherwise the general Search screen stays adult-free.
+        val includeNsfw = settings.nsfwGlobalSearch.first()
+        val addonJobs = addonRepo.enabledAddons()
+            .filter { includeNsfw || !it.nsfw }
+            .flatMap { addon ->
+                addon.catalogs.filter { c -> c.extra.any { it.name == "search" } }.map { cat ->
+                    async {
+                        runCatching {
+                            withTimeout(ADDON_TIMEOUT_MS) { StremioClient.search(addon, cat.type, cat.id, query) }
+                        }.getOrDefault(emptyList())
+                    }
                 }
             }
-        }
         addonJobs.forEach { results += it.await() }
         results.distinctBy { it.key }
     }

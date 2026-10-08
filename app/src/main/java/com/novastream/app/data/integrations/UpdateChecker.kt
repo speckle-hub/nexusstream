@@ -36,17 +36,27 @@ data class ReleaseInfo(
 }
 
 /**
- * Checks the configured GitHub repository for a newer release.
+ * Checks a GitHub repository for a newer release.
  *
- * Unauthenticated GitHub API calls are rate-limited but fine for occasional checks; a blank repo
- * disables the feature entirely.
+ * Unauthenticated GitHub API calls are rate-limited but fine for occasional checks. When the user
+ * has not configured a repository the check falls back to [DEFAULT_REPO], so "Check for updates"
+ * (and the launch-time check) work out of the box.
  */
 object UpdateChecker {
 
+    /**
+     * Repository the updater queries when Settings has none configured. The in-app GitHub Release
+     * for this repo carries `app-release.apk`, so the launch dialog can download and install it.
+     */
+    const val DEFAULT_REPO = "speckle-hub/nexusstream"
+
+    /** The repository actually queried: the user's configured value, or [DEFAULT_REPO] when blank. */
+    fun resolveRepo(configured: String): String = configured.trim().ifBlank { DEFAULT_REPO }
+
     suspend fun check(repo: String): Result<ReleaseInfo> = runCatching {
-        require(repo.isNotBlank()) { "No update repository configured" }
+        val target = resolveRepo(repo)
         val json = httpGet(
-            "https://api.github.com/repos/$repo/releases/latest",
+            "https://api.github.com/repos/$target/releases/latest",
             mapOf("Accept" to "application/vnd.github+json"),
         )
         val root = parseJson(json)
@@ -66,7 +76,7 @@ object UpdateChecker {
             name = root.str("name") ?: tag,
             notes = root.str("body").orEmpty(),
             apkUrl = apkUrl,
-            pageUrl = "https://github.com/$repo/releases/latest",
+            pageUrl = "https://github.com/$target/releases/latest",
         )
     }
 }

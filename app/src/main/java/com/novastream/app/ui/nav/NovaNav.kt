@@ -69,7 +69,7 @@ import com.novastream.app.ui.screens.detail.DetailScreen
 import com.novastream.app.ui.screens.home.HomeScreen
 import com.novastream.app.ui.screens.library.LibraryScreen
 import com.novastream.app.ui.screens.manga.MangaScreen
-import com.novastream.app.ui.screens.nsfw.NsfwScreen
+import com.novastream.app.ui.screens.nsfw.NsfwHubScreen
 import com.novastream.app.ui.screens.search.SearchScreen
 import com.novastream.app.ui.screens.settings.SettingsScreen
 import com.novastream.app.ui.theme.LocalNovaColors
@@ -106,12 +106,12 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 // Five tabs, one cohesive Material Filled icon set.
 //
-// Manga and NSFW used to be permanent tabs of their own, making the bar six items wide — crowded
-// enough to truncate labels, and it gave the gated adult section the same prominence as Home. They
-// are now one "Browse" destination with a segmented control (see BrowseScreen). `Routes.MANGA` /
-// `Routes.NSFW` remain registered below so those screens are still reachable by route; the persisted
-// tab index is versioned (SettingsStore.CURRENT_TAB_LAYOUT_VERSION) so old six-tab indices are
-// discarded rather than silently resolving to a different destination.
+// Manga used to be a permanent tab of its own, making the bar six items wide — crowded enough to
+// truncate labels. It is now one "Browse" destination with a segmented control (see BrowseScreen,
+// which also carries Anime in place of the old NSFW segment). `Routes.MANGA` remains registered so
+// that screen is still reachable by route; `Routes.NSFW` is now the isolated, route-only NSFW Hub.
+// The persisted tab index is versioned (SettingsStore.CURRENT_TAB_LAYOUT_VERSION) so old six-tab
+// indices are discarded rather than silently resolving to a different destination.
 private val tabs = listOf(
     Tab(Routes.HOME, "Home", Icons.Filled.Home),
     Tab(Routes.SEARCH, "Search", Icons.Filled.Search),
@@ -236,13 +236,15 @@ fun NovaApp(navController: NavHostController = rememberNavController()) {
                         popEnterTransition = { tabEnter(-1) },
                         popExitTransition = { tabExit(-1) },
                     ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { MangaScreen(navController) } } }
+                    // Route-only: not in `tabs`, so the bottom bar stays hidden and the hub can
+                    // never be reached by tabbing. Opened from Settings → Content Restrictions.
                     composable(
                         Routes.NSFW,
-                        enterTransition = { tabEnter(1) },
-                        exitTransition = { tabExit(1) },
-                        popEnterTransition = { tabEnter(-1) },
-                        popExitTransition = { tabExit(-1) },
-                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { NsfwScreen(navController) } } }
+                        enterTransition = { detailEnter() },
+                        exitTransition = { detailExit() },
+                        popEnterTransition = { detailEnter() },
+                        popExitTransition = { detailExit() },
+                    ) { with(this) { ProvideSharedScope(sharedTransitionScope, this) { NsfwHubScreen(navController) } } }
                     composable(
                         Routes.BROWSE,
                         enterTransition = { tabEnter(1) },

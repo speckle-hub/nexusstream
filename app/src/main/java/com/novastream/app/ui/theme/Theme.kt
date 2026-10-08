@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -109,6 +110,10 @@ fun NovaStreamTheme(
         )
     }
 
+    // M3 surface-container roles (§2d #17). Material3 components (sheets, menus, the default
+    // dialog/segmented surfaces) select one of these by elevation; leaving them unset means they
+    // fall back to the light baseline and clash with the app's own surfaces. They now ladder out of
+    // the app's own `surface`/`surfaceElevated`, so a stock M3 surface sits in the same tonal family.
     val scheme = if (darkTheme) {
         darkColorScheme(
             primary = accent,
@@ -122,6 +127,11 @@ fun NovaStreamTheme(
             onSurfaceVariant = nova.textSecondary,
             outline = nova.outline,
             error = AccentPink,
+            surfaceContainerLowest = bg,
+            surfaceContainerLow = surface,
+            surfaceContainer = elevated,
+            surfaceContainerHigh = lerp(elevated, Color.White, 0.05f),
+            surfaceContainerHighest = lerp(elevated, Color.White, 0.09f),
         )
     } else {
         lightColorScheme(
@@ -136,6 +146,11 @@ fun NovaStreamTheme(
             onSurfaceVariant = nova.textSecondary,
             outline = nova.outline,
             error = AccentPink,
+            surfaceContainerLowest = Color.White,
+            surfaceContainerLow = nova.surface,
+            surfaceContainer = nova.surfaceElevated,
+            surfaceContainerHigh = lerp(nova.surfaceElevated, Color.Black, 0.04f),
+            surfaceContainerHighest = lerp(nova.surfaceElevated, Color.Black, 0.08f),
         )
     }
 

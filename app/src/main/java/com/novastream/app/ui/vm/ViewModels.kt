@@ -158,6 +158,85 @@ class MangaViewModel(private val container: AppContainer) : ViewModel() {
     }
 }
 
+/**
+ * Browse → Anime. Pulls AniList's catalogue (trending / popular / genre rows), any Stremio add-on
+ * catalogs mapped to [MediaType.ANIME], and searches the same SFW-only sources.
+ *
+ * This replaces the old NSFW segment on the Browse screen: the SFW anime rails now live here while
+ * adult content moved behind the isolated NSFW Hub.
+ */
+class AnimeViewModel(private val container: AppContainer) : ViewModel() {
+    val rows = MutableStateFlow<List<CatalogRow>>(emptyList())
+    val results = MutableStateFlow<List<MediaItem>>(emptyList())
+    val loading = MutableStateFlow(true)
+    val searching = MutableStateFlow(false)
+
+    /** The query this instance last searched for (`null` = never, i.e. a fresh ViewModel). */
+    var searchedFor: String? = null
+        private set
+
+    private var refreshJob: Job? = null
+    private var searchJob: Job? = null
+    private var generation = 0
+
+    init { refresh() }
+
+    fun refresh() {
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
+            loading.value = true
+            // Only replace the visible rows when the fetch actually returned; a failed or
+            // cancelled load must not wipe rows the user can already see.
+            val fetched = runCatching { container.catalogRepository.rowsForSection(MediaType.ANIME) }.getOrNull()
+            if (fetched != null) rows.value = fetched
+            loading.value = false
+        }
+    }
+
+    /**
+     * Restores the browse rows after a search is cleared. They are fetched only once (at init), so
+     * a load that failed back then would otherwise leave the screen on its empty state.
+     */
+    fun reloadRowsIfEmpty() {
+        if (rows.value.isNotEmpty()) return
+        refresh()
+    }
+
+    /** Debounced, cancellable search. Only the newest query may publish its results. */
+    fun search(q: String) {
+        searchedFor = q
+        searchJob?.cancel()
+        val query = q.trim()
+        if (query.length < MIN_SEARCH_CHARS) {
+            generation++
+            results.value = emptyList()
+            // Clearing cancels the in-flight job, whose `finally` never runs its own reset.
+            searching.value = false
+            if (query.isEmpty()) reloadRowsIfEmpty()
+            return
+        }
+        val id = ++generation
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DEBOUNCE_MS)
+            searching.value = true
+            try {
+                val found = runCatchingCancellable {
+                    container.catalogRepository.search(query, MediaType.ANIME)
+                }.getOrDefault(emptyList())
+                if (id != generation) return@launch
+                results.value = found
+            } finally {
+                if (id == generation) searching.value = false
+            }
+        }
+    }
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 350L
+        const val MIN_SEARCH_CHARS = 2
+    }
+}
+
 class NsfwViewModel(private val container: AppContainer) : ViewModel() {
     val animeRows = MutableStateFlow<List<CatalogRow>>(emptyList())
     val mangaRows = MutableStateFlow<List<CatalogRow>>(emptyList())
@@ -824,6 +903,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val nsfwLock = container.settings.nsfwLock.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val nsfwBiometric = container.settings.nsfwBiometric.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val autoNsfw = container.settings.autoNsfwFromAddons.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val nsfwGlobalSearch = container.settings.nsfwGlobalSearch.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val cacheMeta = container.settings.cacheMeta.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     // ---- Phase 11 ----
@@ -891,6 +971,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setNsfwLock(v: Boolean) = viewModelScope.launch { container.settings.setNsfwLock(v) }
     fun setNsfwBiometric(v: Boolean) = viewModelScope.launch { container.settings.setNsfwBiometric(v) }
     fun setAutoNsfw(v: Boolean) = viewModelScope.launch { container.settings.setAutoNsfwFromAddons(v) }
+    fun setNsfwGlobalSearch(v: Boolean) = viewModelScope.launch { container.settings.setNsfwGlobalSearch(v) }
     fun setCacheMeta(v: Boolean) = viewModelScope.launch { container.settings.setCacheMeta(v) }
 
     fun setDynamicColor(v: Boolean) = viewModelScope.launch { container.settings.setDynamicColor(v) }
