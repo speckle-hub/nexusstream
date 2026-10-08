@@ -1,7 +1,14 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-08 — **QoL features (v1.2.0):**
+> resume exactly where it left off. Last updated: 2026-10-08 — **v1.2.0 released + website sync:**
+> QoL features (see below) built and shipped as `v1.2.0` (tag pushed, GitHub Release created
+> with `app-release.apk` asset so `releases/latest/download/app-release.apk` resolves; the
+> NsfwScreen quick-actions fix followed as `a6151d1` with the release asset re-uploaded from the
+> final source). The website's download CTA and hero version badge were bumped to v1.2.0
+> (commit `2147f29`, `next build` ✓); Vercel deploy still needs a fresh `vercel login` in this
+> environment (no stored CLI credentials) — the site auto-deploys on push if linked to the repo.
+> Previous session, Last updated: 2026-10-08 — **QoL features (v1.2.0):**
 > configurable double-tap seek (Settings → Player → “Double-tap seek”, 5/10/15/30 s, persisted
 > as `doubleTapMs`), “Clear” action with confirmation on the Continue Watching / Continue
 > Reading home rows, long-press `PosterQuickActionsSheet` (Open / Favourites / Share) wired into
