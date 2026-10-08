@@ -6,9 +6,10 @@
 > the QoL polish pass (§2ab) and the glass-elevation + tabular-figures close-out (§2ac).
 > `versionCode` 6 / `versionName` 1.4.0; signed release built → `dist/NovaStream.apk` (38,330,038
 > bytes, SHA-256 `F45FA749…20C4`); website CTA/hero bumped to v1.4.0; source pushed to
-> `github.com/speckle-hub/nexusstream`. **GitHub Release asset not yet attached** (no `gh` CLI or API
-> token in this environment) — the in-app updater and the site's `releases/latest` link keep
-> resolving the previous `v1.3.0` asset until it is.
+> `github.com/speckle-hub/nexusstream` (`16a55a4`) and the **`v1.4.0` GitHub Release published with
+> `app-release.apk` attached** (asset digest `sha256:f45fa749…20c4`; verified `releases/latest` →
+> v1.4.0 and `releases/latest/download/app-release.apk` → HTTP 200 / 38,330,038 bytes), so the
+> in-app update dialog and the site CTA now serve v1.4.0.
 > Previous session, Last updated: 2026-10-08 — **QoL follow-up — tabular figures &
 > glass elevation.** Closed the last two open §2d items. **Glass surfaces now carry a real drop
 > shadow plus a top-edge highlight hairline**, and the theme maps the M3 `surfaceContainer*` roles
@@ -2917,6 +2918,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-07 | **Website built (§2y):** new `website/` — Next.js 15 + TypeScript + Tailwind v3.4 + framer-motion + HeroUI `~2.7` + ThreeUI nebula, with hand-ported Aceternity-style primitives. Sections: glass navbar, layered hero with a pure-CSS phone mockup of the app, ecosystem marquee, glowing bento feature grid, animated stats, HeroUI FAQ, beams download CTA wired to the release APK, content-neutrality footer. `next build` ✅ (static). |
 | 2026-10-07 | **Website fix:** hydration mismatch in the moving-border button (`<div>` inside `<svg>` + SSR/CSR transform drift) — rewritten SVG-native (`<m.circle>`, mount-gated, unique gradient IDs). |
 | 2026-10-07 | **Website optimization pass:** first-load JS 240 → **216 kB**, page chunk 134 → **92 kB** (LazyMotion `domAnimation`, `motion.*` → `m.*`, `optimizePackageImports`); Sparkles pauses offscreen, Nebula/all keyframes honor `prefers-reduced-motion`; SEO pack — `metadataBase` (`NEXT_PUBLIC_SITE_URL`), Twitter card, SVG favicon, generated `opengraph-image`, `sitemap.xml`, `robots.txt`, branded 404; `poweredByHeader` off. Deployed to **Vercel** (root dir `website`, auto-redeploy on push). |
+| 2026-10-08 | **v1.4.0 released:** NSFW isolation + Browse → Anime (§2z), launch-time GitHub auto-update dialog + default-repo fallback (§2aa), and the QoL/visual pass — empty-state halos + Retry, poster shimmer/error, reduced motion, app-wide tabular figures, glass elevation + M3 `surfaceContainer*` (§2ab/§2ac). `versionCode` 6 / `versionName` 1.4.0. Verified `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **119/119**, `:app:assembleRelease` ✅ (signed); `dist/NovaStream.apk` refreshed (38,330,038 bytes, SHA-256 `F45FA749…20C4`); website CTA/hero → v1.4.0; source pushed (`16a55a4`) and the **`v1.4.0` GitHub Release published with `app-release.apk`** (asset digest `sha256:f45fa749…20c4`; `releases/latest` → v1.4.0). |
 
 ---
 
