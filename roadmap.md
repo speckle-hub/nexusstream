@@ -1,7 +1,15 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-08 — **v1.2.0 released + website sync:**
+> resume exactly where it left off. Last updated: 2026-10-08 — **Phase 23 — QoL features (H):**
+> settings filter search box at the top of the Settings screen (group visibility is driven by the
+> query matching group titles or any of their rows); per-episode watched toggle (check icon) on
+> `EpisodeRow` — marking watched records a completed `WatchEntry`, toggling off clears the title's
+> progress entry; stream-picker loading state is now shimmer rows instead of a text spinner;
+> "Skip intro automatically" player setting (`autoSkipIntro`) auto-seeks past the intro window;
+> failed video/manga downloads raise a Toast with the failure reason. Verified:
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓, `:app:assembleRelease` ✓ (signed);
+> `dist/NovaStream.apk` refreshed. Previous session, Last updated: 2026-10-08 — **v1.2.0 released + website sync:**
 > QoL features (see below) built and shipped as `v1.2.0` (tag pushed, GitHub Release created
 > with `app-release.apk` asset so `releases/latest/download/app-release.apk` resolves; the
 > NsfwScreen quick-actions fix followed as `a6151d1` with the release asset re-uploaded from the

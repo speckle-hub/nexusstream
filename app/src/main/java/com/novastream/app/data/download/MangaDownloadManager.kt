@@ -141,7 +141,7 @@ class MangaDownloadManager(private val context: Context) {
         jobs[key] = scope.launch {
             val d = _downloads.value[key] ?: return@launch
             if (d.pages.isEmpty()) {
-                update(key) { it.copy(status = DownloadStatus.FAILED, error = "No pages to download") }
+                update(key) { it.copy(status = DownloadStatus.FAILED, error = "No pages to download") }; notifyFailed(_downloads.value[key]?.mangaTitle ?: "Chapter", "No pages to download")
                 persistMeta(_downloads.value[key] ?: d)
                 return@launch
             }
@@ -164,7 +164,7 @@ class MangaDownloadManager(private val context: Context) {
                 if (!file.exists() || file.length() == 0L) {
                     val data = runCatching { httpGetBytes(d.pages[i]) }.getOrNull()
                     if (data == null || data.isEmpty()) {
-                        update(key) { it.copy(status = DownloadStatus.FAILED, error = "Page ${i + 1} failed") }
+                        update(key) { it.copy(status = DownloadStatus.FAILED, error = "Page ${i + 1} failed") }; notifyFailed(_downloads.value[key]?.mangaTitle ?: "Chapter", "Page ${i + 1} failed")
                         _downloads.value[key]?.let { persistMeta(it) }
                         return@launch
                     }
@@ -223,6 +223,12 @@ class MangaDownloadManager(private val context: Context) {
             loaded[restored.key] = restored
         }
         if (loaded.isNotEmpty()) _downloads.value = loaded
+    }
+
+    private fun notifyFailed(title: String, error: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(context, "Download failed for $title: $error", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun update(key: String, transform: (MangaDownload) -> MangaDownload) {

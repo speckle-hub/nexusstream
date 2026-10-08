@@ -32,6 +32,8 @@ class SettingsStore(private val context: Context) {
         val PLAYER_EXTERNAL = booleanPreferencesKey("player_external")
         val PREFERRED_QUALITY = stringPreferencesKey("preferred_quality")
         val AUTOPLAY = booleanPreferencesKey("autoplay")
+        // Automatically jump past the heuristic/chapter intro window when playback reaches it.
+        val AUTO_SKIP_INTRO = booleanPreferencesKey("auto_skip_intro")
         val SUBS_ENABLED = booleanPreferencesKey("subs_enabled")
         val NSFW_LOCK = booleanPreferencesKey("nsfw_lock")
         val NSFW_PIN = stringPreferencesKey("nsfw_pin")
@@ -119,6 +121,7 @@ class SettingsStore(private val context: Context) {
     val preferredQuality: StateFlow<String> = context.dataStore.data.map { it[Keys.PREFERRED_QUALITY] ?: "Auto" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "Auto")
     val autoplay: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUTOPLAY] ?: true }.stateIn(scope, SharingStarted.WhileSubscribed(5000), true)
     val subsEnabled: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.SUBS_ENABLED] ?: true }.stateIn(scope, SharingStarted.WhileSubscribed(5000), true)
+    val autoSkipIntro: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUTO_SKIP_INTRO] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val nsfwLock: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.NSFW_LOCK] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val nsfwPin: StateFlow<String?> = context.dataStore.data.map { it[Keys.NSFW_PIN] }.stateIn(scope, SharingStarted.WhileSubscribed(5000), null)
     val nsfwBiometric: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.NSFW_BIOMETRIC] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
@@ -195,6 +198,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setPlayerExternal(v: Boolean) = context.dataStore.edit { it[Keys.PLAYER_EXTERNAL] = v }
     suspend fun setPreferredQuality(v: String) = context.dataStore.edit { it[Keys.PREFERRED_QUALITY] = v }
     suspend fun setAutoplay(v: Boolean) = context.dataStore.edit { it[Keys.AUTOPLAY] = v }
+    suspend fun setAutoSkipIntro(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_SKIP_INTRO] = v }
     suspend fun setSubsEnabled(v: Boolean) = context.dataStore.edit { it[Keys.SUBS_ENABLED] = v }
     suspend fun setNsfwLock(v: Boolean) = context.dataStore.edit { it[Keys.NSFW_LOCK] = v }
     suspend fun setNsfwPin(v: String?) = context.dataStore.edit { if (v == null) it.remove(Keys.NSFW_PIN) else it[Keys.NSFW_PIN] = v }
