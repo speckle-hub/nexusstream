@@ -1,7 +1,32 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-07 — **Public GitHub release + the
+> resume exactly where it left off. Last updated: 2026-10-08 — **Phase 22 — Critical architecture,
+> security & lifecycle fixes:**
+> - **Lifecycle-aware collection everywhere:** `FlowExt.collectAsStateSafe()` and every direct
+>   `collectAsState()` call (MainActivity, PlayerActivity, MangaReaderActivity, DetailScreen) now
+>   route through `collectAsStateWithLifecycle()`, so StateFlow subscribers stop when the UI
+>   detaches instead of emitting (and recomposing) in the background.
+> - **TMDB key out of git:** `TmdbClient.API_KEY` now comes from `BuildConfig.TMDB_API_KEY`,
+>   fed by the gitignored `local.properties` (`TMDB_API_KEY=`) or the same-named env var; a
+>   blank key throws "TMDB_API_KEY is not configured" instead of silently calling the API.
+> - **SettingsStore sharing:** all ~60 preference StateFlows switched from
+>   `SharingStarted.Eagerly` to `WhileSubscribed(5000)`; the app scope keeps lightweight
+>   subscriptions only for the flows that engine code reads via `.value` (player, reader,
+>   NewContentWorker) so they can't regress to initial defaults.
+> - **Download-tick scoping:** `MangaReaderActivity` now collects only its own keyed entry
+>   (`downloads.map { it[key] }.distinctUntilChanged()`), `LibraryScreen` filters its downloads
+>   by the active category chip before collection, and `DetailScreen` derives resume/episode
+>   progress through `map`+`distinctUntilChanged` — unrelated download ticks or playback-progress
+>   writes no longer rebuild these whole screens.
+> - **Mirror failover keeps position:** `PlayerActivity.tryFailover()` captures
+>   `player.currentPosition` and `seekTo()`s to it on the new mirror instead of dropping to 0:00.
+> - **Concurrency & cache-key correctness:** `MangaDownloadManager.update()`/`delete()` use
+>   `MutableStateFlow.update {}` (no more lost writes under concurrent chapter jobs), and
+>   `httpPostJsonCached` keys its AniList cache on a SHA-256 digest of the body rather than the
+>   32-bit `hashCode()`.
+> Verified: `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓, `:app:assembleRelease` ✓
+> (signed); `dist/NovaStream.apk` refreshed. Previous session, Last updated: 2026-10-07 — **Public GitHub release + the
 > NexusStream website (§2y):** the repo is now **public** at `github.com/speckle-hub/nexusstream`
 > (21 commits; `v1.1.0` tag + GitHub Release with the signed APK attached, so the in-app updater
 > works), and a **Next.js 15 landing site** lives in `website/` — a dark, violet-accented single

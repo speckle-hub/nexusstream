@@ -42,6 +42,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -146,8 +149,6 @@ fun LibraryScreen(nav: NavHostController) {
     val context = LocalContext.current
     val favorites by vm.favorites.collectAsStateSafe()
     val history by vm.history.collectAsStateSafe()
-    val downloads by container.mangaDownloadManager.downloads.collectAsStateSafe()
-    val videoDownloads by container.videoDownloadManager.downloads.collectAsStateSafe()
 
     // Title awaiting confirmation before it is dropped from Favourites / Continue Watching.
     var pendingRemoval by remember { mutableStateOf<PendingRemoval?>(null) }
@@ -156,6 +157,23 @@ fun LibraryScreen(nav: NavHostController) {
     // Category chip selection, also saved so switching tabs does not reset the filter.
     var filterIndex by rememberSaveable { mutableIntStateOf(0) }
     val filter = LibraryFilter.entries[filterIndex.coerceIn(0, LibraryFilter.entries.lastIndex)]
+
+    // Scope download state to the active category filter: a progress tick on a *different*
+    // category's download no longer recomposes the whole Library screen.
+    val downloads by remember(filter) {
+        container.mangaDownloadManager.downloads
+            .map { m -> m.values.filter { it.matches(filter) } }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(
+        container.mangaDownloadManager.downloads.value.values.filter { it.matches(filter) }
+    )
+    val videoDownloads by remember(filter) {
+        container.videoDownloadManager.downloads
+            .map { list -> list.filter { it.matches(filter) } }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(
+        container.videoDownloadManager.downloads.value.filter { it.matches(filter) }
+    )
 
     Column(Modifier.fillMaxSize()) {
         Text(
@@ -205,14 +223,14 @@ fun LibraryScreen(nav: NavHostController) {
 /** Downloads section: offline video downloads and downloaded manga chapters only. */
 @Composable
 private fun DownloadsGrid(
-    downloads: Map<String, MangaDownload>,
+    downloads: List<MangaDownload>,
     videoDownloads: List<VideoDownload>,
     filter: LibraryFilter,
     context: Context,
 ) {
     val listState = rememberLazyGridState()
-    val videos = videoDownloads.filter { it.matches(filter) }
-    val chapters = downloads.values.filter { it.matches(filter) }
+    val videos = videoDownloads
+    val chapters = downloads
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = AppSpacing.posterMin),
         state = listState,

@@ -10,6 +10,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
@@ -109,7 +110,7 @@ class MangaDownloadManager(private val context: Context) {
         jobs.remove(key)
         paused.remove(key)
         _downloads.value[key]?.let { chapterDir(it.mangaId, it.chapterId).deleteRecursively() }
-        _downloads.value = _downloads.value - key
+        _downloads.update { it - key }
     }
 
     fun retry(key: String) {
@@ -225,8 +226,10 @@ class MangaDownloadManager(private val context: Context) {
     }
 
     private fun update(key: String, transform: (MangaDownload) -> MangaDownload) {
-        val current = _downloads.value[key] ?: return
-        _downloads.value = _downloads.value + (key to transform(current))
+        _downloads.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
     }
 
     private companion object {
