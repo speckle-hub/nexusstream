@@ -80,6 +80,14 @@ fun SettingsScreen(nav: NavHostController) {
     var message by remember { mutableStateOf<String?>(null) }
     var pendingUpdate by remember { mutableStateOf<ReleaseInfo?>(null) }
 
+    var settingsQuery by remember { mutableStateOf("") }
+    /** Group is visible when the query is blank, matches the group title, or matches a row inside it. */
+    fun settingsGroupVisible(title: String, rowLabels: List<String> = emptyList()): Boolean {
+        val q = settingsQuery.trim().lowercase()
+        if (q.isEmpty()) return true
+        return title.lowercase().contains(q) || rowLabels.any { it.lowercase().contains(q) }
+    }
+
     val theme by vm.theme.collectAsStateSafe()
     val accent by vm.accent.collectAsStateSafe()
     val external by vm.playerExternal.collectAsStateSafe()
@@ -172,11 +180,21 @@ fun SettingsScreen(nav: NavHostController) {
             Text("Settings", style = MaterialTheme.typography.displaySmall, color = nova.textPrimary)
         }
 
-        item { SettingsGroup("Add-ons & Extensions") {
+        item {
+            com.novastream.app.ui.components.SearchField(
+                value = settingsQuery,
+                onValueChange = { settingsQuery = it },
+                placeholder = "Filter settings…",
+                searching = false,
+                onClear = { settingsQuery = "" },
+            )
+        }
+
+        item { if (settingsGroupVisible("Add-ons & Extensions", listOf("Add-on Manager"))) SettingsGroup("Add-ons & Extensions") {
             SettingsRow("Add-on Manager", "Install Stremio add-ons, CloudStream, Aniyomi, Mihon") { nav.navigate(Routes.ADDONS) }
         } }
 
-        item { SettingsGroup("Appearance") {
+        item { if (settingsGroupVisible("Appearance", listOf("Theme", "accent", "Material You dynamic colors", "True AMOLED black"))) SettingsGroup("Appearance") {
             SettingsRow("Theme", theme.replaceFirstChar { it.uppercase() }) {
                 vm.setTheme(if (theme == "dark") "light" else "dark")
             }
@@ -215,7 +233,7 @@ fun SettingsScreen(nav: NavHostController) {
             SwitchRow("True AMOLED black", "Replace dark surfaces with pitch #000000", amoledBlack) { vm.setAmoledBlack(it) }
         } }
 
-        item { SettingsGroup("Player") {
+        item { if (settingsGroupVisible("Player", listOf("Preferred quality", "Autoplay next episode", "Subtitles enabled", "Audio boost", "Normalize volume", "Autoplay", "playback speed", "external player", "skip intro"))) SettingsGroup("Player") {
             SwitchRow("Use external player", "Open streams in a third-party player", external) { vm.setPlayerExternal(it) }
             SettingsRow("Preferred quality", quality) {
                 val opts = listOf("Auto", "4K", "1080p", "720p", "480p")
@@ -240,7 +258,7 @@ fun SettingsScreen(nav: NavHostController) {
             SwitchRow("Normalize volume", "Even out quiet/loud scenes", audioNormalize) { vm.setAudioNormalize(it) }
         } }
 
-        item { SettingsGroup("Subtitles") {
+        item { if (settingsGroupVisible("Subtitles", listOf("Subtitles", "text size", "color", "background opacity", "vertical offset"))) SettingsGroup("Subtitles") {
             Text("Text size", style = MaterialTheme.typography.labelLarge, color = nova.textSecondary)
             Slider(value = subtitleScale, onValueChange = { vm.setSubtitleScale(it) }, valueRange = 0.6f..2f)
             Text("${(subtitleScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
@@ -283,7 +301,7 @@ fun SettingsScreen(nav: NavHostController) {
             Slider(value = subtitleOffset, onValueChange = { vm.setSubtitleOffset(it) }, valueRange = 0f..0.3f)
         } }
 
-        item { SettingsGroup("Manga Reader") {
+        item { if (settingsGroupVisible("Manga Reader", listOf("Night mode (invert)", "Grayscale", "Warm / sepia filter", "Auto-crop borders", "Double-page spread", "Lock zoom across pages", "Volume keys turn pages"))) SettingsGroup("Manga Reader") {
             SwitchRow("Night mode (invert)", "Invert page colors for dark reading", mangaInvert) { vm.setMangaInvert(it) }
             SwitchRow("Grayscale", "Render pages in black and white", mangaGrayscale) { vm.setMangaGrayscale(it) }
             SwitchRow("Warm / sepia filter", "Soften paper white and blue light", mangaWarm) { vm.setMangaWarm(it) }
@@ -293,14 +311,14 @@ fun SettingsScreen(nav: NavHostController) {
             SwitchRow("Volume keys turn pages", "Use volume up/down to navigate", mangaVolumeKeys) { vm.setMangaVolumeKeys(it) }
         } }
 
-        item { SettingsGroup("NSFW") {
+        item { if (settingsGroupVisible("NSFW", listOf("NSFW lock", "Set / change PIN", "Biometric unlock", "Auto-pull NSFW from add-ons"))) SettingsGroup("NSFW") {
             SwitchRow("NSFW lock", "Require PIN/biometrics to open NSFW", nsfwLock) { vm.setNsfwLock(it) }
             SettingsRow("Set / change PIN", null) { showPinDialog = true }
             SwitchRow("Biometric unlock", "Use fingerprint / face", biometric) { vm.setNsfwBiometric(it) }
             SwitchRow("Auto-pull NSFW from add-ons", "Populate Real 18+ from installed NSFW add-ons", autoNsfw) { vm.setAutoNsfw(it) }
         } }
 
-        item { SettingsGroup("Storage") {
+        item { if (settingsGroupVisible("Storage", listOf("Cache metadata", "Clear metadata cache"))) SettingsGroup("Storage") {
             SwitchRow("Cache metadata", "Speed up repeat browsing", cacheMeta) { vm.setCacheMeta(it) }
             SettingsRow("Clear metadata cache", "${cacheSize / 1024 / 1024} MB") { vm.clearCache() }
             SettingsRow(
@@ -320,13 +338,13 @@ fun SettingsScreen(nav: NavHostController) {
             }
         } }
 
-        item { SettingsGroup("Security") {
+        item { if (settingsGroupVisible("Security", listOf("App lock", "Screen protection", "Incognito mode"))) SettingsGroup("Security") {
             SwitchRow("App lock", "Require biometric / device credential on launch", appLock) { vm.setAppLock(it) }
             SwitchRow("Screen protection", "Block screenshots and recents previews", flagSecure) { vm.setFlagSecure(it) }
             SwitchRow("Incognito mode", "Pause watch and read history logging", incognito) { vm.setIncognito(it) }
         } }
 
-        item { SettingsGroup("Sources & Network") {
+        item { if (settingsGroupVisible("Sources & Network", listOf("Sources dashboard", "Home row order"))) SettingsGroup("Sources & Network") {
             // launchSingleTop: a double-tap must not stack two copies of the same pushed screen.
             SettingsRow("Sources dashboard", "View, test and enable/disable extensions") {
                 nav.navigate(Routes.SOURCES) { launchSingleTop = true }
@@ -347,7 +365,7 @@ fun SettingsScreen(nav: NavHostController) {
             ) { showHeaders = true }
         } }
 
-        item { SettingsGroup("Downloads") {
+        item { if (settingsGroupVisible("Downloads", listOf("Max parallel downloads", "Copy downloads to folder", "Auto-download next episode", "Wi-Fi only", "Auto-delete watched downloads"))) SettingsGroup("Downloads") {
             SwitchRow("Auto-download next episode", "Pre-fetch ahead after an episode begins", autoDownloadNext) { vm.setAutoDownloadNext(it) }
             SwitchRow("Wi-Fi only", "Only auto-download on unmetered networks", autoDownloadWifiOnly) { vm.setAutoDownloadWifiOnly(it) }
             SwitchRow("Auto-delete watched downloads", "Remove the file once playback passes 90%", autoDeleteWatched) { vm.setAutoDeleteWatched(it) }
@@ -358,7 +376,7 @@ fun SettingsScreen(nav: NavHostController) {
             SwitchRow("New-content notifications", "Notify when new episodes/chapters appear", notifyNewContent) { vm.setNotifyNewContent(it) }
         } }
 
-        item { SettingsGroup("Scrobbling & Sync") {
+        item { if (settingsGroupVisible("Scrobbling & Sync", listOf("Trakt", "AniList", "MyAnimeList", "Kitsu", "SIMKL", "scrobble"))) SettingsGroup("Scrobbling & Sync") {
             ScrobbleRow("Trakt", scrobbleTrakt, vm::setScrobbleTrakt, tokenTrakt) { tokenProvider = "trakt" }
             ScrobbleRow("AniList", scrobbleAniList, vm::setScrobbleAniList, tokenAniList) { tokenProvider = "anilist" }
             ScrobbleRow("MyAnimeList", scrobbleMal, vm::setScrobbleMal, tokenMal) { tokenProvider = "mal" }
@@ -366,7 +384,7 @@ fun SettingsScreen(nav: NavHostController) {
             ScrobbleRow("SIMKL", scrobbleSimkl, vm::setScrobbleSimkl, tokenSimkl) { tokenProvider = "simkl" }
         } }
 
-        item { SettingsGroup("Backup & Updates") {
+        item { if (settingsGroupVisible("Backup & Updates", listOf("Export backup", "Import backup", "Update repository", "Check for updates", "update"))) SettingsGroup("Backup & Updates") {
             SettingsRow("Export backup", "Save favourites, history and settings to .json") {
                 exportLauncher.launch("novastream-backup.json")
             }
@@ -389,7 +407,7 @@ fun SettingsScreen(nav: NavHostController) {
             }
         } }
 
-        item { SettingsGroup("About") {
+        item { if (settingsGroupVisible("About", listOf("NexusStream", "version"))) SettingsGroup("About") {
             SettingsRow("NexusStream", "v${BuildConfig.VERSION_NAME} · Stremio + CloudStream + Aniyomi + Mihon") {}
         } }
     }
@@ -624,3 +642,6 @@ private fun PinDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+
+
+

@@ -126,7 +126,15 @@ class VideoDownloadManager(private val context: Context) {
             finalException: Exception?,
         ) {
             onChanged(download)
-            if (download.state == Download.STATE_FAILED) maybeFailover(download)
+            if (download.state == Download.STATE_FAILED) {
+                maybeFailover(download)
+                val title = items[download.request.id]?.title ?: "Download"
+                val error = items[download.request.id]?.error
+                val msg = if (!error.isNullOrBlank()) "Download failed for $title: $error" else "Download failed for $title"
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
             if (download.state == Download.STATE_COMPLETED) maybeExport(download)
         }
 

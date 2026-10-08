@@ -35,6 +35,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
@@ -565,11 +567,28 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                             .map { h -> h.firstOrNull { it.videoId == v.id } }
                             .distinctUntilChanged()
                     }.collectAsStateWithLifecycle(null)
+                    val ep = epEntry
+                    val epWatched = ep != null && ep.progress >= 0.95f
                     EpisodeRow(
                         v = v,
                         selected = selectedVideo?.id == v.id,
                         progress = epEntry,
                         onClick = { pickStreams(v) },
+                        watched = epWatched,
+                        onToggleWatched = {
+                            scope.launch {
+                                if (epWatched) container.libraryStore.removeWatch(item.key)
+                                else container.libraryStore.recordWatch(
+                                    com.novastream.app.data.model.WatchEntry(
+                                        item = item,
+                                        videoId = v.id,
+                                        videoTitle = v.title,
+                                        positionMs = 1L,
+                                        durationMs = 1L,
+                                    )
+                                )
+                            }
+                        },
                     )
                 }
             }
@@ -1068,6 +1087,8 @@ private fun EpisodeRow(
     selected: Boolean,
     progress: com.novastream.app.data.model.WatchEntry?,
     onClick: () -> Unit,
+    watched: Boolean = false,
+    onToggleWatched: (() -> Unit)? = null,
 ) {
     val nova = LocalNovaColors.current
     val thumb = v.thumbnail
@@ -1140,6 +1161,16 @@ private fun EpisodeRow(
             }
             if (selected) {
                 Icon(Icons.Filled.PlayArrow, null, tint = nova.accent, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(4.dp))
+            }
+            if (onToggleWatched != null) {
+                IconButton(onClick = onToggleWatched) {
+                    Icon(
+                        if (watched) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                        contentDescription = if (watched) "Mark unwatched" else "Mark watched",
+                        tint = if (watched) nova.accent else nova.textTertiary,
+                    )
+                }
             }
         }
     }
@@ -1276,8 +1307,16 @@ private fun StreamSheet(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 when {
-                    loading -> item {
-                        EmptyState("Resolving mirrors\u2026", "Asking every enabled stream add-on.")
+                    loading -> items(4) {
+                        // Shimmer rows shaped like the stream rows that replace them (no text spinner).
+                        androidx.compose.foundation.layout.Box(
+                            Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp)
+                        ) {
+                            ShimmerBox(
+                                Modifier.fillMaxWidth().height(52.dp),
+                                RoundedCornerShape(14.dp),
+                            )
+                        }
                     }
                     streams.isEmpty() -> item {
                         Column {

@@ -819,6 +819,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val playerExternal = container.settings.playerExternal.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val preferredQuality = container.settings.preferredQuality.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Auto")
     val autoplay = container.settings.autoplay.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val autoSkipIntro = container.settings.autoSkipIntro.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val subsEnabled = container.settings.subsEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val nsfwLock = container.settings.nsfwLock.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val nsfwBiometric = container.settings.nsfwBiometric.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -885,6 +886,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setPlayerExternal(v: Boolean) = viewModelScope.launch { container.settings.setPlayerExternal(v) }
     fun setPreferredQuality(v: String) = viewModelScope.launch { container.settings.setPreferredQuality(v) }
     fun setAutoplay(v: Boolean) = viewModelScope.launch { container.settings.setAutoplay(v) }
+    fun setAutoSkipIntro(v: Boolean) = viewModelScope.launch { container.settings.setAutoSkipIntro(v) }
     fun setSubs(v: Boolean) = viewModelScope.launch { container.settings.setSubsEnabled(v) }
     fun setNsfwLock(v: Boolean) = viewModelScope.launch { container.settings.setNsfwLock(v) }
     fun setNsfwBiometric(v: Boolean) = viewModelScope.launch { container.settings.setNsfwBiometric(v) }

@@ -1320,6 +1320,17 @@ private fun PlayerScreen(
             ?: if (duration > 0) (duration - DEFAULT_OUTRO_MS).coerceAtLeast(0) else Long.MAX_VALUE
         val skipIntro = position in 5_000 until introEnd
         val skipOutro = duration > 0 && position >= outroStart
+
+        // Auto-skip intro: jump straight past it when the setting is on. keyed on skipIntro so it
+        // fires once per intro window and not on every recomposition.
+        val autoSkipIntro by LocalContainer.current.settings.autoSkipIntro.collectAsStateWithLifecycle()
+        LaunchedEffect(autoSkipIntro, skipIntro, introEnd) {
+            if (autoSkipIntro && skipIntro) {
+                player.seekTo(introEnd)
+                position = introEnd
+            }
+        }
+
         if (!locked && (skipIntro || skipOutro)) {
             Row(
                 Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 96.dp),
