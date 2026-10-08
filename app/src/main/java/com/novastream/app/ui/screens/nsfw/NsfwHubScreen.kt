@@ -19,12 +19,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,8 +47,8 @@ import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.MediaRow
 import com.novastream.app.ui.components.PosterCard
-import com.novastream.app.ui.components.SearchField
 import com.novastream.app.ui.components.PosterQuickActionsSheet
+import com.novastream.app.ui.components.SearchField
 import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.theme.AppSpacing
@@ -58,11 +60,19 @@ import com.novastream.app.ui.vm.novaViewModel
 import kotlinx.coroutines.launch
 
 /**
- * @param embedded when true the content omits its own title row because a host (the Browse tab)
- *   is already drawing one above it.
+ * The isolated NSFW Hub — every adult section (NSFW Anime, NSFW Manga, Real 18+) lives here.
+ *
+ * It is deliberately **not** a bottom-bar tab: it is reachable only by route, which the Settings
+ * screen opens from "Content Restrictions → Open NSFW Hub" (and which can require the PIN/biometric
+ * lock configured there). Because nothing else mounts it, the adult grid and rails can never appear
+ * in the public Home / Browse / Library surfaces, and the general Search screen only consults NSFW
+ * add-ons if the user explicitly opts in with the toggle below.
+ *
+ * This file is the former `NsfwScreen`, moved off the Browse segmented control (which now shows
+ * Manga and Anime) and given a back affordance plus the global-search opt-in.
  */
 @Composable
-fun NsfwScreen(nav: NavHostController, embedded: Boolean = false) {
+fun NsfwHubScreen(nav: NavHostController) {
     val container = LocalContainer.current
     val scope = rememberCoroutineScope()
     val lock by container.settings.nsfwLock.collectAsStateSafe()
@@ -70,28 +80,61 @@ fun NsfwScreen(nav: NavHostController, embedded: Boolean = false) {
     val biometric by container.settings.nsfwBiometric.collectAsStateSafe()
     val unlocked by container.settings.nsfwUnlocked.collectAsStateSafe()
 
-    if (lock && !unlocked) {
-        NsfwLockScreen(
-            storedPinHash = pin,
-            biometricEnabled = biometric,
-            onUnlocked = { scope.launch { container.settings.setNsfwUnlocked(true) } },
-            onSetPin = { raw ->
-                scope.launch {
-                    container.settings.setNsfwPin(hashPin(raw))
-                    container.settings.setNsfwUnlocked(true)
-                }
-            },
-        )
-        return
+    Column(Modifier.fillMaxSize()) {
+        NsfwHubHeader(nav)
+        if (lock && !unlocked) {
+            NsfwLockScreen(
+                storedPinHash = pin,
+                biometricEnabled = biometric,
+                onUnlocked = { scope.launch { container.settings.setNsfwUnlocked(true) } },
+                onSetPin = { raw ->
+                    scope.launch {
+                        container.settings.setNsfwPin(hashPin(raw))
+                        container.settings.setNsfwUnlocked(true)
+                    }
+                },
+            )
+            return@Column
+        }
+        NsfwContent(nav)
     }
+}
 
-    NsfwContent(nav, embedded)
+/** Title row with a Back affordance, since the hub is a pushed destination (no bottom bar). */
+@Composable
+private fun NsfwHubHeader(nav: NavHostController) {
+    val nova = LocalNovaColors.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = AppSpacing.screen)
+            .padding(top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = { nav.popBackStack() }) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                "Back",
+                tint = nova.textPrimary,
+            )
+        }
+        Text(
+            "NSFW Hub",
+            style = MaterialTheme.typography.headlineSmall,
+            color = nova.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+    }
 }
 
 @Composable
-private fun NsfwContent(nav: NavHostController, embedded: Boolean) {
+private fun NsfwContent(nav: NavHostController) {
+    val container = LocalContainer.current
+    val scope = rememberCoroutineScope()
     val vm = novaViewModel { NsfwViewModel(it) }
     val nova = LocalNovaColors.current
+    val globalSearch by container.settings.nsfwGlobalSearch.collectAsStateSafe()
     // Saved, not just remembered: opening a detail page disposes this destination, and coming
     // back used to reset the sub-tab to 0 (NSFW Anime) — losing the Real 18+ position.
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -105,14 +148,33 @@ private fun NsfwContent(nav: NavHostController, embedded: Boolean) {
     val titles = listOf("NSFW Anime", "NSFW Manga", "Real 18+")
 
     Column(Modifier.fillMaxSize()) {
-        if (!embedded) {
-            Text(
-                "NSFW",
-                style = MaterialTheme.typography.displaySmall,
-                color = nova.textPrimary,
-                modifier = Modifier.statusBarsPadding().padding(start = AppSpacing.screen, top = 8.dp, bottom = 8.dp),
+        // The isolation opt-in. Off by default, so the general Search screen and Home feed never
+        // surface adult content/extensions unless the user turns this on inside the hub.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppSpacing.screen, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Show NSFW in general search",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = nova.textPrimary,
+                )
+                Text(
+                    "Off means Search stays adult-free. Adult add-ons are always available in this hub.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = nova.textTertiary,
+                )
+            }
+            Spacer(Modifier.size(8.dp))
+            Switch(
+                checked = globalSearch,
+                onCheckedChange = { scope.launch { container.settings.setNsfwGlobalSearch(it) } },
             )
         }
+
         ScrollableTabRow(
             selectedTabIndex = tab,
             containerColor = nova.background,

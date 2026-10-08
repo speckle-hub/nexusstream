@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,7 +57,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -66,12 +69,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.ui.theme.AccentViolet
 import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.Motion
+import com.novastream.app.ui.theme.rememberReducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
@@ -92,9 +96,15 @@ val PosterShape = RoundedCornerShape(12.dp)
 @Composable
 private fun StaggeredEntrance(index: Int, content: @Composable () -> Unit) {
     val progress = remember { Animatable(0f) }
+    val reducedMotion = rememberReducedMotion()
     // Keyed on Unit, not `index`: a LazyRow recycles slots, so re-keying on the index would replay
     // the fade from 0 whenever a different item lands in the same slot — a visible flash mid-scroll.
     LaunchedEffect(Unit) {
+        // Honour the system "remove animations" preference — no fade, no delay, just present.
+        if (reducedMotion) {
+            progress.snapTo(1f)
+            return@LaunchedEffect
+        }
         delay(index.coerceAtMost(MAX_STAGGER_INDEX) * STAGGER_STEP_MS)
         progress.animateTo(1f, tween(durationMillis = Motion.SLOW, easing = FastOutSlowInEasing))
     }
@@ -148,7 +158,15 @@ private fun Modifier.pressableClickable(
     onClick = onClick,
 )
 
-/** A translucent, elevated "glass" surface used for cards and sheets. */
+/**
+ * A translucent, elevated "glass" surface used for cards and sheets.
+ *
+ * Elevation is carried by two cues (§2d #17): a real drop shadow behind the shape, and a hairline
+ * highlight along the top edge (a peak-in-the-middle horizontal gradient, as if light catches the
+ * rim). Before this the surface was only a flat fill + outline, which is why panels read as painted
+ * rectangles rather than raised glass. The shadow is subtler in light mode, where a heavy dark halo
+ * looks like dirt.
+ */
 @Composable
 fun GlassSurface(
     modifier: Modifier = Modifier,
@@ -158,7 +176,13 @@ fun GlassSurface(
 ) {
     val nova = LocalNovaColors.current
     val interaction = remember { MutableInteractionSource() }
+    val shadowElevation = if (nova.isDark) 10.dp else 6.dp
+    val ambient = Color.Black.copy(alpha = if (nova.isDark) 0.45f else 0.10f)
+    val spot = Color.Black.copy(alpha = if (nova.isDark) 0.55f else 0.16f)
+    // Only the top edge lights up: transparent at both ends, brightest in the middle.
+    val topHighlight = if (nova.isDark) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.9f)
     val base = Modifier
+        .shadow(shadowElevation, shape, clip = false, ambientColor = ambient, spotColor = spot)
         .clip(shape)
         .background(
             Brush.verticalGradient(
@@ -169,6 +193,18 @@ fun GlassSurface(
             )
         )
         .border(BorderStroke(1.dp, nova.outline.copy(alpha = 0.5f)), shape)
+        .drawWithContent {
+            drawContent()
+            // Applied after the content so the highlight sits on the top rim of the surface.
+            val stroke = 1.dp.toPx()
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    listOf(Color.Transparent, topHighlight, Color.Transparent)
+                ),
+                topLeft = Offset(0f, 0f),
+                size = Size(size.width, stroke),
+            )
+        }
     // Tappable glass also shrinks slightly while held, so rows feel like physical controls.
     val clickable = if (onClick != null) {
         base.pressableClickable(interaction) { onClick() }
@@ -236,12 +272,22 @@ fun PosterCard(
                 .clip(PosterShape)
                 .background(nova.surfaceElevated),
         ) {
+            // SubcomposeAsyncImage so a loading poster shows the shimmer instead of a blank dark
+            // rectangle (the old behaviour while scrolling a grid), and a failed load degrades to
+            // the placeholder glyph instead of an empty box. Crossfade comes from the app-wide
+            // ImageLoader (NovaApp sets `.crossfade(true)`).
             if (!item.poster.isNullOrBlank()) {
-                AsyncImage(
+                SubcomposeAsyncImage(
                     model = item.poster,
                     contentDescription = item.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
+                    loading = { ShimmerBox(Modifier.fillMaxSize()) },
+                    error = {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.Image, null, tint = nova.textTertiary, modifier = Modifier.size(28.dp))
+                        }
+                    },
                 )
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -505,6 +551,9 @@ fun EmptyState(
     subtitle: String? = null,
     modifier: Modifier = Modifier,
     icon: ImageVector? = Icons.Outlined.Image,
+    /** Optional call to action, e.g. "Retry". Only shown when [onAction] is also provided. */
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     val nova = LocalNovaColors.current
     Column(
@@ -513,21 +562,43 @@ fun EmptyState(
         verticalArrangement = Arrangement.Center,
     ) {
         icon?.let {
-            Box(
-                Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(nova.surfaceElevated.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(it, null, tint = nova.textTertiary, modifier = Modifier.size(36.dp))
+            // A soft accent halo behind the icon so an empty screen reads as designed, not broken.
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .size(140.dp)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(nova.accent.copy(alpha = 0.16f), Color.Transparent),
+                            )
+                        )
+                )
+                Box(
+                    Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(nova.surfaceElevated.copy(alpha = 0.6f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(it, null, tint = nova.textTertiary, modifier = Modifier.size(36.dp))
+                }
             }
             Spacer(Modifier.height(14.dp))
         }
         Text(title, style = MaterialTheme.typography.titleMedium, color = nova.textPrimary)
         subtitle?.let {
             Spacer(Modifier.height(6.dp))
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = nova.textSecondary)
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = nova.textSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
+        // The button is what turns an empty state from a dead end into a next step.
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(18.dp))
+            Button(onClick = onAction, shape = RoundedCornerShape(50)) { Text(actionLabel) }
         }
     }
 }

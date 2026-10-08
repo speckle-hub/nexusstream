@@ -61,6 +61,7 @@ import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.screens.nsfw.hashPin
 import com.novastream.app.ui.theme.Accents
 import com.novastream.app.ui.theme.LocalNovaColors
+import com.novastream.app.ui.theme.tnum
 import com.novastream.app.ui.vm.SettingsViewModel
 import com.novastream.app.ui.vm.collectAsStateSafe
 import com.novastream.app.ui.vm.novaViewModel
@@ -253,7 +254,7 @@ fun SettingsScreen(nav: NavHostController) {
                 valueRange = 0.5f..2f,
                 steps = 5,
             )
-            Text("${playerSpeed}x", style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
+            Text("${playerSpeed}x", style = MaterialTheme.typography.labelMedium.tnum, color = nova.textTertiary)
             SwitchRow("Audio boost", "Louder dialogue via system loudness enhancer", audioBoost) { vm.setAudioBoost(it) }
             SwitchRow("Normalize volume", "Even out quiet/loud scenes", audioNormalize) { vm.setAudioNormalize(it) }
         } }
@@ -261,7 +262,7 @@ fun SettingsScreen(nav: NavHostController) {
         item { if (settingsGroupVisible("Subtitles", listOf("Subtitles", "text size", "color", "background opacity", "vertical offset"))) SettingsGroup("Subtitles") {
             Text("Text size", style = MaterialTheme.typography.labelLarge, color = nova.textSecondary)
             Slider(value = subtitleScale, onValueChange = { vm.setSubtitleScale(it) }, valueRange = 0.6f..2f)
-            Text("${(subtitleScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
+            Text("${(subtitleScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium.tnum, color = nova.textTertiary)
             Spacer(Modifier.height(8.dp))
             Text("Text color", style = MaterialTheme.typography.labelLarge, color = nova.textSecondary)
             Spacer(Modifier.height(6.dp))
@@ -311,8 +312,14 @@ fun SettingsScreen(nav: NavHostController) {
             SwitchRow("Volume keys turn pages", "Use volume up/down to navigate", mangaVolumeKeys) { vm.setMangaVolumeKeys(it) }
         } }
 
-        item { if (settingsGroupVisible("NSFW", listOf("NSFW lock", "Set / change PIN", "Biometric unlock", "Auto-pull NSFW from add-ons"))) SettingsGroup("NSFW") {
-            SwitchRow("NSFW lock", "Require PIN/biometrics to open NSFW", nsfwLock) { vm.setNsfwLock(it) }
+        item { if (settingsGroupVisible("Content Restrictions", listOf("Open NSFW Hub", "NSFW", "NSFW lock", "Set / change PIN", "Biometric unlock", "Auto-pull NSFW from add-ons"))) SettingsGroup("Content Restrictions") {
+            // The hub is route-only: this Settings row is its sole entry point, which keeps adult
+            // content off the public Home / Browse / Library / Search surfaces. The hub itself
+            // enforces the PIN/biometric lock below before showing anything.
+            SettingsRow("Open NSFW Hub", "Isolated adult section \u00b7 NSFW anime, manga and Real 18+") {
+                nav.navigate(Routes.NSFW) { launchSingleTop = true }
+            }
+            SwitchRow("NSFW lock", "Require PIN/biometrics to open the NSFW Hub", nsfwLock) { vm.setNsfwLock(it) }
             SettingsRow("Set / change PIN", null) { showPinDialog = true }
             SwitchRow("Biometric unlock", "Use fingerprint / face", biometric) { vm.setNsfwBiometric(it) }
             SwitchRow("Auto-pull NSFW from add-ons", "Populate Real 18+ from installed NSFW add-ons", autoNsfw) { vm.setAutoNsfw(it) }
@@ -389,9 +396,9 @@ fun SettingsScreen(nav: NavHostController) {
                 exportLauncher.launch("novastream-backup.json")
             }
             SettingsRow("Import backup", "Restore from a .json backup") { importLauncher.launch(arrayOf("application/json")) }
-            SettingsRow("Update repository", updateRepo.ifBlank { "Set owner/repo" }) { showRepo = true }
+            // Shows the effective source: the user's repo, or the built-in default fallback.
+            SettingsRow("Update repository", UpdateChecker.resolveRepo(updateRepo)) { showRepo = true }
             SettingsRow("Check for updates", "Look for a newer GitHub release") {
-                if (updateRepo.isBlank()) { message = "Set an update repository first"; return@SettingsRow }
                 scope.launch {
                     message = "Checking…"
                     val info = UpdateChecker.check(updateRepo).getOrNull()
@@ -594,7 +601,8 @@ private fun SettingsRow(title: String, subtitle: String?, onClick: () -> Unit) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = nova.textPrimary)
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = nova.textTertiary) }
+            // Tabular figures so byte totals / counts in subtitles don't jitter as they update.
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium.tnum, color = nova.textTertiary) }
         }
         Icon(Icons.Filled.ChevronRight, null, tint = nova.textTertiary)
     }
@@ -609,7 +617,7 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = nova.textPrimary)
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = nova.textTertiary) }
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium.tnum, color = nova.textTertiary) }
         }
         Spacer(Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = onChange)

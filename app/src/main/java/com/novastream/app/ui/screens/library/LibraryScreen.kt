@@ -87,6 +87,7 @@ import com.novastream.app.ui.player.PlayerActivity
 import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.Motion
+import com.novastream.app.ui.theme.tnum
 import com.novastream.app.ui.vm.LibraryViewModel
 import com.novastream.app.ui.vm.LocalContainer
 import com.novastream.app.ui.vm.collectAsStateSafe
@@ -463,7 +464,7 @@ private fun StatsTab(favorites: List<MediaItem>, history: List<WatchEntry>) {
                                     color = nova.accent,
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
+                                Text(count.toString(), style = MaterialTheme.typography.labelMedium.tnum, color = nova.textTertiary)
                             }
                         }
                     }
@@ -478,7 +479,8 @@ private fun StatCard(label: String, value: String) {
     val nova = LocalNovaColors.current
     GlassSurface(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text(value, style = MaterialTheme.typography.headlineMedium, color = nova.accent)
+            // Tabular figures so stat numbers keep a stable width as they load/change.
+            Text(value, style = MaterialTheme.typography.headlineMedium.tnum, color = nova.accent)
             Text(label, style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
         }
     }
@@ -639,18 +641,19 @@ private fun MangaDownloadRow(d: MangaDownload, onClick: () -> Unit) {
                         Text(
                             "${d.downloaded}/${d.total} · ${formatBytes(d.bytes)}" +
                                 if (d.speedBytesPerSec > 0) " · ${formatBytes(d.speedBytesPerSec)}/s" else "",
-                            style = MaterialTheme.typography.labelMedium,
+                            // Tabular figures: the counter and byte figures must not jitter as they tick.
+                            style = MaterialTheme.typography.labelMedium.tnum,
                             color = nova.textTertiary,
                         )
                     }
                     DownloadStatus.COMPLETED -> Text(
                         "Downloaded · ${formatBytes(d.bytes)}",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                         color = Color(0xFF35E0A1),
                     )
                     DownloadStatus.PAUSED -> Text(
                         "Paused · ${d.downloaded}/${d.total}",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                         color = nova.textTertiary,
                     )
                     DownloadStatus.QUEUED -> Text("Queued", style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)
@@ -720,18 +723,19 @@ private fun VideoDownloadRow(d: VideoDownload, onClick: () -> Unit) {
                                 if (d.speedBytesPerSec > 0) append(" · ${formatBytes(d.speedBytesPerSec)}/s")
                                 if (d.etaSeconds > 0) append(" · ETA ${formatEta(d.etaSeconds)}")
                             },
-                            style = MaterialTheme.typography.labelMedium,
+                            // Tabular figures so the scrolling % / bytes / ETA don't jitter.
+                            style = MaterialTheme.typography.labelMedium.tnum,
                             color = nova.textTertiary,
                         )
                     }
                     VideoDownloadStatus.COMPLETED -> Text(
                         "Downloaded · ${formatBytes(d.bytes)}",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                         color = Color(0xFF35E0A1),
                     )
                     VideoDownloadStatus.PAUSED -> Text(
                         "Paused · ${(d.progress * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                         color = nova.textTertiary,
                     )
                     VideoDownloadStatus.QUEUED -> Text("Queued", style = MaterialTheme.typography.labelMedium, color = nova.textTertiary)

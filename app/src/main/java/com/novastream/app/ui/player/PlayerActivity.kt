@@ -176,6 +176,7 @@ class PlayerActivity : ComponentActivity() {
         index = readIndex(intent)
 
         val settings = (application as NovaApp).container.settings
+        val container = (application as NovaApp).container
         autoplay = settings.autoplay.value
         subtitlesEnabled = settings.subsEnabled.value
         playbackSpeed = settings.playerSpeed.value
@@ -247,6 +248,7 @@ class PlayerActivity : ComponentActivity() {
             // Honor the user's live theme here too — custom accent, Material You and AMOLED black
             // all apply inside the player instead of a hardcoded dark-violet theme (matching the
             // manga reader). The overlay text stays white because it always sits on video.
+            CompositionLocalProvider(LocalContainer provides container) {
             val themeMode by settings.theme.collectAsStateWithLifecycle("dark")
             val accent by settings.accent.collectAsStateWithLifecycle("violet")
             val dynamicColor by settings.dynamicColor.collectAsStateWithLifecycle(false)
@@ -305,6 +307,7 @@ class PlayerActivity : ComponentActivity() {
                     },
                     onGestureEnd = { endGesture() },
                 )
+            }
             }
         }
     }
@@ -1522,8 +1525,9 @@ private fun StatsLine(label: String, value: String) {
         )
         Text(
             value,
+            // Tabular figures: the stats overlay updates every tick, so the value must not jitter.
+            style = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, fontFeatureSettings = "tnum"),
             color = Color.White,
-            fontSize = 10.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

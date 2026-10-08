@@ -1,7 +1,60 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-08 — **v1.3.0 released:**
+> resume exactly where it left off. Last updated: 2026-10-08 — **v1.4.0 released.** Bundles the NSFW
+> Hub + Browse → Anime split (§2z), the launch-time auto-update dialog + repository fallback (§2aa),
+> the QoL polish pass (§2ab) and the glass-elevation + tabular-figures close-out (§2ac).
+> `versionCode` 6 / `versionName` 1.4.0; signed release built → `dist/NovaStream.apk` (38,330,038
+> bytes, SHA-256 `F45FA749…20C4`); website CTA/hero bumped to v1.4.0; source pushed to
+> `github.com/speckle-hub/nexusstream`. **GitHub Release asset not yet attached** (no `gh` CLI or API
+> token in this environment) — the in-app updater and the site's `releases/latest` link keep
+> resolving the previous `v1.3.0` asset until it is.
+> Previous session, Last updated: 2026-10-08 — **QoL follow-up — tabular figures &
+> glass elevation.** Closed the last two open §2d items. **Glass surfaces now carry a real drop
+> shadow plus a top-edge highlight hairline**, and the theme maps the M3 `surfaceContainer*` roles
+> (so stock M3 surfaces like sheets/menus match the app's tonal family). The **tabular-figures sweep
+> is finished**: a shared `TextStyle.tnum` token now covers Library stats + download readouts,
+> Settings subtitles/slider labels and the player stats overlay. Verified:
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **119/119**. Not pushed, no APK built.
+> Full detail in **§2ac**.
+> Previous session, Last updated: 2026-10-08 — **QoL polish pass (§2d backlog).**
+> Four open premium-feel items landed: **empty states gained a soft accent halo and an optional
+> call-to-action** ("Retry" wired into Home / Browse → Anime / Manga); **poster cards now shimmer
+> while loading and fall back to a placeholder glyph on error** (Coil `SubcomposeAsyncImage`); the
+> app **honours the system "remove animations" preference** — the Home hero stops auto-advancing
+> and the row-entrance stagger is skipped (new `rememberReducedMotion()`); and **numeric readouts
+> use tabular figures** so the Library download %/bytes/ETA no longer jitter. Verified:
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **119/119**. Not pushed, no APK built.
+> Full detail in **§2ab**.
+> Previous session, Last updated: 2026-10-08 — **Phase 25 — startup update dialog &
+> repository fallback.** "Check for updates" now works with no setup: `UpdateChecker` gained a
+> `DEFAULT_REPO` (`speckle-hub/nexusstream`) plus `resolveRepo()`, applied whenever Settings has no
+> repository configured (the Settings row now shows the effective source, and the old "set a repo
+> first" guard is gone). `MainActivity` runs a non-blocking launch-time check and, when GitHub
+> reports a newer release, shows an expressive Material 3 `AlertDialog` — "New Version Available"
+> with the version tag and release notes — whose **Update** action downloads the release `.apk`
+> asset and launches the system installer (**Later** dismisses; the dialog is suppressed if the
+> app-lock gate is still locked). Verified: `:app:compileDebugKotlin` ✓,
+> `:app:testDebugUnitTest` ✓ **119/119** (6 new `UpdateCheckerTest` cases). Not pushed, no APK
+> built. Full detail in **§2aa**.
+> Previous session, Last updated: 2026-10-08 — **NSFW isolation & Browse → Anime.**
+> The Browse segmented control no longer carries NSFW; it is now **Manga | Anime**. A new
+> `ui/screens/anime/AnimeScreen.kt` serves only anime-tagged content (AniList trending/popular/
+> genre rails, anime Stremio catalogs, and a debounced anime-only search) via a new `AnimeViewModel`.
+> Adult content moved into a route-only **NSFW Hub** (`ui/screens/nsfw/NsfwHubScreen.kt`, the former
+> `NsfwScreen`): it is no longer reachable from any public tab, opening only from Settings →
+> **Content Restrictions → Open NSFW Hub**, and it keeps its PIN/biometric lock. NSFW add-ons are
+> also excluded from the general Search screen and Home feed unless the user explicitly opts in via
+> the "Show NSFW in general search" switch inside the hub (new `nsfwGlobalSearch` setting, default
+> off). Verified: `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **113/113**. Not pushed,
+> no APK built. Full detail in **§2z**.
+> Previous session, Last updated: 2026-10-08 — **hotfix: player crash on Play.**
+> Tapping Play on any content crashed because `PlayerActivity` never provided `LocalContainer`,
+> while `PlayerScreen` reads `LocalContainer.current.settings` (double-tap seek from v1.2.0,
+> auto-skip intro from Phase 23). Fixed by wrapping the player's `setContent` in
+> `CompositionLocalProvider(LocalContainer provides container)`, matching `MainActivity` and
+> `MangaReaderActivity`. Verified: `:app:compileDebugKotlin` ✓. Not pushed, no APK built.
+> Previous session, Last updated: 2026-10-08 — **v1.3.0 released:**
 > Phase 23 QoL set shipped — `v1.3.0` tagged (versionCode 5), GitHub Release created with
 > `app-release.apk`, website CTA/hero bumped to v1.3.0 (`fae0507`). `dist/NovaStream.apk`
 > refreshed; Vercel redeploy still pending a fresh credential check in this environment.
@@ -122,13 +175,17 @@ site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexu
 
 ## 2. Current focus
 
-**Topic: the public release and the website.** The source-neutral app (§2x) is now public on
-GitHub with a proper `v1.1.0` release, and the project has a marketing site: `website/` is a
-static Next.js 15 + Tailwind + HeroUI + Aceternity-style + ThreeUI landing page, optimized and
-deployed to Vercel from the same repo. Full detail in **§2y**.
+**Topic: QoL follow-up (§2d close-out).** Finished the last two open backlog items: the app-wide
+**tabular-figures sweep** (`TextStyle.tnum` across Library stats/downloads, Settings and the player
+stats overlay) and the **glass elevation system** (real shadow + top-edge highlight on
+`GlassSurface`, plus the M3 `surfaceContainer*` roles mapped in the theme). Full detail in **§2ac**.
 
-Previous focus: source neutrality (§2x) for the public GitHub release; Phase 21 (§2v) — NSFW/Browse
-card alignment & the Sources crash root cause; Phase 20
+Previous focus: QoL polish pass (§2ab) — empty states, poster loading, reduced motion; GitHub
+auto-update dialog & repository fallback (Phase 25, §2aa).
+
+Previous focus: NSFW isolation & Browse → Anime (§2z); the public release and the website (§2y);
+source neutrality (§2x); Phase 21 (§2v) —
+NSFW/Browse card alignment & the Sources crash root cause; Phase 20
 (§2u) — grids/recents/hero/Settings crash/reader/Continue Reading. Legacy §2 topic text follows for
 history:
 
@@ -445,6 +502,211 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
   app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
+
+---
+
+## 2ac. QoL follow-up — tabular figures finished & glass elevation (2026-10-08)
+
+**Topic:** close the last two open items from the §2d "premium-feel" backlog — finish the
+app-wide tabular-figures sweep (#23) and build the glass elevation system (#17).
+
+Status: **implemented and built.** Files and verification at the end.
+
+### 1. Tabular figures, finished (#23)
+- New shared token: `val TextStyle.tnum` in `ui/theme/Tokens.kt` (`copy(fontFeatureSettings =
+  "tnum")`). It is a no-op for word text, so it is safe on mixed labels.
+- Applied it everywhere numeric text was still proportional:
+  - **Library stats dashboard** — the `StatCard` headline value and the top-genre counts.
+  - **Library download rows** — manga %/bytes and video %/bytes/speed/ETA (downloading, completed
+    and paused) now go through the shared token instead of an inline copy.
+  - **Settings** — `SettingsRow`/`SwitchRow` subtitles (covers the byte totals and the
+    "N MB" cache size), the playback-speed `Nx` label and the subtitle-size `N%` label.
+  - **Player stats overlay** — the `StatsLine` value column (FPS / buffer % / dropped frames),
+    which updates every tick.
+  - (`RatingBadge` / `ResolutionBadge` already had it.)
+
+### 2. Glass elevation system (#17)
+- `GlassSurface` now renders **two elevation cues**: a real drop shadow behind the shape
+  (`Modifier.shadow`, 10 dp dark / 6 dp light, with softer ambient/spot colours in light mode so it
+  never reads as a smudge) and a **top-edge highlight hairline** — a transparent→highlight→transparent
+  horizontal gradient drawn along the top rim after the content, as if light catches the edge. The
+  surface was previously only a flat gradient fill + 1 dp outline.
+- **M3 `surfaceContainer*` roles** are now mapped in `NovaStreamTheme` (both schemes):
+  `surfaceContainerLowest/Low/`/`High/Highest` ladder out of the app's own `background` / `surface`
+  / `surfaceElevated` (higher tiers are `lerp`ed a few percent toward white in dark, black in
+  light). Stock Material3 components that pick a container by elevation now sit in the app's tonal
+  family instead of falling back to the light baseline.
+
+### Files
+`ui/theme/Tokens.kt`, `ui/theme/Theme.kt`, `ui/components/Components.kt`,
+`ui/screens/library/LibraryScreen.kt`, `ui/screens/settings/SettingsScreen.kt`,
+`ui/player/PlayerActivity.kt`.
+
+### Verification (2026-10-08)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0; only the repo's pre-existing
+  deprecation warnings). Confirms the `surfaceContainer*` params exist on this Material3 (Compose
+  BOM 2024.09.02).
+- `:app:testDebugUnitTest` → **119/119, 0 failures, 0 errors**.
+- Not pushed; no APK rebuilt this session.
+- Device pass still needed for the visuals (shadow weight in light/dark, highlight visibility,
+  tabular alignment) — none of it renders headlessly here.
+
+---
+
+## 2ab. QoL polish pass — empty states, poster loading, reduced motion, tabular figures (2026-10-08)
+
+**Topic:** clear four of the open items from the §2d "premium-feel" backlog (#20, #21, #22 and a
+first slice of #23), all inside the shared component layer so every screen benefits.
+
+Status: **implemented and built.** Files and verification at the end.
+
+### 1. Empty states get a glow + a call to action (#22)
+- `EmptyState` now draws a soft **accent radial halo** behind its icon (a 140 dp accent→transparent
+  gradient) and takes optional `actionLabel` / `onAction` arguments that render a filled pill
+  button. Previously every empty screen was a dead end — one icon in a rounded square.
+- **"Retry"** is wired wherever a refresh exists: Home (`error` + empty-feed states →
+  `HomeViewModel.refresh`), Browse → Anime (`AnimeViewModel.refresh`), and Browse → Manga
+  (`MangaViewModel.refresh`).
+
+### 2. Poster placeholder / error / crossfade (#20)
+- `PosterCard`'s artwork moved from `AsyncImage` to Coil's **`SubcomposeAsyncImage`**: a loading
+  poster now shows the shared `ShimmerBox` sweep instead of a blank dark rectangle (the old
+  behaviour while scrolling a grid), and a failed load degrades to the placeholder glyph rather
+  than an empty box. Crossfade already comes from the app-wide `ImageLoader` (`NovaApp` sets
+  `.crossfade(true)`), so no per-image change was needed.
+
+### 3. Reduced motion (#21)
+- New `ui/theme/ReducedMotion.kt` → `rememberReducedMotion()`, read once from
+  `Settings.Global.TRANSITION_ANIMATION_SCALE` (the closest cross-version signal to
+  `prefers-reduced-motion`; true when animations are disabled).
+- `HomeScreen.FeaturedCarousel` no longer auto-advances when reduced motion is on (`LaunchedEffect
+  (items, reducedMotion)` bails out), and `Components.StaggeredEntrance` snaps its fade straight to
+  the final frame instead of delaying + animating each row item.
+
+### 4. Tabular figures (#23, partial)
+- Applied `fontFeatureSettings = "tnum"` to the Library download readouts (manga %/bytes and video
+  %/bytes/speed/ETA for downloading, completed and paused states) so ticking counters no longer
+  re-flow their neighbour text. `RatingBadge` / `ResolutionBadge` already had it; other numeric text
+  (Settings byte rows, the stats dashboard) is left for a follow-up sweep — hence #23 stays open.
+
+### Files
+`ui/components/Components.kt`, `ui/theme/ReducedMotion.kt` (new),
+`ui/screens/home/HomeScreen.kt`, `ui/screens/anime/AnimeScreen.kt`,
+`ui/screens/manga/MangaScreen.kt`, `ui/screens/library/LibraryScreen.kt`.
+
+### Verification (2026-10-08)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0; only the repo's pre-existing
+  deprecation warnings).
+- `:app:testDebugUnitTest` → **119/119, 0 failures, 0 errors**.
+- Not pushed; no APK rebuilt this session.
+- Device pass still needed for the visuals (shimmer timing, halo contrast, reduced-motion behaviour)
+  since none of it can be rendered headlessly here.
+
+---
+
+## 2aa. Phase 25 — GitHub auto-update dialog & repository fallback (2026-10-08)
+
+**Topic:** make the built-in updater work with zero configuration and surface a launch-time dialog
+when a newer GitHub release exists.
+
+Status: **implemented and built.** Files and verification at the end.
+
+### 1. Default repository fallback
+- `UpdateChecker` gained `const val DEFAULT_REPO = "speckle-hub/nexusstream"` and
+  `fun resolveRepo(configured: String) = configured.trim().ifBlank { DEFAULT_REPO }`; `check(repo)`
+  now queries the resolved repo and builds `pageUrl` from it, so a blank/absent setting no longer
+  disables the feature.
+- `SettingsScreen`'s **Check for updates** action dropped its `if (updateRepo.isBlank())` guard, and
+  the **Update repository** row now displays `UpdateChecker.resolveRepo(updateRepo)` (the effective
+  source: the user's repo, or the built-in default). The repository editor itself is unchanged.
+
+### 2. Startup update dialog
+- `MainActivity` composes a new private `StartupUpdateCheck()` **inside** the app-lock gate (so the
+  dialog only appears once the app is unlocked). It fires `UpdateChecker.check(...)` from a
+  `LaunchedEffect`, i.e. off the startup path — the UI never waits on the network.
+- When `ReleaseInfo.isNewerThan(BuildConfig.VERSION_NAME)` is true it shows `UpdateAvailableDialog`:
+  an expressive M3 `AlertDialog` (28 dp corner, themed `surfaceElevated`) with a `SystemUpdate`
+  icon, **"New Version Available"** + the release tag, and the release-notes body in a
+  height-capped, scrollable column.
+- **Update** downloads the release's attached `.apk` via `downloadApk` and launches the installer
+  via `installApk` (a spinner shows while downloading); if the release has no APK asset the button
+  reads **Open release** and opens the GitHub page instead, and a download failure is reported
+  inline. **Later** (and dismissing) simply closes the dialog so the user keeps using the app.
+
+### Files
+`data/integrations/UpdateChecker.kt`, `ui/MainActivity.kt`,
+`ui/screens/settings/SettingsScreen.kt`, `app/src/test/.../UpdateCheckerTest.kt` (new).
+
+### Verification (2026-10-08)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0; only the repo's pre-existing
+  deprecation warnings).
+- `:app:testDebugUnitTest` → **119/119, 0 failures, 0 errors** (6 new `UpdateCheckerTest` cases
+  covering the `DEFAULT_REPO` fallback, trimmed configured repos, and `isNewerThan` for
+  newer/equal/older/missing-segment tags).
+- Not pushed; no APK rebuilt this session.
+
+---
+
+## 2z. NSFW isolation & Browse → Anime (2026-10-08)
+
+**Topic:** split the public Browse experience from adult content. Two device-facing changes: (1)
+replace the NSFW segment on `BrowseScreen` with an **Anime** segment, and (2) move all NSFW
+surfaces into a dedicated, isolated, route-only hub that general Search and Home never touch.
+
+Status: **implemented and built.** Files and verification at the end.
+
+### 1. Browse → Anime (NSFW segment removed)
+- `BrowseScreen`'s segmented control was `Manga | NSFW`; it is now **`Manga | Anime`**, and segment 1
+  renders the new `ui/screens/anime/AnimeScreen.kt`.
+- `AnimeScreen` serves **only anime-tagged content**: it reuses `CatalogRepository.rowsForSection(
+  MediaType.ANIME)` (AniList trending / popular / Action / Romance / Fantasy rails **plus** Stremio
+  add-on catalogs mapped to `ANIME`) and `CatalogRepository.search(query, MediaType.ANIME)`. It gets
+  the same adaptive grid, shared `SearchField`, long-press `PosterQuickActionsSheet` and
+  `AppSpacing.railCard` rail width as the other browse sections.
+- New `AnimeViewModel` mirrors `NsfwViewModel`'s search discipline: 350 ms debounce, one in-flight job
+  per section (each keystroke cancels the previous), a monotonic generation so only the newest query
+  may publish, and a browse-row reload on clear so an empty screen can recover. The `embedded` flag
+  suppresses its own title row when hosted by Browse.
+- The dead private `SegmentedControl` composable in `BrowseScreen.kt` (superseded by
+  `PillSegmentedControl`) was deleted along with its now-unused imports.
+
+### 2. Isolated NSFW Hub
+- `ui/screens/nsfw/NsfwScreen.kt` was renamed/reworked into **`NsfwHubScreen.kt`** (same package, so
+  `NsfwLockScreen`/`hashPin` are reused). It keeps the three sub-tabs (NSFW Anime / NSFW Manga / Real
+  18+), the adaptive grid, the per-source error notice and the PIN/biometric lock — but now has its
+  own **Back** affordance and is a **pushed, route-only** destination.
+- `Routes.NSFW` is no longer mounted by any tab. Its `NovaNav` entry now uses the push transitions
+  (`detailEnter`/`detailExit`) so it reads as a screen opened from elsewhere; the bottom bar stays
+  hidden (it is not a tab route). The **only** entry point is a new Settings row
+  **Content Restrictions → Open NSFW Hub** (`nav.navigate(Routes.NSFW) { launchSingleTop = true }`).
+- The Settings group previously titled "NSFW" was renamed **"Content Restrictions"** and now leads
+  with that hub row; the settings filter still finds it by "NSFW" (the group's row labels include
+  it). The hub continues to enforce `nsfwLock` + PIN/biometric before rendering anything.
+
+### 3. Keeping NSFW out of general Search / Home
+- The leak was in add-on search: `CatalogRepository.globalSearch()` queried **every** installed
+  add-on (including NSFW ones), and `searchInternal()` for a SFW section passed `nsfwOnly = false`,
+  so adult add-on catalogs could surface in a normal search.
+- New `SettingsStore` preference **`nsfwGlobalSearch`** (default **false**), exposed in the hub as a
+  **"Show NSFW in general search"** switch. `globalSearch()` now filters NSFW add-ons out unless it
+  is on; `addonSearch()` gained an `includeNsfw` argument so SFW sections query only non-NSFW add-ons
+  by default (NSFW sections remain NSFW-only). The Home feed already excluded NSFW add-ons
+  (`stremioRowsFor` filters `!it.nsfw`) and uses SFW AniList/TMDB rails, so it was already clean —
+  no change needed there.
+- Library's NSFW **filter chip** is untouched: it only filters the user's own favourites / history /
+  downloads, and is not a discovery or recommendation surface.
+
+### Files
+`ui/screens/browse/BrowseScreen.kt`, `ui/screens/anime/AnimeScreen.kt` (new),
+`ui/screens/nsfw/NsfwHubScreen.kt` (replaces `NsfwScreen.kt`), `ui/nav/NovaNav.kt`,
+`ui/screens/settings/SettingsScreen.kt`, `ui/vm/ViewModels.kt` (`AnimeViewModel` +
+`SettingsViewModel.nsfwGlobalSearch`), `data/repo/CatalogRepository.kt`, `data/local/SettingsStore.kt`.
+
+### Verification (2026-10-08)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only the repo's pre-existing deprecation
+  warnings).
+- `:app:testDebugUnitTest` → **113/113, 0 failures, 0 errors** (15 result files).
+- Not pushed; no APK rebuilt this session (per the user's instruction to compile + test only).
 
 ---
 
@@ -2172,13 +2434,13 @@ and K2 codegen are exactly the kind of thing that only proves itself at runtime.
 |---|---|---|---|
 | ~~15~~ | ~~Shared-element poster → detail transition~~ | — | ✅ Done in Phase 8 (§2e), **removed in the 2026-10-02 visual bug-fix pass** |
 | ~~16~~ | ~~Row stagger entrance + tab cross-fades~~ | — | ✅ Done in Phase 8 (§2e) — stagger/tab motion kept; shared elements removed |
-| 17 | Glass elevation system | S–M | Real shadow + top-edge highlight hairline; M3 `surfaceContainer*` roles |
+| ~~17~~ | ~~Glass elevation system~~ | — | ✅ Done in the QoL follow-up (§2ac) — real shadow + top-edge highlight hairline on `GlassSurface`; M3 `surfaceContainer*` roles mapped in the theme |
 | ~~18~~ | ~~Detail CTA hierarchy~~ | — | ✅ Done in Phase 9 (§2f) |
 | ~~19~~ | ~~6 → 5 bottom tabs~~ | — | ✅ Done in Phase 9 (§2f) |
-| 20 | `AsyncImage` placeholder / error / crossfade | S | Blank rectangles during scroll today; 200 ms crossfade + shimmer placeholder |
-| 21 | `prefers-reduced-motion` | S | The hero's `while(true)` auto-advance loop runs forever with no opt-out; Phase 8's stagger/tab motion also needs the opt-out |
-| 22 | `EmptyState` with CTA + glow | S | Currently one icon in a rounded square; every empty state is currently a dead end |
-| 23 | Tabular figures app-wide | S | Ratings, byte counts and ETAs jitter without `"tnum"` (done for `RatingBadge` / `ResolutionBadge` only) |
+| ~~20~~ | ~~`AsyncImage` placeholder / error / crossfade~~ | — | ✅ Done in the QoL polish pass (§2ab) — `SubcomposeAsyncImage` shimmer loading + error glyph; crossfade from the app-wide ImageLoader |
+| ~~21~~ | ~~`prefers-reduced-motion`~~ | — | ✅ Done (§2ab) — `rememberReducedMotion()` stops the hero auto-advance and the row stagger |
+| ~~22~~ | ~~`EmptyState` with CTA + glow~~ | — | ✅ Done (§2ab) — accent halo + optional CTA; "Retry" wired into Home / Anime / Manga |
+| ~~23~~ | ~~Tabular figures app-wide~~ | — | ✅ Done (§2ab + §2ac) — shared `TextStyle.tnum`; ratings/resolutions, Library stats + downloads, Settings subtitles/sliders and the player stats overlay |
 
 ---
 
