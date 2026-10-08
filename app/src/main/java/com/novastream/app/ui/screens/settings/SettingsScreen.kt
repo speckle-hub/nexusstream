@@ -55,6 +55,7 @@ import com.novastream.app.data.integrations.UpdateChecker
 import com.novastream.app.data.integrations.downloadApk
 import com.novastream.app.data.integrations.installApk
 import com.novastream.app.ui.components.GlassSurface
+import com.novastream.app.ui.components.NovaSwitch
 import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.vm.LocalContainer
@@ -525,7 +526,7 @@ private fun ScrobbleRow(
                 modifier = Modifier.clickable { onEditToken() },
             )
         }
-        Switch(checked = enabled, onCheckedChange = onToggle)
+        NovaSwitch(checked = enabled, onCheckedChange = onToggle)
     }
 }
 
@@ -620,7 +621,7 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
             subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium.tnum, color = nova.textTertiary) }
         }
         Spacer(Modifier.width(8.dp))
-        Switch(checked = checked, onCheckedChange = onChange)
+        NovaSwitch(checked = checked, onCheckedChange = onChange)
     }
 }
 

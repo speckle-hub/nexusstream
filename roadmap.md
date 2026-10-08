@@ -1,7 +1,15 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-08 — **v1.4.0 released.** Bundles the NSFW
+> resume exactly where it left off. Last updated: 2026-10-08 — **v1.4.1 released.** Three
+> device-reported fixes: **switches no longer look invisible when off** (new shared `NovaSwitch`),
+> the **Browse → Anime / NSFW rails now fit ~3 cards across like the Search grid** (`railCard`
+> 150 → 100 dp), and **NSFW search merges AniList + Jikan + NSFW add-ons** instead of stopping at
+> the first source (AniList/Jikan/MangaDex caps raised). `versionCode` 7 / `versionName` 1.4.1;
+> signed release built → `dist/NovaStream.apk` (38,330,038 bytes, SHA-256 `81078DB4…B290`);
+> website bumped to v1.4.1. Verified `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓
+> **119/119**. Full detail in **§2ad**.
+> Previous session, Last updated: 2026-10-08 — **v1.4.0 released.** Bundles the NSFW
 > Hub + Browse → Anime split (§2z), the launch-time auto-update dialog + repository fallback (§2aa),
 > the QoL polish pass (§2ab) and the glass-elevation + tabular-figures close-out (§2ac).
 > `versionCode` 6 / `versionName` 1.4.0; signed release built → `dist/NovaStream.apk` (38,330,038
@@ -503,6 +511,56 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
   app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
+
+---
+
+## 2ad. v1.4.1 — switch visibility, rail density & full NSFW search (2026-10-08)
+
+**Topic:** three device-reported fixes.
+
+Status: **implemented and built.** Files and verification at the end.
+
+### 1. Toggles looked invisible when off
+- Material3's `Switch` defaults paint the **unchecked** track with `surfaceVariant` and the thumb
+  with `outline`; on this theme those sit within a hair of the card behind them (and vanish entirely
+  under True AMOLED black), so a switch that was *off* read as invisible. New shared **`NovaSwitch`**
+  + `novaSwitchColors()` in `ui/components/Components.kt` give the off state a visible track
+  (`outline` @ 45 %), thumb (`textSecondary`) and border, and a solid accent track when on.
+- Every switch now uses it: Settings (`SwitchRow`, `ScrobbleRow`), the NSFW Hub's "Show NSFW in
+  general search" opt-in, the Sources dashboard, the Add-on Manager, and the player's Audio boost /
+  Normalize volume rows.
+
+### 2. Browse → Anime / NSFW rails showed ~2 cards where Search showed 3
+- `AppSpacing.railCard` was **150 dp**, which fits only about two cards across a 360 dp phone
+  (`(360 − 32) / 150 ≈ 2.2`) while the Search/grid posters sit at ~101 dp three-across — so the
+  Browse → Anime and NSFW rails read as "2 rows" next to Search's 3. Lowered to **100 dp** so every
+  rail (Home, Browse → Manga/Anime, NSFW) matches the Search grid's 3-across density on phones
+  (`3·100 + 2·12 ≤ 360 − 32`). It is a shared token, so all rails stay consistent.
+
+### 3. NSFW search was capped at the first source that answered
+- `CatalogRepository.searchNsfwAnime` returned as soon as AniList answered, so an NSFW search was
+  capped at one source's page and never reached Jikan or the installed NSFW add-ons. It now queries
+  **AniList + Jikan + NSFW add-ons concurrently and merges** the results (de-duplicated, built-ins
+  first), with each hop still bounded by its own timeout — so the search costs the slowest hop, not
+  their sum, and returns everything the sources have.
+- Per-source caps raised so nothing is cut short: AniList `perPage` 40 → **50** (its maximum); Jikan's
+  adult search now pages twice (25 → up to **50**, with each page fail-safe so a 504 on page 2 can't
+  discard page 1); NSFW Manga search raises MangaDex's `limit` to **100** (its maximum).
+
+### Files
+`ui/components/Components.kt`, `ui/theme/Tokens.kt`, `ui/screens/settings/SettingsScreen.kt`,
+`ui/screens/nsfw/NsfwHubScreen.kt`, `ui/screens/sources/SourcesScreen.kt`,
+`ui/screens/addons/AddonManagerScreen.kt`, `ui/player/PlayerActivity.kt`,
+`data/repo/CatalogRepository.kt`, `data/remote/AniListClient.kt`, `data/remote/JikanClient.kt`.
+
+### Verification (2026-10-08)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0; only pre-existing deprecation
+  warnings).
+- `:app:testDebugUnitTest` → **119/119, 0 failures, 0 errors**.
+- `:app:assembleRelease` → **BUILD SUCCESSFUL** (signed); `dist/NovaStream.apk` refreshed
+  (38,330,038 bytes, SHA-256 `81078DB4…B290`); the APK was verified to carry `versionName` **1.4.1**
+  (and no `1.4.0`).
+- Device pass still needed for the visuals (switch contrast, rail density) and the live NSFW search.
 
 ---
 
@@ -2919,6 +2977,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-07 | **Website fix:** hydration mismatch in the moving-border button (`<div>` inside `<svg>` + SSR/CSR transform drift) — rewritten SVG-native (`<m.circle>`, mount-gated, unique gradient IDs). |
 | 2026-10-07 | **Website optimization pass:** first-load JS 240 → **216 kB**, page chunk 134 → **92 kB** (LazyMotion `domAnimation`, `motion.*` → `m.*`, `optimizePackageImports`); Sparkles pauses offscreen, Nebula/all keyframes honor `prefers-reduced-motion`; SEO pack — `metadataBase` (`NEXT_PUBLIC_SITE_URL`), Twitter card, SVG favicon, generated `opengraph-image`, `sitemap.xml`, `robots.txt`, branded 404; `poweredByHeader` off. Deployed to **Vercel** (root dir `website`, auto-redeploy on push). |
 | 2026-10-08 | **v1.4.0 released:** NSFW isolation + Browse → Anime (§2z), launch-time GitHub auto-update dialog + default-repo fallback (§2aa), and the QoL/visual pass — empty-state halos + Retry, poster shimmer/error, reduced motion, app-wide tabular figures, glass elevation + M3 `surfaceContainer*` (§2ab/§2ac). `versionCode` 6 / `versionName` 1.4.0. Verified `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **119/119**, `:app:assembleRelease` ✅ (signed); `dist/NovaStream.apk` refreshed (38,330,038 bytes, SHA-256 `F45FA749…20C4`); website CTA/hero → v1.4.0; source pushed (`16a55a4`) and the **`v1.4.0` GitHub Release published with `app-release.apk`** (asset digest `sha256:f45fa749…20c4`; `releases/latest` → v1.4.0). |
+| 2026-10-08 | **v1.4.1 released (§2ad):** device-report fixes — shared `NovaSwitch` (off state was near-invisible on this theme), `AppSpacing.railCard` 150 → **100 dp** so Browse → Anime/NSFW rails match the Search 3-across density, and `searchNsfwAnime` now **merges AniList + Jikan + NSFW add-ons** (no early return) with caps raised (AniList 40→50, Jikan paged to 50, MangaDex →100). `versionCode` 7 / `versionName` 1.4.1. Verified `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **119/119**, `:app:assembleRelease` ✅ (signed); `dist/NovaStream.apk` refreshed (38,330,038 bytes, SHA-256 `81078DB4…B290`, versionName verified 1.4.1); website → v1.4.1. |
 
 ---
 

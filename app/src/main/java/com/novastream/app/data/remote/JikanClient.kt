@@ -41,6 +41,13 @@ object JikanClient {
 
     private suspend fun list(path: String): List<MediaItem> = listRaw(path).mapNotNull { item(it) }
 
+    /** Per-page fail-safe: a 504 on page 2 must not discard page 1's results. */
+    private suspend fun listSafe(path: String): List<MediaItem> =
+        runCatching { list(path) }.getOrDefault(emptyList())
+
+    private suspend fun listAdultSafe(path: String): List<MediaItem> =
+        runCatching { listAdult(path) }.getOrDefault(emptyList())
+
     /** Adult entries by MAL rating: "Rx - Hentai" or "R+ - Mild Nudity". */
     private fun isAdult(o: JsonObject): Boolean {
         val r = o.get("rating")?.asString?.lowercase() ?: return false
@@ -60,12 +67,23 @@ object JikanClient {
         return runCatching { block() }.getOrDefault(emptyList())
     }
 
+    /**
+     * Jikan caps each page at 25, so an adult search pages twice (up to 50) to return as much as
+     * the API allows instead of stopping at the first page. Each page is fail-safe on its own, so
+     * one flaky page never voids the other.
+     */
     suspend fun nsfwSearch(query: String): List<MediaItem> {
         val enc = java.net.URLEncoder.encode(query, "UTF-8")
-        val strict = withRetry { list("/anime?q=$enc&rating=rx&sfw=false&limit=25") }
+        val strict = withRetry {
+            listSafe("/anime?q=$enc&rating=rx&sfw=false&limit=25") +
+                listSafe("/anime?q=$enc&rating=rx&sfw=false&limit=25&page=2")
+        }
         if (strict.isNotEmpty()) return strict
         // Fallback when the filtered endpoint is down: search normally, keep adult-rated entries.
-        return withRetry { listAdult("/anime?q=$enc&limit=25") }
+        return withRetry {
+            listAdultSafe("/anime?q=$enc&limit=25") +
+                listAdultSafe("/anime?q=$enc&limit=25&page=2")
+        }
     }
 
     suspend fun nsfwTop(): List<MediaItem> {

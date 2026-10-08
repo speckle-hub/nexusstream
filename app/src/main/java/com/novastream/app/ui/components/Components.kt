@@ -45,6 +45,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchColors
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -212,6 +215,52 @@ fun GlassSurface(
         base
     }
     Box(modifier = clickable.then(modifier)) { content() }
+}
+
+/**
+ * The app's switch.
+ *
+ * Material3's defaults paint the **unchecked** track with `surfaceVariant` and the thumb with
+ * `outline` — on this theme those sit within a hair of the surrounding card, so a switch that is
+ * *off* looked invisible (and worse under True AMOLED black). These explicit colours give the off
+ * state a visible pill + thumb and the on state a solid accent track, in every theme.
+ */
+@Composable
+fun NovaSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        enabled = enabled,
+        colors = novaSwitchColors(),
+    )
+}
+
+/** Explicit [Switch] colours with a legible unchecked state (see [NovaSwitch]). */
+@Composable
+fun novaSwitchColors(): SwitchColors {
+    val nova = LocalNovaColors.current
+    return SwitchDefaults.colors(
+        checkedThumbColor = Color.White,
+        checkedTrackColor = nova.accent,
+        checkedBorderColor = Color.Transparent,
+        checkedIconColor = Color.White,
+        // The off state must stay visible against the surface it sits on.
+        uncheckedThumbColor = nova.textSecondary,
+        uncheckedTrackColor = nova.outline.copy(alpha = 0.45f),
+        uncheckedBorderColor = nova.outline,
+        uncheckedIconColor = nova.textSecondary,
+        disabledCheckedThumbColor = Color.White.copy(alpha = 0.6f),
+        disabledCheckedTrackColor = nova.accent.copy(alpha = 0.5f),
+        disabledUncheckedThumbColor = nova.textTertiary,
+        disabledUncheckedTrackColor = nova.outline.copy(alpha = 0.25f),
+        disabledUncheckedBorderColor = nova.outline.copy(alpha = 0.4f),
+    )
 }
 
 @Composable

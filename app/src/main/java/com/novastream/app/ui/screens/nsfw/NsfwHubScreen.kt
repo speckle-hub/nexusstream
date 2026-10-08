@@ -46,6 +46,7 @@ import androidx.navigation.NavHostController
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.MediaRow
+import com.novastream.app.ui.components.NovaSwitch
 import com.novastream.app.ui.components.PosterCard
 import com.novastream.app.ui.components.PosterQuickActionsSheet
 import com.novastream.app.ui.components.SearchField
@@ -169,7 +170,7 @@ private fun NsfwContent(nav: NavHostController) {
                 )
             }
             Spacer(Modifier.size(8.dp))
-            Switch(
+            NovaSwitch(
                 checked = globalSearch,
                 onCheckedChange = { scope.launch { container.settings.setNsfwGlobalSearch(it) } },
             )
