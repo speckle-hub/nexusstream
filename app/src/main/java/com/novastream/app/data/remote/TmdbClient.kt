@@ -1,6 +1,7 @@
 package com.novastream.app.data.remote
 
 import com.google.gson.JsonObject
+import com.novastream.app.BuildConfig
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
 import com.novastream.app.data.model.MetaDetail
@@ -8,7 +9,7 @@ import com.novastream.app.data.model.Video
 
 /** TMDB metadata client (movies, TV, and anime catalogues). */
 object TmdbClient {
-    const val API_KEY = "fbc3631da233efa41745ae30297ff63f"
+    val API_KEY: String = BuildConfig.TMDB_API_KEY
     private const val BASE = "https://api.themoviedb.org/3"
     const val IMG = "https://image.tmdb.org/t/p"
 
@@ -16,6 +17,7 @@ object TmdbClient {
     fun backdrop(path: String?, size: String = "w1280"): String? = path?.let { "$IMG/$size$it" }
 
     private suspend fun get(path: String, params: Map<String, String> = emptyMap()): JsonObject {
+        if (API_KEY.isBlank()) throw java.io.IOException("TMDB_API_KEY is not configured (set it in local.properties)")
         val q = (params + mapOf("api_key" to API_KEY, "language" to "en-US"))
             .entries.joinToString("&") { "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}" }
         return parseJson(httpGetCached("$BASE$path?$q")).asJsonObject

@@ -60,7 +60,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -137,8 +139,13 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
     val container = LocalContainer.current
     val external by container.settings.playerExternal.collectAsStateSafe()
     var torrentPreparing by remember { mutableStateOf(false) }
-    // Saved playback progress, drawn as a thin bar under each episode (Phase 13).
-    val watchHistory by container.libraryStore.history.collectAsState(emptyList())
+    // Resume progress, scoped to this title only — recomposing on every history tick used to
+    // rebuild the whole detail page each time playback advanced (~every 5 s).
+    val resumeEntry by remember(item.key) {
+        container.libraryStore.history
+            .map { h -> h.firstOrNull { it.item.key == item.key && it.progress in 0.01f..0.94f } }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(null)
     // Stream picker bottom sheet (Phase 13) — mirrors moved off the page body.
     var streamSheetOpen by remember { mutableStateOf(false) }
     // Subtitle track picked in the stream picker (null = let the player auto-choose). The chosen
@@ -336,9 +343,6 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
         // header app bar (see DetailHeader).
         item {
             // Watch/read progress for this title, surfaced on the floating primary pill.
-            val resumeEntry = watchHistory.firstOrNull {
-                it.item.key == item.key && it.progress in 0.01f..0.94f
-            }
             val resumeProgress = resumeEntry?.progress
             Row(
                 Modifier
@@ -556,10 +560,15 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                 }
             } else {
                 items(eps, key = { "ep:${it.id}" }) { v ->
+                    val epEntry by remember(v.id) {
+                        container.libraryStore.history
+                            .map { h -> h.firstOrNull { it.videoId == v.id } }
+                            .distinctUntilChanged()
+                    }.collectAsStateWithLifecycle(null)
                     EpisodeRow(
                         v = v,
                         selected = selectedVideo?.id == v.id,
-                        progress = watchHistory.firstOrNull { it.videoId == v.id },
+                        progress = epEntry,
                         onClick = { pickStreams(v) },
                     )
                 }

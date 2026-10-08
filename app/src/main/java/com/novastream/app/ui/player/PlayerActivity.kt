@@ -63,6 +63,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
@@ -243,10 +244,10 @@ class PlayerActivity : ComponentActivity() {
             // Honor the user's live theme here too — custom accent, Material You and AMOLED black
             // all apply inside the player instead of a hardcoded dark-violet theme (matching the
             // manga reader). The overlay text stays white because it always sits on video.
-            val themeMode by settings.theme.collectAsState(initial = "dark")
-            val accent by settings.accent.collectAsState(initial = "violet")
-            val dynamicColor by settings.dynamicColor.collectAsState(initial = false)
-            val amoledBlack by settings.amoledBlack.collectAsState(initial = false)
+            val themeMode by settings.theme.collectAsStateWithLifecycle("dark")
+            val accent by settings.accent.collectAsStateWithLifecycle("violet")
+            val dynamicColor by settings.dynamicColor.collectAsStateWithLifecycle(false)
+            val amoledBlack by settings.amoledBlack.collectAsStateWithLifecycle(false)
             val dark = when (themeMode) {
                 "light" -> false
                 "system" -> isSystemInDarkTheme()
@@ -393,9 +394,11 @@ class PlayerActivity : ComponentActivity() {
         source = source.copy(url = next)
         httpFactory.setDefaultRequestProperties(source.headers)
         Toast.makeText(this, "Switching to backup source\u2026", Toast.LENGTH_SHORT).show()
+        val resumeAt = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
         player?.let {
             it.setMediaItem(buildMediaItem())
             it.prepare()
+            it.seekTo(resumeAt)
             it.playWhenReady = true
         }
         return true

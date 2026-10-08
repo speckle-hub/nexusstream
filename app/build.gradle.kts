@@ -24,9 +24,19 @@ android {
         applicationId = "com.novastream.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         vectorDrawables { useSupportLibrary = true }
+        // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
+        val localProps = Properties().apply {
+            val f = rootProject.file("local.properties")
+            if (f.exists()) f.inputStream().use { load(it) }
+        }
+        buildConfigField(
+            "String",
+            "TMDB_API_KEY",
+            "\"${localProps.getProperty("TMDB_API_KEY") ?: System.getenv("TMDB_API_KEY") ?: ""}\"",
+        )
         ndk {
             // jlibtorrent (torrent streaming engine) ships native libs for these ABIs.
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")

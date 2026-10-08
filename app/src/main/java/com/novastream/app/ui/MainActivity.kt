@@ -29,7 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -67,12 +67,12 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         val container = (application as NovaApp).container
         setContent {
-            val theme by container.settings.theme.collectAsState(initial = "dark")
-            val accent by container.settings.accent.collectAsState(initial = "violet")
-            val dynamicColor by container.settings.dynamicColor.collectAsState(initial = false)
-            val amoledBlack by container.settings.amoledBlack.collectAsState(initial = false)
-            val flagSecure by container.settings.flagSecure.collectAsState(initial = false)
-            val appLock by container.settings.appLock.collectAsState(initial = false)
+            val theme by container.settings.theme.collectAsStateWithLifecycle("dark")
+            val accent by container.settings.accent.collectAsStateWithLifecycle("violet")
+            val dynamicColor by container.settings.dynamicColor.collectAsStateWithLifecycle(false)
+            val amoledBlack by container.settings.amoledBlack.collectAsStateWithLifecycle(false)
+            val flagSecure by container.settings.flagSecure.collectAsStateWithLifecycle(false)
+            val appLock by container.settings.appLock.collectAsStateWithLifecycle(false)
             // Screen-protection: block screenshots / recents thumbnails when enabled.
             LaunchedEffect(flagSecure) {
                 if (flagSecure) {

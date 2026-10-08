@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -64,6 +65,8 @@ import com.novastream.app.ui.theme.NovaStreamTheme
 import com.novastream.app.ui.vm.LocalContainer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -110,10 +113,10 @@ class MangaReaderActivity : ComponentActivity() {
         setContent {
             // Use the app's real theme engine here too, so Material You / custom accent / AMOLED
             // black apply inside the reader instead of a hardcoded dark-violet theme.
-            val themeMode by container.settings.theme.collectAsState(initial = "dark")
-            val accent by container.settings.accent.collectAsState(initial = "violet")
-            val dynamicColor by container.settings.dynamicColor.collectAsState(initial = false)
-            val amoledBlack by container.settings.amoledBlack.collectAsState(initial = false)
+            val themeMode by container.settings.theme.collectAsStateWithLifecycle("dark")
+            val accent by container.settings.accent.collectAsStateWithLifecycle("violet")
+            val dynamicColor by container.settings.dynamicColor.collectAsStateWithLifecycle(false)
+            val amoledBlack by container.settings.amoledBlack.collectAsStateWithLifecycle(false)
             val dark = when (themeMode) {
                 "light" -> false
                 "system" -> isSystemInDarkTheme()
@@ -213,14 +216,18 @@ private fun ReaderScreen(
     var mode by remember { mutableStateOf(ReadingMode.RTL) }
     // Bumped by the Retry button so the load effect actually re-runs for the same chapter.
     var loadAttempt by remember { mutableIntStateOf(0) }
-    val download = manager.downloads.collectAsState().value["$mangaId::$chapterId"]
+    val download by remember(mangaId, chapterId) {
+        manager.downloads
+            .map { it["$mangaId::$chapterId"] }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(manager.downloads.value["$mangaId::$chapterId"])
     val settings = LocalContainer.current.settings
-    val invert by settings.mangaInvert.collectAsState()
-    val grayscale by settings.mangaGrayscale.collectAsState()
-    val warm by settings.mangaWarm.collectAsState()
-    val crop by settings.mangaCrop.collectAsState()
-    val doublePage by settings.mangaDoublePage.collectAsState()
-    val zoomLock by settings.mangaZoomLock.collectAsState()
+    val invert by settings.mangaInvert.collectAsStateWithLifecycle()
+    val grayscale by settings.mangaGrayscale.collectAsStateWithLifecycle()
+    val warm by settings.mangaWarm.collectAsStateWithLifecycle()
+    val crop by settings.mangaCrop.collectAsStateWithLifecycle()
+    val doublePage by settings.mangaDoublePage.collectAsStateWithLifecycle()
+    val zoomLock by settings.mangaZoomLock.collectAsStateWithLifecycle()
     // Saved reading position for this chapter (restored once when the pages land).
     var initialPage by remember { mutableIntStateOf(0) }
     LaunchedEffect(chapterId) {

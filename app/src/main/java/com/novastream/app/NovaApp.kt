@@ -72,6 +72,17 @@ class NovaApp : Application(), ImageLoaderFactory {
         collectSafely(container.settings.maxParallel) {
             DownloadManagerProvider.setMaxParallel(this@NovaApp, it)
         }
+        // Some engine code reads these via `settings.x.value` (PlayerActivity, MangaReaderActivity,
+        // NewContentWorker). With WhileSubscribed(5000) sharing, a stale initial default would be
+        // returned if nothing had ever subscribed, so keep a lightweight app-lifetime subscription.
+        listOf(
+            container.settings.autoplay, container.settings.subsEnabled, container.settings.playerSpeed,
+            container.settings.audioBoost, container.settings.audioNormalize, container.settings.subtitleSyncMs,
+            container.settings.autoDeleteWatched, container.settings.subtitleScale, container.settings.subtitleColor,
+            container.settings.subtitleBg, container.settings.subtitleOffset, container.settings.preferredQuality,
+            container.settings.autoDownloadNext, container.settings.autoDownloadWifiOnly,
+            container.settings.mangaVolumeKeys, container.settings.notifyNewContent,
+        ).forEach { collectSafely(it) { } }
         // Warm up the in-app torrent engine so Real 18+ / P2P streams play instantly.
         TorrentStreamer.warmUp(this)
         registerNsfwAutoLock()

@@ -116,7 +116,11 @@ suspend fun httpPostJsonCached(
     body: String,
     maxAgeMs: Long = METADATA_TTL_MS,
 ): String {
-    val key = "POST:$url:${body.hashCode()}"
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(body.toByteArray(Charsets.UTF_8))
+        .take(16)
+        .joinToString("") { "%02x".format(it) }
+    val key = "POST:$url:$digest"
     val cache = Http.cache?.takeIf { Http.cacheEnabled }
     cache?.get(key, maxAgeMs)?.let { return it }
     val resp = httpPostJson(url, body)
