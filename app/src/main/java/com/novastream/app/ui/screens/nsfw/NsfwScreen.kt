@@ -46,6 +46,7 @@ import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.MediaRow
 import com.novastream.app.ui.components.PosterCard
 import com.novastream.app.ui.components.SearchField
+import com.novastream.app.ui.components.PosterQuickActionsSheet
 import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.theme.AppSpacing
@@ -326,5 +327,13 @@ private fun NsfwSection(
                 }
             }
         }
+    }
+
+    actionsFor?.let { target ->
+        PosterQuickActionsSheet(
+            item = target,
+            onDismiss = { actionsFor = null },
+            onOpen = { nav.navigate(Routes.detail(target)); actionsFor = null },
+        )
     }
 }
