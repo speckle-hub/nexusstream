@@ -62,6 +62,10 @@ class SettingsStore(private val context: Context) {
         val PLAYER_SPEED = floatPreferencesKey("player_speed")      // 0.5 .. 2.0
         val AUDIO_BOOST = booleanPreferencesKey("audio_boost")
         val AUDIO_NORMALIZE = booleanPreferencesKey("audio_normalize")
+        // Double-tap seek distance (ms), configurable from Settings -> Player.
+        val DOUBLE_TAP_MS = intPreferencesKey("double_tap_ms")
+        // Remembered in-player screen brightness (0..1); -1 = follow the system.
+        val PLAYER_BRIGHTNESS = floatPreferencesKey("player_brightness")
         // Manga reader
         val MANGA_INVERT = booleanPreferencesKey("manga_invert")
         val MANGA_GRAYSCALE = booleanPreferencesKey("manga_grayscale")
@@ -134,6 +138,8 @@ class SettingsStore(private val context: Context) {
     val playerSpeed: StateFlow<Float> = context.dataStore.data.map { it[Keys.PLAYER_SPEED] ?: 1f }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 1f)
     val audioBoost: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUDIO_BOOST] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val audioNormalize: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUDIO_NORMALIZE] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
+    val doubleTapMs: StateFlow<Int> = context.dataStore.data.map { it[Keys.DOUBLE_TAP_MS] ?: 10_000 }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 10_000)
+    val playerBrightness: StateFlow<Float> = context.dataStore.data.map { it[Keys.PLAYER_BRIGHTNESS] ?: -1f }.stateIn(scope, SharingStarted.WhileSubscribed(5000), -1f)
     val mangaInvert: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_INVERT] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val mangaGrayscale: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_GRAYSCALE] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val mangaCrop: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_CROP] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
@@ -206,6 +212,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setSubtitleOffset(v: Float) = context.dataStore.edit { it[Keys.SUB_OFFSET] = v.coerceIn(0f, 0.3f) }
     suspend fun setSubtitleSyncMs(v: Int) = context.dataStore.edit { it[Keys.SUB_SYNC_MS] = v.coerceIn(-10_000, 10_000) }
     suspend fun setPlayerSpeed(v: Float) = context.dataStore.edit { it[Keys.PLAYER_SPEED] = v.coerceIn(0.5f, 2f) }
+    suspend fun setDoubleTapMs(v: Int) = context.dataStore.edit { it[Keys.DOUBLE_TAP_MS] = v.coerceIn(1_000, 60_000) }
+    suspend fun setPlayerBrightness(v: Float) = context.dataStore.edit { it[Keys.PLAYER_BRIGHTNESS] = v.coerceIn(-1f, 1f) }
     suspend fun setAudioBoost(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_BOOST] = v }
     suspend fun setAudioNormalize(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_NORMALIZE] = v }
     suspend fun setMangaInvert(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_INVERT] = v }

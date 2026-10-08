@@ -64,6 +64,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.novastream.app.ui.vm.LocalContainer
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
@@ -197,7 +198,9 @@ class PlayerActivity : ComponentActivity() {
         subtitleState.value = first.name ?: first.title
         episodesState.value = episodes
         indexState.value = index
-        brightnessValue = window.attributes.screenBrightness.takeIf { it in 0f..1f } ?: 0.5f
+        brightnessValue = settings.playerBrightness.value.takeIf { it in 0f..1f }
+            ?: window.attributes.screenBrightness.takeIf { it in 0f..1f } ?: 0.5f
+        window.attributes = window.attributes.apply { screenBrightness = brightnessValue }
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(30_000, 120_000, 1_500, 3_000)
@@ -574,6 +577,7 @@ class PlayerActivity : ComponentActivity() {
         if (delta != 0f) {
             brightnessValue = (brightnessValue + delta).coerceIn(0.02f, 1f)
             window.attributes = window.attributes.apply { screenBrightness = brightnessValue }
+            lifecycleScope.launch { (application as NovaApp).container.settings.setPlayerBrightness(brightnessValue) }
         }
         return brightnessValue
     }
@@ -949,6 +953,7 @@ private fun PlayerScreen(
     var speed by remember { mutableStateOf(initialSpeed) }
     var boost by remember { mutableStateOf(audioBoostOn) }
     var normalize by remember { mutableStateOf(audioNormalizeOn) }
+    val doubleTapMs by LocalContainer.current.settings.doubleTapMs.collectAsStateWithLifecycle()
     var locked by remember { mutableStateOf(false) }
     var scaleMode by remember { mutableStateOf(ScaleMode.FIT) }
     var playerView by remember { mutableStateOf<PlayerView?>(null) }
@@ -1124,13 +1129,13 @@ private fun PlayerScreen(
                         onDragCancel = { onGestureEnd(); scheduleHudHide() },
                     )
                 }
-                // Double-tap left/right = rewind/forward 10 s with a ripple; single tap toggles UI.
+                // Double-tap left/right = rewind/forward by the configured interval, single tap toggles UI.
                 .pointerInput(locked) {
                     if (locked) return@pointerInput
                     detectTapGestures(
                         onDoubleTap = { offset ->
                             val forward = offset.x >= size.width / 2f
-                            val delta = if (forward) 10_000L else -10_000L
+                            val delta = if (forward) doubleTapMs.toLong() else -doubleTapMs.toLong()
                             val target = (player.currentPosition + delta).coerceAtLeast(0)
                             player.seekTo(target)
                             position = target

@@ -73,6 +73,10 @@ import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.Motion
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /** Unified corner radius for every poster-shaped card and its placeholder across the app. */
 val PosterShape = RoundedCornerShape(12.dp)
@@ -344,6 +348,7 @@ fun MediaRow(
 ) {
     if (items.isEmpty()) return
     val rowState = rememberLazyListState()
+    var actionsFor by remember { mutableStateOf<MediaItem?>(null) }
     Column(modifier = modifier.fillMaxWidth()) {
         SectionHeader(title, trailing = trailing)
         LazyRow(
@@ -354,12 +359,75 @@ fun MediaRow(
         ) {
             itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
                 StaggeredEntrance(index = index) {
-                    PosterCard(item, { onClick(item) }, width = cardWidth)
+                    PosterCard(item, { onClick(item) }, width = cardWidth, onLongClick = { actionsFor = item })
                 }
             }
         }
         Spacer(Modifier.height(8.dp))
     }
+    actionsFor?.let { target ->
+        PosterQuickActionsSheet(
+            item = target,
+            onDismiss = { actionsFor = null },
+            onOpen = { onClick(target); actionsFor = null },
+        )
+    }
+}
+
+/**
+ * Long-press actions for a poster: open, favourite/unfavourite, and share. Kept deliberately
+ * small — it's a shortcut, not a second detail page.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun PosterQuickActionsSheet(
+    item: MediaItem,
+    onDismiss: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    val container = com.novastream.app.ui.vm.LocalContainer.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val nova = LocalNovaColors.current
+    val favorites by container.libraryStore.favorites.collectAsStateWithLifecycle(emptyList())
+    val isFavorite = favorites.any { it.key == item.key }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text(
+                item.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = nova.textPrimary,
+                modifier = Modifier.padding(horizontal = AppSpacing.screen, vertical = 4.dp),
+            )
+            ActionRow("Open") { onOpen() }
+            ActionRow(if (isFavorite) "Remove from Favourites" else "Add to Favourites") {
+                scope.launch { container.libraryStore.toggleFavorite(item) }
+                onDismiss()
+            }
+            ActionRow("Share") {
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, item.title)
+                }
+                context.startActivity(android.content.Intent.createChooser(send, "Share"))
+                onDismiss()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(label: String, onClick: () -> Unit) {
+    val nova = LocalNovaColors.current
+    Text(
+        label,
+        style = MaterialTheme.typography.bodyLarge,
+        color = nova.textPrimary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = AppSpacing.screen, vertical = 14.dp),
+    )
 }
 
 /**

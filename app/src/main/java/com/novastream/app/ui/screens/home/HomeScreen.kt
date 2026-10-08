@@ -106,6 +106,9 @@ fun HomeScreen(nav: NavHostController) {
 
     // Entry awaiting confirmation before it is dropped from Continue Watching.
     var pendingRemoval by remember { mutableStateOf<WatchEntry?>(null) }
+    // Row-level "Clear" confirmations (watching vs reading keep their own progress).
+    var clearWatching by remember { mutableStateOf(false) }
+    var clearReading by remember { mutableStateOf(false) }
 
     // Keeps the Home scroll position when returning from another tab or a detail screen.
     val listState = rememberLazyListState()
@@ -147,6 +150,7 @@ fun HomeScreen(nav: NavHostController) {
                     entries = continueWatching,
                     onClick = { nav.navigate(Routes.detail(it.item)) },
                     onRemove = { pendingRemoval = it },
+                    onClearAll = { clearWatching = true },
                 )
             }
         }
@@ -161,6 +165,7 @@ fun HomeScreen(nav: NavHostController) {
                     entries = continueReading,
                     onClick = { nav.navigate(Routes.detail(it.item)) },
                     onRemove = { pendingRemoval = it },
+                    onClearAll = { clearReading = true },
                 )
             }
         }
@@ -226,6 +231,23 @@ fun HomeScreen(nav: NavHostController) {
                 pendingRemoval = null
             },
             onDismiss = { pendingRemoval = null },
+        )
+    }
+
+    if (clearWatching) {
+        ConfirmRemoveDialog(
+            title = "Clear Continue Watching?",
+            message = "All in-progress video titles and their saved progress will be removed.",
+            onConfirm = { vm.clearContinueWatching(); clearWatching = false },
+            onDismiss = { clearWatching = false },
+        )
+    }
+    if (clearReading) {
+        ConfirmRemoveDialog(
+            title = "Clear Continue Reading?",
+            message = "All in-progress reading titles and their saved progress will be removed.",
+            onConfirm = { vm.clearContinueReading(); clearReading = false },
+            onDismiss = { clearReading = false },
         )
     }
     }
@@ -470,10 +492,16 @@ private fun ContinueWatchingRow(
     onRemove: (WatchEntry) -> Unit,
     title: String = "Continue Watching",
     reading: Boolean = false,
+    onClearAll: (() -> Unit)? = null,
 ) {
     val nova = LocalNovaColors.current
     Column(Modifier.fillMaxWidth()) {
-        SectionHeader(title)
+        SectionHeader(
+            title,
+            trailing = if (onClearAll != null) {
+                { androidx.compose.material3.TextButton(onClick = onClearAll) { Text("Clear") } }
+            } else null,
+        )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),

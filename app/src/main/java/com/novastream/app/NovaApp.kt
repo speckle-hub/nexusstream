@@ -82,6 +82,7 @@ class NovaApp : Application(), ImageLoaderFactory {
             container.settings.subtitleBg, container.settings.subtitleOffset, container.settings.preferredQuality,
             container.settings.autoDownloadNext, container.settings.autoDownloadWifiOnly,
             container.settings.mangaVolumeKeys, container.settings.notifyNewContent,
+            container.settings.playerBrightness, container.settings.doubleTapMs,
         ).forEach { collectSafely(it) { } }
         // Warm up the in-app torrent engine so Real 18+ / P2P streams play instantly.
         TorrentStreamer.warmUp(this)
