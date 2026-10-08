@@ -36,7 +36,7 @@ export function Hero() {
               className="border-accent/40 bg-accent/10 px-3 py-1 text-accent-soft"
               startContent={<Sparkle className="h-3.5 w-3.5" />}
             >
-              v1.4.0 · Free & open source
+              v1.4.1 · Free & open source
             </Chip>
           </m.div>
 

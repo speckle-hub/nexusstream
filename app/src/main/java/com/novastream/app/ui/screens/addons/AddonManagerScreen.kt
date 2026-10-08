@@ -55,6 +55,7 @@ import com.novastream.app.data.model.CloudStreamExt
 import com.novastream.app.data.model.MangaExt
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.GlassSurface
+import com.novastream.app.ui.components.NovaSwitch
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.vm.AddonViewModel
 import com.novastream.app.ui.vm.collectAsStateSafe
@@ -165,7 +166,7 @@ private fun StremioTab(vm: AddonViewModel) {
                         }
                     }
                     Spacer(Modifier.width(8.dp))
-                    Switch(checked = addon.enabled, onCheckedChange = { vm.setEnabled(addon.id, it) })
+                    NovaSwitch(checked = addon.enabled, onCheckedChange = { vm.setEnabled(addon.id, it) })
                 }
             }
         }

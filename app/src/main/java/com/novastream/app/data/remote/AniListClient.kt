@@ -58,7 +58,8 @@ object AniListClient {
             if (!genre.isNullOrBlank()) append(", genre: \"$genre\"")
             append(", sort: $sort")
         }
-        return "{ Page(page: $page, perPage: 40) { media($args) { $FIELDS } } }"
+        // perPage 50 is AniList's maximum, so browse/search rows come back as large as allowed.
+        return "{ Page(page: $page, perPage: 50) { media($args) { $FIELDS } } }"
     }
 
     private suspend fun exec(query: String, isNsfw: Boolean = false): List<MediaItem> {

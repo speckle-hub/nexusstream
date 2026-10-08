@@ -24,14 +24,15 @@ object AppSpacing {
     val inset = 12.dp
 
     /**
-     * Poster width for every **horizontal media rail** (Home, Browse → Manga, NSFW).
+     * Poster width for every **horizontal media rail** (Home, Browse → Manga/Anime, NSFW).
      *
-     * `MediaRow` used to be called with its 132 dp default on Manga/NSFW while Home passed 150 dp by
-     * hand, so the same poster was a different size depending on which screen you were on — the
-     * NSFW/Browse rails looked narrow next to the Home feed. Every rail must pass this token so a
-     * rail card is identical everywhere (and no screen hardcodes a card width again).
+     * Every rail passes this token so a rail card is the same size on every screen. It was 150 dp,
+     * but that only fit **two** cards across a 360 dp phone (`(360 − 32) / 150 ≈ 2.2`) while the
+     * Search/grid posters sat at ~101 dp three-across — so the Browse → Anime / NSFW rails read as
+     * "2 rows" next to Search's 3. 100 dp matches the 3-across Search grid density on phones
+     * (`3·100 + 2·12 ≤ 360 − 32`) while the rails still widen on larger screens via the padding.
      */
-    val railCard = 150
+    val railCard = 100
 
     /**
      * Minimum width of a poster cell; drives `GridCells.Adaptive` so grids adapt to the screen.

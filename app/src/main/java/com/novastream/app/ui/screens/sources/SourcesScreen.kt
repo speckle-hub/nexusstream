@@ -41,6 +41,7 @@ import com.novastream.app.data.integrations.SourceProbe
 import com.novastream.app.data.integrations.SourceTester
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.GlassSurface
+import com.novastream.app.ui.components.NovaSwitch
 import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.vm.LocalContainer
@@ -146,7 +147,7 @@ fun SourcesScreen(nav: NavHostController) {
                                         color = nova.textTertiary,
                                     )
                                 }
-                                Switch(checked = enabled, onCheckedChange = { setEnabled(desc.id, it) })
+                                NovaSwitch(checked = enabled, onCheckedChange = { setEnabled(desc.id, it) })
                             }
                             Spacer(Modifier.padding(top = 6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {

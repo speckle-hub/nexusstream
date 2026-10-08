@@ -224,34 +224,33 @@ class CatalogRepository(
     }
 
     /**
-     * NSFW-anime search. **AniList is the fast primary source** and the answer for any title it
-     * knows; Jikan is consulted only when AniList returns nothing (bounded), and the installed
-     * Stremio NSFW add-ons are a pure **fallback** used only when both built-ins come back empty
-     * — the same built-ins-authoritative rule Real 18+ already uses (ISSUE-9). That is what keeps
-     * a normal search at AniList speed instead of waiting on add-on hosts: every hop is bounded
-     * ([ANILIST_TIMEOUT_MS], [JIKAN_TIMEOUT_MS], [ADDON_TIMEOUT_MS]), so even the degraded path
-     * returns in seconds rather than the minute it could previously stall for.
+     * NSFW-anime search. **Every source is queried together and merged** so a search returns
+     * everything available — AniList, Jikan and the installed NSFW Stremio add-ons — instead of
+     * stopping at the first source that answers (which used to cap a search at AniList's page).
+     *
+     * The three hops run concurrently and each keeps its own hard timeout ([ANILIST_TIMEOUT_MS],
+     * [JIKAN_TIMEOUT_MS], [ADDON_TIMEOUT_MS]), so the whole search costs the slowest hop, not their
+     * sum. Results are merged in built-in-first order and de-duplicated by key.
      */
-    private suspend fun searchNsfwAnime(query: String): List<MediaItem> {
-        val primary = runCatching {
-            withTimeout(ANILIST_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
-        }.getOrDefault(emptyList())
+    private suspend fun searchNsfwAnime(query: String): List<MediaItem> = coroutineScope {
+        val aniList = async {
+            runCatching {
+                withTimeout(ANILIST_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
+            }.getOrDefault(emptyList())
+        }
+        val jikan = async {
+            runCatching {
+                withTimeout(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }
+            }.getOrDefault(emptyList())
+        }
+        val addons = async {
+            runCatching {
+                withTimeout(ADDON_TIMEOUT_MS) { addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true) }
+            }.getOrDefault(emptyList())
+        }
+        (aniList.await() + jikan.await() + addons.await())
             .filter { it.type == MediaType.NSFW_ANIME }
             .distinctBy { it.key }
-        if (primary.isNotEmpty()) return primary
-
-        val jikan = runCatching {
-            withTimeout(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }
-        }.getOrDefault(emptyList())
-            .filter { it.type == MediaType.NSFW_ANIME }
-            .distinctBy { it.key }
-        if (jikan.isNotEmpty()) return jikan
-
-        // Built-ins found nothing: only then do the NSFW add-ons get a (capped) say.
-        val addons = runCatching {
-            withTimeout(ADDON_TIMEOUT_MS) { addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true) }
-        }.getOrDefault(emptyList())
-        return addons.filter { it.type == MediaType.NSFW_ANIME }.distinctBy { it.key }
     }
 
     /**
@@ -304,7 +303,8 @@ class CatalogRepository(
                 results += runCatching { AniListClient.nsfwSearch(query) }.getOrDefault(emptyList())
                 results += runCatching { JikanClient.nsfwSearch(query) }.getOrDefault(emptyList())
             }
-            MediaType.NSFW_MANGA -> results += runCatching { MangaDexClient.search(query, nsfw = true) }.getOrDefault(emptyList())
+            // limit = 100 (MangaDex's maximum) so an adult search isn't cut short at the old 30.
+            MediaType.NSFW_MANGA -> results += runCatching { MangaDexClient.search(query, nsfw = true, limit = 100) }.getOrDefault(emptyList())
             MediaType.REAL -> Unit // Never reached: search() routes REAL through searchReal().
         }
 

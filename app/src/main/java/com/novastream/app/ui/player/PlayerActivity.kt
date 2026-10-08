@@ -93,6 +93,7 @@ import com.novastream.app.data.model.SubtitleTrack
 import com.novastream.app.data.model.Video
 import com.novastream.app.data.remote.Http
 import com.novastream.app.data.model.WatchEntry
+import com.novastream.app.ui.components.NovaSwitch
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.NovaStreamTheme
 import kotlinx.coroutines.Job
@@ -1805,14 +1806,14 @@ private fun SpeedAudioSheet(
                         Text("Audio boost", color = nova.textPrimary)
                         Text("Loudness enhancer for quiet dialogue", color = nova.textSecondary, fontSize = 12.sp)
                     }
-                    Switch(checked = boost, onCheckedChange = onBoost)
+                    NovaSwitch(checked = boost, onCheckedChange = onBoost)
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Normalize volume", color = nova.textPrimary)
                         Text("Even out loud and quiet scenes", color = nova.textSecondary, fontSize = 12.sp)
                     }
-                    Switch(checked = normalize, onCheckedChange = onNormalize)
+                    NovaSwitch(checked = normalize, onCheckedChange = onNormalize)
                 }
             }
     }
