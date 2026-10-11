@@ -361,26 +361,29 @@ fun PosterCard(
             // target is the 48dp minimum via `minimumInteractiveComponentSize` — the previous 24dp
             // target was well below the accessibility floor for a destructive action.
             onRemove?.let { remove ->
-                // The visible chip stays 24dp so it doesn't cover the artwork, but the *touch* target
-                // is a full 48dp (the accessibility minimum) centred on it — the previous 24dp
-                // target was well below the floor for a destructive action.
+                // Compact corner hit area: the old 48dp box at 6dp inset covered most of the poster's
+                // top-left corner and swallowed taps meant for opening the title. The touch target is
+                // now a 40dp box tucked into the corner (2dp inset) with the glyph top-start aligned,
+                // so the tappable region hugs the corner instead of spreading over the artwork. The
+                // visible chip stays small (22dp) to keep the art uncovered.
                 Box(
                     Modifier
                         .align(Alignment.TopStart)
-                        .padding(6.dp)
-                        .size(48.dp)
+                        .padding(2.dp)
+                        .size(40.dp)
                         .clip(RoundedCornerShape(50))
                         .clickable { remove() },
-                    contentAlignment = Alignment.Center,
+                    contentAlignment = Alignment.TopStart,
                 ) {
                     Box(
                         Modifier
-                            .size(24.dp)
+                            .padding(4.dp)
+                            .size(22.dp)
                             .clip(RoundedCornerShape(50))
                             .background(Color.Black.copy(alpha = 0.62f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Filled.Close, "Remove", tint = Color.White, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Filled.Close, "Remove", tint = Color.White, modifier = Modifier.size(12.dp))
                     }
                 }
             }
@@ -452,7 +455,8 @@ fun MediaRow(
             contentPadding = PaddingValues(horizontal = AppSpacing.screen),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
         ) {
-            itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
+            val uniqueItems = items.distinctBy { it.key }
+            itemsIndexed(uniqueItems, key = { _, item -> item.key }) { index, item ->
                 StaggeredEntrance(index = index) {
                     PosterCard(item, { onClick(item) }, width = cardWidth, onLongClick = { actionsFor = item })
                 }

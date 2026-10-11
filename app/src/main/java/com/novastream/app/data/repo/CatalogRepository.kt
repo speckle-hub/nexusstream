@@ -25,7 +25,7 @@ class CatalogRepository(
 ) {
 
     private suspend fun safeRow(title: String, type: MediaType, block: suspend () -> List<MediaItem>): CatalogRow? =
-        runCatching { block() }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { CatalogRow(title, it, type = type) }
+        runCatching { block() }.getOrNull()?.distinctBy { it.key }?.takeIf { it.isNotEmpty() }?.let { CatalogRow(title, it, type = type) }
 
     // ---- Home ---------------------------------------------------------------
 
@@ -111,6 +111,7 @@ class CatalogRepository(
     /** One built-in NSFW-anime row under [ROW_TIMEOUT_MS]; a slow or failing source just drops its row. */
     private suspend fun nsfwRow(title: String, block: suspend () -> List<MediaItem>): CatalogRow? =
         runCatching { withTimeout(ROW_TIMEOUT_MS) { block() } }.getOrNull()
+            ?.distinctBy { it.key }
             ?.takeIf { it.isNotEmpty() }
             ?.let { CatalogRow(title, it, type = MediaType.NSFW_ANIME) }
 
@@ -171,7 +172,7 @@ class CatalogRepository(
                         // hung add-on degrades its own row instead of gating the whole NSFW tab.
                         val items = withTimeout(CATALOG_TIMEOUT_MS) {
                             StremioClient.fetchCatalog(addon, cat.type, cat.id)
-                        }
+                        }.distinctBy { it.key }
                         if (items.isEmpty()) null
                         else CatalogRow("${addon.name} \u00b7 ${cat.name}", items, addon.id, cat.id, section)
                     }.getOrNull()
@@ -384,7 +385,7 @@ class CatalogRepository(
                         runCatching {
                             val items = withTimeout(CATALOG_TIMEOUT_MS) {
                                 StremioClient.fetchCatalog(addon, cat.type, cat.id)
-                            }
+                            }.distinctBy { it.key }
                             if (items.isEmpty()) null
                             else CatalogRow("${addon.name} · ${cat.name}", items, addon.id, cat.id, StremioClient.mapType(cat.type, addon))
                         }.getOrNull()
@@ -397,5 +398,5 @@ class CatalogRepository(
     suspend fun loadCatalog(addon: Addon, catalog: CatalogDef, extra: Map<String, String> = emptyMap()): List<MediaItem> =
         runCatching {
             withTimeout(CATALOG_TIMEOUT_MS) { StremioClient.fetchCatalog(addon, catalog.type, catalog.id, extra) }
-        }.getOrDefault(emptyList())
+        }.getOrDefault(emptyList()).distinctBy { it.key }
 }

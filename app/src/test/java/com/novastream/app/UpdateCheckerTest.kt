@@ -1,9 +1,13 @@
 package com.novastream.app
 
+import com.novastream.app.data.integrations.DownloadProgress
 import com.novastream.app.data.integrations.ReleaseInfo
 import com.novastream.app.data.integrations.UpdateChecker
+import com.novastream.app.data.integrations.downloadProgressLabel
+import com.novastream.app.data.integrations.formatUpdateBytes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -58,5 +62,50 @@ class UpdateCheckerTest {
     fun `missing segments compare as zero`() {
         assertTrue(release("v1.3.1").isNewerThan("1.3"))
         assertFalse(release("v1.3").isNewerThan("1.3.0"))
+    }
+
+    // ---- download progress --------------------------------------------------------
+
+    @Test
+    fun `fraction and percent track bytes over total`() {
+        val half = DownloadProgress(50, 100)
+        assertEquals(0.5f, half.fraction!!, 0.001f)
+        assertEquals(50, half.percent)
+        assertEquals(0, DownloadProgress(0, 100).percent)
+        assertEquals(100, DownloadProgress(100, 100).percent)
+    }
+
+    @Test
+    fun `progress clamps overruns and guards bad totals`() {
+        assertEquals(100, DownloadProgress(150, 100).percent)
+        assertNull(DownloadProgress(10, null).fraction)
+        assertNull(DownloadProgress(10, null).percent)
+        assertNull(DownloadProgress(10, 0).fraction)
+        assertNull(DownloadProgress(10, -4).percent)
+        assertEquals(0, DownloadProgress(-5, 100).percent)
+    }
+
+    @Test
+    fun `byte formatter uses MB KB B bands`() {
+        assertEquals("38.3 MB", formatUpdateBytes(38_330_038))
+        assertEquals("512 KB", formatUpdateBytes(512_000))
+        assertEquals("128 B", formatUpdateBytes(128))
+    }
+
+    @Test
+    fun `label shows percent and byte stats when total is known`() {
+        assertEquals(
+            "Downloading update… 45% (18.2 MB / 40.5 MB)",
+            downloadProgressLabel(DownloadProgress(18_200_000, 40_500_000)),
+        )
+    }
+
+    @Test
+    fun `label degrades gracefully without a total`() {
+        assertEquals(
+            "Downloading update… 18.2 MB",
+            downloadProgressLabel(DownloadProgress(18_200_000, null)),
+        )
+        assertEquals("Downloading update…", downloadProgressLabel(null))
     }
 }

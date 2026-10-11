@@ -326,8 +326,13 @@ private fun ActivityGrid(
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.item),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader("Continue Watching", modifier = Modifier.zIndex(10f))
+        // Only show the header when it has content (or when the whole section is empty and the
+        // empty state below needs its anchor). Without this guard a manga-only user saw a
+        // dangling "Continue Watching" header with no cards under it.
+        if (watched.isNotEmpty() || (watched.isEmpty() && reading.isEmpty())) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionHeader("Continue Watching", modifier = Modifier.zIndex(10f))
+            }
         }
         if (watched.isEmpty() && reading.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {

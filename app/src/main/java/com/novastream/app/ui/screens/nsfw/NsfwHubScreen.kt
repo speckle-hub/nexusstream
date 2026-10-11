@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -81,7 +82,9 @@ fun NsfwHubScreen(nav: NavHostController) {
     val biometric by container.settings.nsfwBiometric.collectAsStateSafe()
     val unlocked by container.settings.nsfwUnlocked.collectAsStateSafe()
 
-    Column(Modifier.fillMaxSize()) {
+    // navigationBarsPadding: route-only hub with no bottom tab bar (LocalFloatingNavBottomPadding
+    // is 0 here), so the grid must clear the system gesture/nav bar on its own.
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         NsfwHubHeader(nav)
         if (lock && !unlocked) {
             NsfwLockScreen(

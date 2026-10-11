@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -77,7 +78,8 @@ fun AddonManagerScreen(nav: NavHostController) {
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    // navigationBarsPadding: pushed destination with no bottom tab bar.
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, start = 8.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

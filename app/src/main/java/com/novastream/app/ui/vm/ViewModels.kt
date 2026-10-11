@@ -653,7 +653,19 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
             streamsLoading.value = true
             seasons.value = emptyList(); seasonEpisodes.value = emptyMap(); expandedSeason.value = null
             val d = runCatching { container.metadataRepository.detail(item) }.getOrNull()
-            detail.value = d
+            val effective = d ?: MetaDetail(
+                id = item.id,
+                type = item.stremioType ?: if (item.type == MediaType.SERIES) "series" else "movie",
+                name = item.title.ifBlank { "Unknown" },
+                poster = item.poster,
+                background = item.backdrop ?: item.poster,
+                description = item.description,
+                releaseInfo = item.year,
+                imdbRating = item.rating?.let { String.format("%.1f", it) },
+                genres = item.genres,
+                addonId = item.addonId,
+            )
+            detail.value = effective
             if (d != null) {
                 related.value = runCatching { container.metadataRepository.related(item, d) }.getOrDefault(emptyList())
                 if (item.type == MediaType.MANGA || item.type == MediaType.NSFW_MANGA) {
@@ -661,13 +673,12 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
                         MangaDexClient.chapters(item.id, nsfw = item.type == MediaType.NSFW_MANGA)
                     }.getOrDefault(emptyList())
                 }
-                buildSeasons(d)
-                // AniList ships no episode list for adult titles. The built-in hentai sources
-                // know the real episodes, so they fill it in — everything else on this page
-                // (poster, synopsis, cast, related) still comes from AniList.
-                if (item.type == MediaType.NSFW_ANIME && d.videos.isEmpty()) fillBuiltInEpisodes()
-            } else {
-                error.value = "Couldn't load metadata for this title. Check your connection and try again."
+            }
+            runCatching { buildSeasons(effective) }.onFailure {
+                fallbackBasicSeasons(effective)
+            }
+            if (d != null && item.type == MediaType.NSFW_ANIME && d.videos.isEmpty()) {
+                runCatching { fillBuiltInEpisodes() }
             }
             loading.value = false
             // A movie resolves streams for the title itself. A series resolves them for whichever
@@ -708,7 +719,9 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
                 totalEpisodes = d.totalEpisodes ?: found.episodes.size,
             )
             detail.value = updated
-            buildSeasons(updated)
+            runCatching { buildSeasons(updated) }.onFailure {
+                fallbackBasicSeasons(updated)
+            }
             return
         }
     }
@@ -720,43 +733,57 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
         if (!isSeries) return
 
         // Real 18+ must never resolve seasons via TMDB; use only the add-on's own episode list.
-        val tmdbId = if (item.type == MediaType.REAL) null else when {
-            d.addonId == "tmdb" && item.addonId == "tmdb" -> item.id
-            d.addonId == "tmdb" && d.id.isNotEmpty() && d.id.all { it.isDigit() } -> d.id
-            d.id.startsWith("tt") -> TmdbClient.findByImdb(d.id)?.takeIf { it.first == MediaType.SERIES }?.second
-            item.id.startsWith("tt") -> TmdbClient.findByImdb(item.id)?.takeIf { it.first == MediaType.SERIES }?.second
-            else -> null
-        }
+        var tmdbBuilt = false
+        if (item.type != MediaType.REAL && TmdbClient.isConfigured) {
+            runCatching {
+                val tmdbId = when {
+                    d.addonId == "tmdb" && item.addonId == "tmdb" -> item.id
+                    d.addonId == "tmdb" && d.id.isNotEmpty() && d.id.all { it.isDigit() } -> d.id
+                    d.id.startsWith("tt") -> TmdbClient.findByImdb(d.id)?.takeIf { it.first == MediaType.SERIES }?.second
+                    item.id.startsWith("tt") -> TmdbClient.findByImdb(item.id)?.takeIf { it.first == MediaType.SERIES }?.second
+                    else -> null
+                }
 
-        if (tmdbId != null) {
-            tmdbSeriesId = tmdbId
-            tmdbDrivenSeasons.value = true
-            // Episode counts from the raw TMDB seasons array (when available).
-            val counts = HashMap<Int, Int>()
-            d.raw?.getAsJsonArray("seasons")?.forEach { el ->
-                if (el.isJsonObject) {
-                    val so = el.asJsonObject
-                    val sn = so.get("season_number")?.takeIf { it.isJsonPrimitive }?.asInt
-                    val ec = so.get("episode_count")?.takeIf { it.isJsonPrimitive }?.asInt
-                    if (sn != null && sn > 0 && ec != null) counts[sn] = ec
+                if (tmdbId != null) {
+                    tmdbSeriesId = tmdbId
+                    tmdbDrivenSeasons.value = true
+                    // Episode counts from the raw TMDB seasons array (when available).
+                    val counts = HashMap<Int, Int>()
+                    val seasonsArr = d.raw?.get("seasons")?.takeIf { it.isJsonArray }?.asJsonArray
+                    seasonsArr?.forEach { el ->
+                        if (el.isJsonObject) {
+                            val so = el.asJsonObject
+                            val sn = so.get("season_number")?.takeIf { it.isJsonPrimitive }?.asInt
+                            val ec = so.get("episode_count")?.takeIf { it.isJsonPrimitive }?.asInt
+                            if (sn != null && sn > 0 && ec != null) counts[sn] = ec
+                        }
+                    }
+                    val list = d.videos.filter { (it.season ?: 0) > 0 }
+                        .distinctBy { it.season }
+                        .map { v ->
+                            val sn = v.season!!
+                            SeasonInfo(sn, v.title ?: "Season $sn", v.thumbnail, counts[sn])
+                        }
+                        .ifEmpty {
+                            // Fall back to the raw seasons array when the client emitted no placeholders.
+                            counts.keys.sorted().map { sn -> SeasonInfo(sn, "Season $sn", null, counts[sn]) }
+                        }
+                    if (list.isNotEmpty()) {
+                        seasons.value = list
+                        list.firstOrNull()?.season?.let { selectSeason(it) }
+                        tmdbBuilt = true
+                    }
                 }
             }
-            val list = d.videos.filter { (it.season ?: 0) > 0 }
-                .distinctBy { it.season }
-                .map { v ->
-                    val sn = v.season!!
-                    SeasonInfo(sn, v.title ?: "Season $sn", v.thumbnail, counts[sn])
-                }
-                .ifEmpty {
-                    // Fall back to the raw seasons array when the client emitted no placeholders.
-                    counts.keys.sorted().map { sn -> SeasonInfo(sn, "Season $sn", null, counts[sn]) }
-                }
-            seasons.value = list
-            list.firstOrNull()?.season?.let { selectSeason(it) }
-            return
         }
 
+        if (tmdbBuilt) return
+
         // Stremio-style: real episodes, grouped by season.
+        fallbackBasicSeasons(d)
+    }
+
+    private fun fallbackBasicSeasons(d: MetaDetail) {
         tmdbDrivenSeasons.value = false
         val eps = d.videos
         val grouped = eps.filter { (it.season ?: 0) > 0 }.groupBy { it.season!! }

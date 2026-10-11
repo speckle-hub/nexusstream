@@ -1,5 +1,6 @@
 package com.novastream.app.data.remote
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.novastream.app.BuildConfig
 import com.novastream.app.data.model.MediaItem
@@ -10,6 +11,7 @@ import com.novastream.app.data.model.Video
 /** TMDB metadata client (movies, TV, and anime catalogues). */
 object TmdbClient {
     val API_KEY: String = BuildConfig.TMDB_API_KEY
+    val isConfigured: Boolean get() = API_KEY.isNotBlank()
     private const val BASE = "https://api.themoviedb.org/3"
     const val IMG = "https://image.tmdb.org/t/p"
 
@@ -20,35 +22,39 @@ object TmdbClient {
         if (API_KEY.isBlank()) throw java.io.IOException("TMDB_API_KEY is not configured (set it in local.properties)")
         val q = (params + mapOf("api_key" to API_KEY, "language" to "en-US"))
             .entries.joinToString("&") { "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}" }
-        return parseJson(httpGetCached("$BASE$path?$q")).asJsonObject
+        val parsed = parseJson(httpGetCached("$BASE$path?$q"))
+        if (!parsed.isJsonObject) throw java.io.IOException("Malformed TMDB response for $path: expected JSON object")
+        return parsed.asJsonObject
     }
 
     private fun item(o: JsonObject, fallbackType: MediaType): MediaItem? {
-        val id = o.get("id")?.asInt?.toString() ?: return null
-        val mt = o.get("media_type")?.asString
+        val id = o.get("id")?.takeIf { it.isJsonPrimitive }?.asInt?.toString() ?: return null
+        val mt = o.get("media_type")?.takeIf { it.isJsonPrimitive }?.asString
         val type = when (mt) {
             "movie" -> MediaType.MOVIE
             "tv" -> MediaType.SERIES
             else -> fallbackType
         }
-        val title = o.get("title")?.asString ?: o.get("name")?.asString ?: return null
-        val date = o.get("release_date")?.asString ?: o.get("first_air_date")?.asString
+        val title = o.get("title")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: o.get("name")?.takeIf { it.isJsonPrimitive }?.asString ?: return null
+        val date = o.get("release_date")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: o.get("first_air_date")?.takeIf { it.isJsonPrimitive }?.asString
         return MediaItem(
             id = id,
             type = type,
             title = title,
-            poster = poster(o.get("poster_path")?.asString),
-            backdrop = backdrop(o.get("backdrop_path")?.asString),
+            poster = poster(o.get("poster_path")?.takeIf { it.isJsonPrimitive }?.asString),
+            backdrop = backdrop(o.get("backdrop_path")?.takeIf { it.isJsonPrimitive }?.asString),
             year = date?.take(4),
-            rating = o.get("vote_average")?.asDouble,
-            description = o.get("overview")?.asString,
+            rating = o.get("vote_average")?.takeIf { it.isJsonPrimitive }?.asDouble,
+            description = o.get("overview")?.takeIf { it.isJsonPrimitive }?.asString,
             addonId = "tmdb",
             addonName = "TMDB",
         )
     }
 
     private fun parseList(root: JsonObject, fallbackType: MediaType): List<MediaItem> {
-        val arr = root.getAsJsonArray("results") ?: return emptyList()
+        val arr = root.optJsonArray("results") ?: return emptyList()
         return arr.mapNotNull { if (it.isJsonObject) item(it.asJsonObject, fallbackType) else null }
     }
 
@@ -94,11 +100,11 @@ object TmdbClient {
      * animation genre (16) client-side instead of sending a parameter that does nothing.
      */
     suspend fun searchAnime(query: String): List<MediaItem> {
-        val arr = get("/search/tv", mapOf("query" to query)).getAsJsonArray("results") ?: return emptyList()
+        val arr = get("/search/tv", mapOf("query" to query)).optJsonArray("results") ?: return emptyList()
         return arr.mapNotNull { el ->
             if (!el.isJsonObject) return@mapNotNull null
             val o = el.asJsonObject
-            val isAnimation = o.getAsJsonArray("genre_ids")?.any { it.asInt == 16 } ?: false
+            val isAnimation = o.optJsonArray("genre_ids")?.any { it.isJsonPrimitive && it.asInt == 16 } ?: false
             if (isAnimation) item(o, MediaType.ANIME) else null
         }
     }
@@ -107,7 +113,7 @@ object TmdbClient {
     suspend fun imdbId(type: MediaType, tmdbId: String): String? {
         val path = if (type == MediaType.MOVIE) "/movie/$tmdbId/external_ids" else "/tv/$tmdbId/external_ids"
         return try {
-            get(path).get("imdb_id")?.takeIf { !it.isJsonNull }?.asString
+            get(path).get("imdb_id")?.takeIf { !it.isJsonNull && it.isJsonPrimitive }?.asString
         } catch (e: Exception) {
             null
         }
@@ -120,10 +126,10 @@ object TmdbClient {
     suspend fun findByImdb(imdbId: String): Pair<MediaType, String>? {
         if (!imdbId.startsWith("tt")) return null
         val root = runCatching { get("/find/$imdbId", mapOf("external_source" to "imdb_id")) }.getOrNull() ?: return null
-        root.getAsJsonArray("tv_results")?.firstOrNull()?.takeIf { it.isJsonObject }
+        root.optJsonArray("tv_results")?.firstOrNull()?.takeIf { it.isJsonObject }
             ?.asJsonObject?.get("id")?.takeIf { it.isJsonPrimitive }?.asInt
             ?.let { return MediaType.SERIES to it.toString() }
-        root.getAsJsonArray("movie_results")?.firstOrNull()?.takeIf { it.isJsonObject }
+        root.optJsonArray("movie_results")?.firstOrNull()?.takeIf { it.isJsonObject }
             ?.asJsonObject?.get("id")?.takeIf { it.isJsonPrimitive }?.asInt
             ?.let { return MediaType.MOVIE to it.toString() }
         return null
@@ -170,82 +176,85 @@ object TmdbClient {
             path,
             mapOf("append_to_response" to "credits,external_ids,videos,recommendations,alternative_titles"),
         )
-        val title = root.get("title")?.asString ?: root.get("name")?.asString ?: return null
+        val title = root.get("title")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: root.get("name")?.takeIf { it.isJsonPrimitive }?.asString ?: return null
 
-        val castMembers = root.getAsJsonObject("credits")?.getAsJsonArray("cast")?.take(20)?.mapNotNull {
+        val castMembers = root.optJsonObject("credits")?.optJsonArray("cast")?.take(20)?.mapNotNull {
             if (!it.isJsonObject) return@mapNotNull null
             val o = it.asJsonObject
-            val name = o.get("name")?.asString ?: return@mapNotNull null
+            val name = o.get("name")?.takeIf { n -> n.isJsonPrimitive }?.asString ?: return@mapNotNull null
             com.novastream.app.data.model.CastMember(
                 name = name,
-                character = o.get("character")?.takeIf { c -> !c.isJsonNull }?.asString,
-                image = poster(o.get("profile_path")?.takeIf { p -> !p.isJsonNull }?.asString, "w185"),
+                character = o.get("character")?.takeIf { c -> !c.isJsonNull && c.isJsonPrimitive }?.asString,
+                image = poster(o.get("profile_path")?.takeIf { p -> !p.isJsonNull && p.isJsonPrimitive }?.asString, "w185"),
             )
         } ?: emptyList()
         val cast = castMembers.map { it.name }
 
-        val crew = root.getAsJsonObject("credits")?.getAsJsonArray("crew")?.filter {
-            it.isJsonObject && it.asJsonObject.get("job")?.asString == "Director"
-        }?.mapNotNull { it.asJsonObject.get("name")?.asString } ?: emptyList()
+        val crew = root.optJsonObject("credits")?.optJsonArray("crew")?.filter {
+            it.isJsonObject && it.asJsonObject.get("job")?.takeIf { j -> j.isJsonPrimitive }?.asString == "Director"
+        }?.mapNotNull { it.asJsonObject.get("name")?.takeIf { n -> n.isJsonPrimitive }?.asString } ?: emptyList()
 
         val videos = mutableListOf<Video>()
-        val imdb = root.getAsJsonObject("external_ids")?.get("imdb_id")?.takeIf { !it.isJsonNull }?.asString
+        val imdb = root.optJsonObject("external_ids")?.get("imdb_id")?.takeIf { !it.isJsonNull && it.isJsonPrimitive }?.asString
         if (!isMovie) {
-            val seasons = root.getAsJsonArray("seasons")
+            val seasons = root.optJsonArray("seasons")
             seasons?.forEach { s ->
                 if (!s.isJsonObject) return@forEach
                 val so = s.asJsonObject
-                val sn = so.get("season_number")?.asInt ?: return@forEach
+                val sn = so.get("season_number")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@forEach
                 if (sn <= 0) return@forEach
                 videos.add(
                     Video(
                         id = "$imdb:$sn:1",
-                        title = so.get("name")?.asString,
+                        title = so.get("name")?.takeIf { it.isJsonPrimitive }?.asString,
                         season = sn,
                         episode = 1,
-                        thumbnail = poster(so.get("poster_path")?.asString, "w300"),
+                        thumbnail = poster(so.get("poster_path")?.takeIf { it.isJsonPrimitive }?.asString, "w300"),
                     )
                 )
             }
         }
         val runtime = root.get("runtime")?.takeIf { it.isJsonPrimitive }?.asInt
-            ?: root.getAsJsonArray("episode_run_time")?.firstOrNull()?.asInt
+            ?: root.optJsonArray("episode_run_time")?.firstOrNull()?.takeIf { it.isJsonPrimitive }?.asInt
 
         // Trailer (prefer official YouTube trailers)
-        val trailerUrl = root.getAsJsonObject("videos")?.getAsJsonArray("results")
+        val trailerUrl = root.optJsonObject("videos")?.optJsonArray("results")
             ?.mapNotNull { it.takeIf { e -> e.isJsonObject }?.asJsonObject }
             ?.firstOrNull { v ->
-                v.get("site")?.asString.equals("YouTube", true) &&
-                    v.get("type")?.asString in listOf("Trailer", "Teaser")
-            }?.get("key")?.asString?.let { "https://www.youtube.com/watch?v=$it" }
+                v.get("site")?.takeIf { it.isJsonPrimitive }?.asString.equals("YouTube", true) &&
+                    v.get("type")?.takeIf { it.isJsonPrimitive }?.asString in listOf("Trailer", "Teaser")
+            }?.get("key")?.takeIf { it.isJsonPrimitive }?.asString?.let { "https://www.youtube.com/watch?v=$it" }
 
         // Alternative titles
-        val altTitles = root.getAsJsonObject("alternative_titles")?.getAsJsonArray("titles")
-            ?.mapNotNull { it.takeIf { e -> e.isJsonObject }?.asJsonObject?.get("title")?.asString }
+        val altTitles = root.optJsonObject("alternative_titles")?.optJsonArray("titles")
+            ?.mapNotNull { it.takeIf { e -> e.isJsonObject }?.asJsonObject?.get("title")?.takeIf { t -> t.isJsonPrimitive }?.asString }
             ?.filter { it.isNotBlank() && it != title }?.distinct()?.take(6) ?: emptyList()
 
         // Recommendations
-        val recommendations = root.getAsJsonObject("recommendations")?.getAsJsonArray("results")
+        val recommendations = root.optJsonObject("recommendations")?.optJsonArray("results")
             ?.mapNotNull { r ->
                 if (!r.isJsonObject) return@mapNotNull null
                 val o = r.asJsonObject
-                val rid = o.get("id")?.asInt?.toString() ?: return@mapNotNull null
-                val rtitle = o.get("title")?.asString ?: o.get("name")?.asString ?: return@mapNotNull null
+                val rid = o.get("id")?.takeIf { it.isJsonPrimitive }?.asInt?.toString() ?: return@mapNotNull null
+                val rtitle = o.get("title")?.takeIf { it.isJsonPrimitive }?.asString
+                    ?: o.get("name")?.takeIf { it.isJsonPrimitive }?.asString ?: return@mapNotNull null
                 MediaItem(
                     id = rid,
                     type = if (isMovie) MediaType.MOVIE else MediaType.SERIES,
                     title = rtitle,
-                    poster = poster(o.get("poster_path")?.asString),
-                    backdrop = backdrop(o.get("backdrop_path")?.asString),
-                    year = (o.get("release_date")?.asString ?: o.get("first_air_date")?.asString)?.take(4),
-                    rating = o.get("vote_average")?.asDouble,
-                    description = o.get("overview")?.asString,
+                    poster = poster(o.get("poster_path")?.takeIf { it.isJsonPrimitive }?.asString),
+                    backdrop = backdrop(o.get("backdrop_path")?.takeIf { it.isJsonPrimitive }?.asString),
+                    year = (o.get("release_date")?.takeIf { it.isJsonPrimitive }?.asString
+                        ?: o.get("first_air_date")?.takeIf { it.isJsonPrimitive }?.asString)?.take(4),
+                    rating = o.get("vote_average")?.takeIf { it.isJsonPrimitive }?.asDouble,
+                    description = o.get("overview")?.takeIf { it.isJsonPrimitive }?.asString,
                     addonId = "tmdb",
                     addonName = "TMDB",
                 )
             } ?: emptyList()
 
-        val status = root.get("status")?.asString?.let {
+        val status = root.get("status")?.takeIf { it.isJsonPrimitive }?.asString?.let {
             when (it) {
                 "Released" -> "Released"
                 "Returning Series" -> "Airing"
@@ -262,14 +271,17 @@ object TmdbClient {
             id = imdb ?: tmdbId,
             type = if (isMovie) "movie" else "series",
             name = title,
-            poster = poster(root.get("poster_path")?.asString),
-            background = backdrop(root.get("backdrop_path")?.asString),
-            description = root.get("overview")?.asString,
-            releaseInfo = (root.get("release_date")?.asString ?: root.get("first_air_date")?.asString)?.take(4),
-            imdbRating = root.get("vote_average")?.asDouble?.let { String.format("%.1f", it) },
+            poster = poster(root.get("poster_path")?.takeIf { it.isJsonPrimitive }?.asString),
+            background = backdrop(root.get("backdrop_path")?.takeIf { it.isJsonPrimitive }?.asString),
+            description = root.get("overview")?.takeIf { it.isJsonPrimitive }?.asString,
+            releaseInfo = (root.get("release_date")?.takeIf { it.isJsonPrimitive }?.asString
+                ?: root.get("first_air_date")?.takeIf { it.isJsonPrimitive }?.asString)?.take(4),
+            imdbRating = root.get("vote_average")?.takeIf { it.isJsonPrimitive }?.asDouble?.let { String.format("%.1f", it) },
             runtime = runtime?.let { "$it min" }
                 ?: totalSeasons?.let { "$it season${if (it > 1) "s" else ""}" },
-            genres = root.getAsJsonArray("genres")?.mapNotNull { it.asJsonObject.get("name")?.asString } ?: emptyList(),
+            genres = root.optJsonArray("genres")?.mapNotNull {
+                if (it.isJsonObject) it.asJsonObject.get("name")?.takeIf { n -> n.isJsonPrimitive }?.asString else null
+            } ?: emptyList(),
             cast = cast,
             director = crew,
             videos = videos,
@@ -288,21 +300,27 @@ object TmdbClient {
     /** Fetch episodes for a specific season (for series detail pages). */
     suspend fun seasonEpisodes(tmdbId: String, season: Int, imdb: String?): List<Video> {
         val root = get("/tv/$tmdbId/season/$season")
-        val arr = root.getAsJsonArray("episodes") ?: return emptyList()
+        val arr = root.optJsonArray("episodes") ?: return emptyList()
         return arr.mapNotNull { e ->
             if (!e.isJsonObject) return@mapNotNull null
             val eo = e.asJsonObject
-            val num = eo.get("episode_number")?.asInt ?: return@mapNotNull null
+            val num = eo.get("episode_number")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
             Video(
                 id = "${imdb ?: tmdbId}:$season:$num",
-                title = eo.get("name")?.asString,
+                title = eo.get("name")?.takeIf { it.isJsonPrimitive }?.asString,
                 season = season,
                 episode = num,
-                thumbnail = poster(eo.get("still_path")?.asString, "w300"),
-                overview = eo.get("overview")?.asString,
-                released = eo.get("air_date")?.asString,
+                thumbnail = poster(eo.get("still_path")?.takeIf { it.isJsonPrimitive }?.asString, "w300"),
+                overview = eo.get("overview")?.takeIf { it.isJsonPrimitive }?.asString,
+                released = eo.get("air_date")?.takeIf { it.isJsonPrimitive }?.asString,
                 runtimeMin = eo.get("runtime")?.takeIf { it.isJsonPrimitive }?.asInt,
             )
         }
     }
 }
+
+fun JsonObject.optJsonArray(key: String): JsonArray? =
+    get(key)?.takeIf { it.isJsonArray }?.asJsonArray
+
+fun JsonObject.optJsonObject(key: String): JsonObject? =
+    get(key)?.takeIf { it.isJsonObject }?.asJsonObject

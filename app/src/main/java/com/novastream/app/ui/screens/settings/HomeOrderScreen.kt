@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -87,7 +88,8 @@ fun HomeOrderScreen(nav: NavHostController) {
         scope.launch { runCatching { container.settings.setHomeOrder(mutable) } }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    // navigationBarsPadding: pushed destination with no bottom tab bar.
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 4.dp, end = AppSpacing.screen, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

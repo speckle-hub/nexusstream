@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -59,7 +60,8 @@ fun CollectionScreen(nav: NavHostController, section: MediaType) {
     val listState = rememberLazyGridState()
     var actionsFor by remember { mutableStateOf<com.novastream.app.data.model.MediaItem?>(null) }
 
-    Column(Modifier.fillMaxSize()) {
+    // navigationBarsPadding: pushed destination with no bottom tab bar.
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(
             Modifier
                 .fillMaxWidth()
