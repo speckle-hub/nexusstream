@@ -15,6 +15,9 @@ enum class MediaType(val id: String, val label: String) {
     companion object {
         fun fromId(id: String?): MediaType? = entries.firstOrNull { it.id == id }
     }
+
+    /** True for the three adult-only types, which must never surface outside the NSFW Hub. */
+    val isAdult: Boolean get() = this == NSFW_ANIME || this == NSFW_MANGA || this == REAL
 }
 
 /** A single browsable item (poster card). */
@@ -50,6 +53,15 @@ data class MediaItem(
      * shape, but only the reading entries should ever appear under a Play CTA.
      */
     val isReadable: Boolean get() = type == MediaType.MANGA || type == MediaType.NSFW_MANGA
+
+    /**
+     * True when this title is adult-only (NSFW anime / NSFW manga / Real 18+).
+     *
+     * Phase 28 isolation rule: anything reporting true here must be scrubbed from the public
+     * Home feed, global search results and the public Library rails, and may only surface
+     * inside the PIN/biometric-gated NSFW Hub.
+     */
+    val isAdult: Boolean get() = type.isAdult
 }
 
 /** Stream source returned by a Stremio stream addon. */

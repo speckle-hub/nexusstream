@@ -24,6 +24,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -64,6 +65,14 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.mediarouter.app.MediaRouteButton
+import androidx.mediarouter.media.MediaRouteSelector
+import com.google.android.gms.cast.CastMediaControlIntent
+import com.google.android.gms.cast.MediaInfo
+import com.google.android.gms.cast.MediaMetadata
+import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastSession
+import com.google.android.gms.cast.framework.SessionManagerListener
 import com.novastream.app.ui.vm.LocalContainer
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem as Media3Item
@@ -86,6 +95,7 @@ import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import com.novastream.app.NovaApp
 import com.novastream.app.data.download.DownloadManagerProvider
+import com.novastream.app.data.integrations.ScrobbleEvent
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.download.VideoKind
@@ -109,8 +119,8 @@ import kotlin.math.roundToInt
  * Full-featured video player built on Media3 ExoPlayer.
  *
  * Supports quality/track selection, subtitle + audio track selection, PiP, orientation locking,
- * edge-drag brightness/volume, horizontal seek gestures, an episode side-sheet, and a 5-second
- * autoplay-next countdown.
+ * swipe gestures (brightness left / volume right / seek), an episode side-sheet, a sleep timer,
+ * and a 5-second autoplay-next countdown.
  */
 @UnstableApi
 class PlayerActivity : ComponentActivity() {
@@ -137,6 +147,16 @@ class PlayerActivity : ComponentActivity() {
     private var countdownJob: Job? = null
     private var progressJob: Job? = null
     private var autoTriggered = false
+    /** Phase 30: completion scrobble fires once per title (reset on every source switch). */
+    private var scrobbled = false
+    /**
+     * Sleep timer (Phase 29): a fixed-delay [sleepJob] or an armed end-of-episode pause.
+     * [sleepDeadlineState] is a `SystemClock.elapsedRealtime()` deadline for the timed options
+     * (null when disarmed or episode-driven) so the UI can render a live "Sleep Nm" readout.
+     */
+    private var sleepJob: Job? = null
+    private val sleepOptionState = mutableStateOf(SleepTimerOption.OFF)
+    private val sleepDeadlineState = mutableStateOf<Long?>(null)
     /**
      * False until [resumeLastPosition] has read (and seeked to) the saved position. While false,
      * [recordProgress] refuses to persist, so a quick pause/back on entry can't overwrite the
@@ -150,7 +170,11 @@ class PlayerActivity : ComponentActivity() {
     private var playbackSpeed = 1f
     private var audioBoost = false
     private var audioNormalize = false
-    private var subtitleStyle = SubtitleStyle()
+    /**
+     * Live subtitle look (Phase 29): Compose state so in-player style edits re-render the
+     * time-shifted overlay and re-apply to the PlayerView immediately (see `PlayerScreen`).
+     */
+    private val subtitleStyleState = mutableStateOf(SubtitleStyle())
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var audioSessionId = 0
     /** Phase 15: caption timing correction (ms) and auto-delete-watched. */
@@ -185,7 +209,7 @@ class PlayerActivity : ComponentActivity() {
         audioNormalize = settings.audioNormalize.value
         subtitleSyncMs = settings.subtitleSyncMs.value
         autoDeleteWatched = settings.autoDeleteWatched.value
-        subtitleStyle = SubtitleStyle(
+        subtitleStyleState.value = SubtitleStyle(
             scale = settings.subtitleScale.value,
             colorKey = settings.subtitleColor.value,
             bgOpacity = settings.subtitleBg.value,
@@ -280,12 +304,16 @@ class PlayerActivity : ComponentActivity() {
                     onCancelCountdown = { cancelCountdown() },
                     onNext = { playEpisode(index + 1) },
                     onSelectEpisode = { playEpisode(it) },
-                    subtitleStyle = subtitleStyle,
+                    subtitleStyle = subtitleStyleState.value,
                     subtitleSyncMs = subtitleSyncMs,
                     onSubtitleSync = {
                         subtitleSyncMs = clampSubtitleSyncMs(it)
                         lifecycleScope.launch { settings.setSubtitleSyncMs(subtitleSyncMs) }
                     },
+                    onSubtitleStyle = { updateSubtitleStyle(it) },
+                    sleepOption = sleepOptionState.value,
+                    sleepDeadlineMs = sleepDeadlineState.value,
+                    onSleepTimer = { setSleepTimer(it) },
                     initialSpeed = playbackSpeed,
                     audioBoostOn = audioBoost,
                     audioNormalizeOn = audioNormalize,
@@ -297,7 +325,6 @@ class PlayerActivity : ComponentActivity() {
                     onOpenVlc = { openInPackage("org.videolan.vlc") },
                     onOpenMpv = { openInPackage("is.xyz.mpv") },
                     onOpenOther = { openExternal() },
-                    onCast = { openCast() },
                     onGestures = { mode, amount ->
                         // Returns the normalized level (0..1) so the gesture HUD can render it.
                         when (mode) {
@@ -382,6 +409,7 @@ class PlayerActivity : ComponentActivity() {
         subs = newSubs
         failedUrls.clear()
         autoTriggered = false
+        scrobbled = false
         countdownState.value = null
         val exo = player ?: return
         httpFactory.setDefaultRequestProperties(newSource.headers)
@@ -456,6 +484,74 @@ class PlayerActivity : ComponentActivity() {
         countdownState.value = null
     }
 
+    /**
+     * Push one watch event to every enabled tracker (Phase 30 push direction — Trakt history,
+     * AniList episode progress/status, MAL status). Silent and best-effort: provider failures
+     * are already contained inside `ScrobbleManager`, and the outer `runCatching` guards the
+     * launch itself so scrobbling can never disturb playback.
+     */
+    private fun fireScrobble(progress: Double) {
+        val ep = episodes.getOrNull(index)
+        val event = ScrobbleEvent(
+            item = item,
+            progress = progress,
+            episode = ep?.episode,
+            season = ep?.season,
+        )
+        val app = application as NovaApp
+        app.appScope.launch { runCatching { app.container.scrobbleManager.syncAll(event) } }
+    }
+
+    /**
+     * Arm, change or disarm the sleep timer (Phase 29).
+     *
+     * Timed options launch a countdown job; end-of-episode cancels any autoplay countdown (the
+     * current episode must be allowed to finish) and fires from the progress watcher instead.
+     */
+    private fun setSleepTimer(option: SleepTimerOption) {
+        sleepJob?.cancel()
+        sleepJob = null
+        when {
+            option == SleepTimerOption.OFF -> {
+                sleepOptionState.value = SleepTimerOption.OFF
+                sleepDeadlineState.value = null
+            }
+            option == SleepTimerOption.END_OF_EPISODE -> {
+                cancelCountdown()
+                sleepOptionState.value = option
+                sleepDeadlineState.value = null
+                Toast.makeText(this, "Sleep timer: end of episode", Toast.LENGTH_SHORT).show()
+            }
+            else -> {
+                val ms = option.delayMs() ?: return
+                sleepOptionState.value = option
+                sleepDeadlineState.value = SystemClock.elapsedRealtime() + ms
+                sleepJob = lifecycleScope.launch {
+                    delay(ms)
+                    fireSleepTimer()
+                }
+                Toast.makeText(this, "Sleep timer: ${option.label()}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Sleep timer expiry: snapshot progress, pause playback and disarm.
+     *
+     * Deliberately pause-only: the controls hold a non-null player reference, so releasing the
+     * ExoPlayer while the screen is open would crash subsequent seeks — the normal activity
+     * teardown (`onDestroy`) still owns the release.
+     */
+    private fun fireSleepTimer() {
+        sleepJob?.cancel()
+        sleepJob = null
+        sleepOptionState.value = SleepTimerOption.OFF
+        sleepDeadlineState.value = null
+        recordProgress()
+        player?.pause()
+        Toast.makeText(this, "Sleep timer ended", Toast.LENGTH_SHORT).show()
+    }
+
     /** Start the autoplay-next countdown (from [AUTOPLAY_COUNTDOWN_SECONDS]) when a next episode exists. */
     private fun maybeAutoplay() {
         if (!autoplay) return
@@ -524,11 +620,28 @@ class PlayerActivity : ComponentActivity() {
                 val remaining = dur - p.currentPosition
                 if (dur > 0 && remaining in 0..AUTOPLAY_COUNTDOWN_SECONDS * 1000L && !autoTriggered) {
                     autoTriggered = true
-                    maybeAutoplay()
+                    // A sleep-at-episode-end timer suppresses the autoplay countdown: the episode
+                    // is allowed to finish, and the timer fires below instead of advancing.
+                    if (sleepOptionState.value != SleepTimerOption.END_OF_EPISODE) maybeAutoplay()
+                }
+                // Sleep-at-episode-end: the playhead reached the natural end — pause there.
+                if (sleepOptionState.value == SleepTimerOption.END_OF_EPISODE && dur > 0 && remaining <= 0) {
+                    fireSleepTimer()
                 }
                 // Persist roughly every 5 s while playing, so closing the app never loses more
                 // than a few seconds and Continue Watching stays current.
                 if (++ticks % 5 == 0 && p.isPlaying) recordProgress()
+                // Phase 30 scrobble push: completion (once per title) plus a progress heartbeat
+                // every ~60 s, carrying episode/season numbers for anime trackers.
+                if (p.isPlaying && dur > 0) {
+                    val progress = p.currentPosition.coerceAtLeast(0).toDouble() / dur
+                    if (!scrobbled && progress >= 0.9) {
+                        scrobbled = true
+                        fireScrobble(progress)
+                    } else if (ticks % 60 == 0) {
+                        fireScrobble(progress)
+                    }
+                }
             }
         }
     }
@@ -695,22 +808,73 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    /** Best-effort Cast/DLNA action: open the system cast/route chooser when available. */
-    private fun openCast() {
-        val intents = buildList {
-            add(Intent(Settings.ACTION_CAST_SETTINGS))
-            add(Intent("android.settings.WIFI_DISPLAY_SETTINGS"))
+    // ---- Phase 30 Chromecast -------------------------------------------------
+    // The player top bar hosts a real MediaRouteButton (route discovery + device picker); when a
+    // Cast session connects, the current stream URL is handed to the Default Media Receiver and
+    // local playback pauses so audio never doubles. Everything is guarded: devices without Play
+    // services simply get a route button with no destinations.
+
+    private var castLoadedUrl: String? = null
+
+    private val castListener = object : SessionManagerListener<CastSession> {
+        override fun onSessionStarting(session: CastSession) {}
+        override fun onSessionStarted(session: CastSession, sessionId: String) = onCastConnected()
+        override fun onSessionStartFailed(session: CastSession, error: Int) {}
+        override fun onSessionEnding(session: CastSession) {}
+        override fun onSessionEnded(session: CastSession, error: Int) { castLoadedUrl = null }
+        override fun onSessionResuming(session: CastSession, sessionId: String) {}
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) = onCastConnected()
+        override fun onSessionResumeFailed(session: CastSession, error: Int) {}
+        override fun onSessionSuspended(session: CastSession, reason: Int) {}
+    }
+
+    private fun castSessionManager() =
+        runCatching { CastContext.getSharedInstance(this)?.sessionManager }.getOrNull()
+
+    /** Hand the current stream to the connected receiver (once per URL) and pause locally. */
+    private fun onCastConnected() {
+        val url = source.playableUrl ?: return
+        if (castLoadedUrl == url) return
+        val remote = castSessionManager()?.currentCastSession?.remoteMediaClient ?: return
+        val metadata = MediaMetadata(MediaMetadata.MEDIA_TYPE_MOVIE).apply {
+            putString(MediaMetadata.KEY_TITLE, item.title)
         }
-        for (i in intents) {
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if (runCatching { startActivity(i) }.isSuccess) return
-        }
-        Toast.makeText(this, "No cast/DLNA target available on this device", Toast.LENGTH_SHORT).show()
+        val media = MediaInfo.Builder(url)
+            .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
+            .setContentType(if (url.contains(".m3u8", ignoreCase = true)) "application/x-mpegurl" else "videos/mp4")
+            .setMetadata(metadata)
+            .build()
+        // Single-arg load autoplays on the receiver (the two-arg overload is deprecated).
+        runCatching { remote.load(media) }
+        castLoadedUrl = url
+        player?.pause()
+        Toast.makeText(this, "Casting to TV", Toast.LENGTH_SHORT).show()
     }
 
     private fun setPlaybackSpeed(speed: Float) {
         playbackSpeed = speed.coerceIn(0.5f, 2f)
         player?.setPlaybackSpeed(playbackSpeed)
+    }
+
+    /**
+     * Apply an in-player subtitle style edit (Phase 29): update the live state (the overlay and
+     * the PlayerView re-apply pick it up) and persist it to the shared Settings so the Subtitles
+     * group shows the same values. Each field is clamped to its Settings range.
+     */
+    private fun updateSubtitleStyle(style: SubtitleStyle) {
+        val clamped = style.copy(
+            scale = style.scale.coerceIn(0.6f, 2f),
+            bgOpacity = style.bgOpacity.coerceIn(0f, 1f),
+            bottomOffset = style.bottomOffset.coerceIn(0f, 0.3f),
+        )
+        subtitleStyleState.value = clamped
+        val settings = (application as NovaApp).container.settings
+        lifecycleScope.launch {
+            settings.setSubtitleScale(clamped.scale)
+            settings.setSubtitleColor(clamped.colorKey)
+            settings.setSubtitleBg(clamped.bgOpacity)
+            settings.setSubtitleOffset(clamped.bottomOffset)
+        }
     }
 
     private fun setAudioBoost(enabled: Boolean) {
@@ -752,6 +916,12 @@ class PlayerActivity : ComponentActivity() {
         enterPip()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Phase 30: listen for Cast sessions while the player is in front.
+        castSessionManager()?.addSessionManagerListener(castListener, CastSession::class.java)
+    }
+
     override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
         hideSystemBars()
@@ -765,6 +935,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        // Phase 30: stop listening for Cast sessions when the player leaves the front.
+        castSessionManager()?.removeSessionManagerListener(castListener, CastSession::class.java)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureMode) player?.pause()
         // Save the exact spot before we might be torn down.
         recordProgress()
@@ -777,6 +949,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         countdownJob?.cancel()
+        sleepJob?.cancel()
         progressJob?.cancel()
         recordProgress()
         runCatching { loudnessEnhancer?.release() }
@@ -858,6 +1031,13 @@ class PlayerActivity : ComponentActivity() {
 private const val DEFAULT_INTRO_END_MS = 90_000L
 private const val DEFAULT_OUTRO_MS = 90_000L
 
+/**
+ * Drag distance in px before a swipe locks to its dominant axis (brightness/volume vs seek),
+ * so finger jitter on touch-down never flashes the wrong HUD. File-level (not companion)
+ * because the PlayerScreen gesture handler is a top-level composable.
+ */
+private const val GESTURE_SLOP_PX = 24f
+
 /** Cap on buffered caption events kept for the subtitle-sync overlay (~a few minutes of cues). */
 private const val CUE_HISTORY_LIMIT = 200
 
@@ -934,6 +1114,10 @@ private fun PlayerScreen(
     subtitleStyle: SubtitleStyle,
     subtitleSyncMs: Int,
     onSubtitleSync: (Int) -> Unit,
+    onSubtitleStyle: (SubtitleStyle) -> Unit,
+    sleepOption: SleepTimerOption,
+    sleepDeadlineMs: Long?,
+    onSleepTimer: (SleepTimerOption) -> Unit,
     initialSpeed: Float,
     audioBoostOn: Boolean,
     audioNormalizeOn: Boolean,
@@ -945,7 +1129,6 @@ private fun PlayerScreen(
     onOpenVlc: () -> Unit,
     onOpenMpv: () -> Unit,
     onOpenOther: () -> Unit,
-    onCast: () -> Unit,
 ) {
     var controlsVisible by remember { mutableStateOf(true) }
     var showTracks by remember { mutableStateOf(false) }
@@ -954,6 +1137,7 @@ private fun PlayerScreen(
     // Phase 11 player state.
     var showSpeedAudio by remember { mutableStateOf(false) }
     var showExternal by remember { mutableStateOf(false) }
+    var showSleep by remember { mutableStateOf(false) }
     var speed by remember { mutableStateOf(initialSpeed) }
     var boost by remember { mutableStateOf(audioBoostOn) }
     var normalize by remember { mutableStateOf(audioNormalizeOn) }
@@ -1108,21 +1292,42 @@ private fun PlayerScreen(
                 .pointerInput(locked) {
                     if (locked) return@pointerInput
                     val width = size.width.toFloat()
+                    // Phase 29 swipe zones: the left half owns brightness, the right half volume,
+                    // and a horizontal swipe anywhere scrubs. The mode locks to the dominant axis
+                    // once the drag passes touch slop, so a slightly diagonal swipe never flips
+                    // mid-gesture between (say) volume and seek.
+                    var startX = 0f
+                    var totalX = 0f
+                    var totalY = 0f
                     var mode = GestureMode.SEEK
+                    var modeLocked = false
                     detectDragGestures(
                         onDragStart = { offset ->
-                            mode = when {
-                                offset.x < width * 0.18f -> GestureMode.BRIGHTNESS
-                                offset.x > width * 0.82f -> GestureMode.VOLUME
-                                else -> GestureMode.SEEK
-                            }
-                            // Seed the HUD with the current level (a zero-delta call is a read).
-                            showHud(mode, onGestures(mode, 0f))
+                            startX = offset.x
+                            totalX = 0f
+                            totalY = 0f
+                            modeLocked = false
                         },
                         onDrag = { change, drag ->
                             change.consume()
+                            if (!modeLocked) {
+                                totalX += drag.x
+                                totalY += drag.y
+                                if (abs(totalX) + abs(totalY) < GESTURE_SLOP_PX) return@detectDragGestures
+                                modeLocked = true
+                                mode = if (abs(totalX) > abs(totalY)) {
+                                    GestureMode.SEEK
+                                } else if (startX < width / 2f) {
+                                    GestureMode.BRIGHTNESS
+                                } else {
+                                    GestureMode.VOLUME
+                                }
+                                // Seed the HUD with the current level (a zero-delta call is a read).
+                                showHud(mode, onGestures(mode, 0f))
+                                return@detectDragGestures
+                            }
                             val level = when (mode) {
-                                // Vertical drag on the edges; downward decreases.
+                                // Vertical drag; downward decreases.
                                 GestureMode.BRIGHTNESS, GestureMode.VOLUME ->
                                     onGestures(mode, -drag.y / 260f)
                                 GestureMode.SEEK -> onGestures(GestureMode.SEEK, drag.x)
@@ -1162,6 +1367,12 @@ private fun PlayerScreen(
             playerView?.subtitleView?.visibility = if (subtitleSyncMs == 0) View.VISIBLE else View.GONE
         }
 
+        // In-player style edits re-apply to the PlayerView live (the time-shifted overlay reads
+        // `subtitleStyle` straight from composition, so it needs no effect of its own).
+        LaunchedEffect(subtitleStyle, playerView) {
+            playerView?.let { applySubtitleStyle(it, subtitleStyle) }
+        }
+
         AnimatedVisibility(visible = controlsVisible && !locked, enter = fadeIn(), exit = fadeOut()) {
             Box(
                 Modifier.fillMaxSize().background(
@@ -1184,9 +1395,28 @@ private fun PlayerScreen(
                             Text(subtitle, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     IconButton(onClick = { showExternal = true }) { Icon(Icons.Filled.OpenInNew, "Open in external player", tint = Color.White) }
-                    IconButton(onClick = onCast) { Icon(Icons.Filled.Cast, "Cast / DLNA", tint = Color.White) }
+                    // Phase 30 Chromecast: the real route picker (device discovery + chooser).
+                    // Devices without Play services simply see no cast destinations.
+                    AndroidView(
+                        factory = { ctx ->
+                            MediaRouteButton(ctx).apply {
+                                routeSelector = MediaRouteSelector.Builder()
+                                    .addControlCategory(CastMediaControlIntent.categoryForCast(CAST_RECEIVER_APP_ID))
+                                    .build()
+                            }
+                        },
+                        modifier = Modifier.size(48.dp),
+                    )
                     IconButton(onClick = onPip) { Icon(Icons.Filled.PictureInPictureAlt, "PiP", tint = Color.White) }
                     IconButton(onClick = onRotate) { Icon(Icons.Filled.ScreenRotation, "Rotate", tint = Color.White) }
+                    // Sleep timer: armed state reads amber so it is visible at a glance over video.
+                    IconButton(onClick = { showSleep = true }) {
+                        Icon(
+                            if (sleepOption == SleepTimerOption.OFF) Icons.Filled.Timer else Icons.Filled.TimerOff,
+                            "Sleep timer",
+                            tint = if (sleepOption == SleepTimerOption.OFF) Color.White else Color(0xFFFFD54F),
+                        )
+                    }
                     IconButton(onClick = { locked = true; controlsVisible = false }) { Icon(Icons.Filled.LockOpen, "Lock controls", tint = Color.White) }
                 }
 
@@ -1262,6 +1492,10 @@ private fun PlayerScreen(
                         AssistChip(onClick = onReload, label = { Text("Reload") }, colors = chipColors)
                         AssistChip(onClick = { showTracks = true }, label = { Text("Quality & Audio") }, colors = chipColors)
                         AssistChip(onClick = { showSpeedAudio = true }, label = { Text("Speed ${trimSpeed(speed)}x") }, colors = chipColors)
+                        // Armed sleep timer readout (ticks with the 250 ms playhead ticker above).
+                        sleepStatusLabel(sleepOption, sleepDeadlineMs, SystemClock.elapsedRealtime())?.let { label ->
+                            AssistChip(onClick = { showSleep = true }, label = { Text(label) }, colors = chipColors)
+                        }
                         if (episodes.isNotEmpty()) {
                             AssistChip(onClick = { showEpisodes = true }, label = { Text("Episodes") }, colors = chipColors)
                         }
@@ -1443,7 +1677,17 @@ private fun PlayerScreen(
                 player = player,
                 subtitleSyncMs = subtitleSyncMs,
                 onSubtitleSync = onSubtitleSync,
+                subtitleStyle = subtitleStyle,
+                onSubtitleStyle = onSubtitleStyle,
                 onDismiss = { showTracks = false },
+            )
+        }
+        if (showSleep) {
+            SleepTimerSheet(
+                current = sleepOption,
+                deadlineMs = sleepDeadlineMs,
+                onSelect = { onSleepTimer(it); showSleep = false },
+                onDismiss = { showSleep = false },
             )
         }
         if (showEpisodes) {
@@ -1543,6 +1787,8 @@ private fun TrackSheet(
     player: ExoPlayer,
     subtitleSyncMs: Int,
     onSubtitleSync: (Int) -> Unit,
+    subtitleStyle: SubtitleStyle,
+    onSubtitleStyle: (SubtitleStyle) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val nova = LocalNovaColors.current
@@ -1657,8 +1903,135 @@ private fun TrackSheet(
                             }
                         }
                     }
+
+                    // Phase 29: in-player subtitle styling — the same keys as Settings >
+                    // Subtitles, applied live to the PlayerView and the sync overlay via
+                    // `onSubtitleStyle` (which also persists them, so Settings stays in sync).
+                    // Captions always render with a black outline (see `applySubtitleStyle`).
+                    item {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Subtitle style",
+                            color = nova.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Text size",
+                                color = nova.textSecondary,
+                                fontSize = 13.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "${(subtitleStyle.scale * 100).toInt()}%",
+                                color = nova.textTertiary,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        Slider(
+                            value = subtitleStyle.scale,
+                            onValueChange = { onSubtitleStyle(subtitleStyle.copy(scale = it)) },
+                            valueRange = 0.6f..2f,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text("Font color", color = nova.textSecondary, fontSize = 13.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            listOf("white", "yellow", "cyan", "green").forEach { key ->
+                                val selected = subtitleStyle.colorKey == key
+                                Box(
+                                    Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(Color(subtitleColor(key)))
+                                        .border(
+                                            if (selected) 3.dp else 1.dp,
+                                            if (selected) nova.accent else nova.textTertiary,
+                                            RoundedCornerShape(50),
+                                        )
+                                        .clickable { onSubtitleStyle(subtitleStyle.copy(colorKey = key)) },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Background",
+                                color = nova.textSecondary,
+                                fontSize = 13.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "${(subtitleStyle.bgOpacity * 100).toInt()}%",
+                                color = nova.textTertiary,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        Slider(
+                            value = subtitleStyle.bgOpacity,
+                            onValueChange = { onSubtitleStyle(subtitleStyle.copy(bgOpacity = it)) },
+                            valueRange = 0f..1f,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Position",
+                                color = nova.textSecondary,
+                                fontSize = 13.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "${(subtitleStyle.bottomOffset * 100).toInt()}%",
+                                color = nova.textTertiary,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        Slider(
+                            value = subtitleStyle.bottomOffset,
+                            onValueChange = { onSubtitleStyle(subtitleStyle.copy(bottomOffset = it)) },
+                            valueRange = 0f..0.3f,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
+    }
+}
+
+/**
+ * Sleep-timer picker (Phase 29): fixed delays plus end-of-episode. Selecting an option arms it
+ * immediately (the sheet closes); picking the armed option again re-arms harmlessly, and "Off"
+ * disarms. The live remaining readout ticks with composition while armed.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SleepTimerSheet(
+    current: SleepTimerOption,
+    deadlineMs: Long?,
+    onSelect: (SleepTimerOption) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val nova = LocalNovaColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Sleep timer", color = nova.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(
+                "Playback pauses automatically when the timer ends.",
+                color = nova.textTertiary,
+                fontSize = 12.sp,
+            )
+            sleepStatusLabel(current, deadlineMs, SystemClock.elapsedRealtime())?.let { status ->
+                Spacer(Modifier.height(6.dp))
+                Text(status, color = nova.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(8.dp))
+            SleepTimerOption.entries.forEach { option ->
+                TrackRow(option.label(), option == current) { onSelect(option) }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
     }
 }
 
@@ -1703,7 +2076,7 @@ private fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * On-screen indicator for the edge gestures: a vertical level bar for brightness/volume, or a
+ * On-screen indicator for the swipe gestures: a vertical level bar for brightness/volume, or a
  * center pill with the playhead for seeks. [level] is the normalized 0..1 value for the bar.
  */
 @Composable

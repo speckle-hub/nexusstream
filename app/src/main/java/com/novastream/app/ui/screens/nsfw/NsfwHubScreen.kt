@@ -1,7 +1,11 @@
 package com.novastream.app.ui.screens.nsfw
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,23 +17,35 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,16 +57,28 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import com.novastream.app.data.model.MediaItem
+import com.novastream.app.data.model.WatchEntry
+import com.novastream.app.ui.components.ConfirmRemoveDialog
 import com.novastream.app.ui.components.EmptyState
+import com.novastream.app.ui.components.GlassSurface
 import com.novastream.app.ui.components.LoadingRow
 import com.novastream.app.ui.components.MediaRow
 import com.novastream.app.ui.components.NovaSwitch
 import com.novastream.app.ui.components.PosterCard
 import com.novastream.app.ui.components.PosterQuickActionsSheet
 import com.novastream.app.ui.components.SearchField
+import com.novastream.app.ui.components.SectionHeader
 import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.theme.AppSpacing
@@ -70,6 +98,10 @@ import kotlinx.coroutines.launch
  * in the public Home / Browse / Library surfaces, and the general Search screen only consults NSFW
  * add-ons if the user explicitly opts in with the toggle below.
  *
+ * Phase 28: the hub opens on a **Private** tab — the isolated adult Continue Watching / Continue
+ * Reading rails plus the private management tools (clear adult history, clear bookmarks, the
+ * search opt-in) — with the three browse sections behind their own tabs.
+ *
  * This file is the former `NsfwScreen`, moved off the Browse segmented control (which now shows
  * Manga and Anime) and given a back affordance plus the global-search opt-in.
  */
@@ -81,12 +113,17 @@ fun NsfwHubScreen(nav: NavHostController) {
     val pin by container.settings.nsfwPin.collectAsStateSafe()
     val biometric by container.settings.nsfwBiometric.collectAsStateSafe()
     val unlocked by container.settings.nsfwUnlocked.collectAsStateSafe()
+    val locked = lock && !unlocked
 
     // navigationBarsPadding: route-only hub with no bottom tab bar (LocalFloatingNavBottomPadding
     // is 0 here), so the grid must clear the system gesture/nav bar on its own.
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
-        NsfwHubHeader(nav)
-        if (lock && !unlocked) {
+        NsfwHubHeader(
+            nav = nav,
+            showLock = lock && !locked,
+            onLock = { scope.launch { container.settings.setNsfwUnlocked(false) } },
+        )
+        if (locked) {
             NsfwLockScreen(
                 storedPinHash = pin,
                 biometricEnabled = biometric,
@@ -106,7 +143,11 @@ fun NsfwHubScreen(nav: NavHostController) {
 
 /** Title row with a Back affordance, since the hub is a pushed destination (no bottom bar). */
 @Composable
-private fun NsfwHubHeader(nav: NavHostController) {
+private fun NsfwHubHeader(
+    nav: NavHostController,
+    showLock: Boolean = false,
+    onLock: () -> Unit = {},
+) {
     val nova = LocalNovaColors.current
     Row(
         Modifier
@@ -129,16 +170,37 @@ private fun NsfwHubHeader(nav: NavHostController) {
             color = nova.textPrimary,
             modifier = Modifier.weight(1f),
         )
+        // Private pill: the hub's visual signature — dark surface, purple accent text.
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(nova.accent.copy(alpha = 0.18f))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Lock, null, tint = nova.accent, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "Private",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = nova.accent,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        if (showLock) {
+            IconButton(onClick = onLock) {
+                Icon(Icons.Filled.Lock, "Lock now", tint = nova.textSecondary)
+            }
+        }
     }
 }
 
 @Composable
 private fun NsfwContent(nav: NavHostController) {
-    val container = LocalContainer.current
-    val scope = rememberCoroutineScope()
     val vm = novaViewModel { NsfwViewModel(it) }
     val nova = LocalNovaColors.current
-    val globalSearch by container.settings.nsfwGlobalSearch.collectAsStateSafe()
     // Saved, not just remembered: opening a detail page disposes this destination, and coming
     // back used to reset the sub-tab to 0 (NSFW Anime) — losing the Real 18+ position.
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -149,36 +211,10 @@ private fun NsfwContent(nav: NavHostController) {
     var animeQuery by rememberSaveable { mutableStateOf("") }
     var mangaQuery by rememberSaveable { mutableStateOf("") }
     var realQuery by rememberSaveable { mutableStateOf("") }
-    val titles = listOf("NSFW Anime", "NSFW Manga", "Real 18+")
+    // Index 0 is the Private dashboard (isolated history + tools); the browse sections shift by one.
+    val titles = listOf("Private", "NSFW Anime", "NSFW Manga", "Real 18+")
 
     Column(Modifier.fillMaxSize()) {
-        // The isolation opt-in. Off by default, so the general Search screen and Home feed never
-        // surface adult content/extensions unless the user turns this on inside the hub.
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = AppSpacing.screen, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "Show NSFW in general search",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = nova.textPrimary,
-                )
-                Text(
-                    "Off means Search stays adult-free. Adult add-ons are always available in this hub.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = nova.textTertiary,
-                )
-            }
-            Spacer(Modifier.size(8.dp))
-            NovaSwitch(
-                checked = globalSearch,
-                onCheckedChange = { scope.launch { container.settings.setNsfwGlobalSearch(it) } },
-            )
-        }
-
         ScrollableTabRow(
             selectedTabIndex = tab,
             containerColor = nova.background,
@@ -193,7 +229,8 @@ private fun NsfwContent(nav: NavHostController) {
         }
         Spacer(Modifier.height(12.dp))
         when (tab) {
-            0 -> NsfwSection(
+            0 -> NsfwPrivateTab(nav = nav, vm = vm, onBrowseTab = { tab = it })
+            1 -> NsfwSection(
                 nav = nav,
                 rows = vm.animeRows.collectAsStateSafe().value,
                 results = vm.animeResults.collectAsStateSafe().value,
@@ -205,7 +242,7 @@ private fun NsfwContent(nav: NavHostController) {
                 searchedFor = vm.animeSearchedFor,
                 emptyHint = "Install NSFW anime add-ons or search AniList/Jikan.",
             )
-            1 -> NsfwSection(
+            2 -> NsfwSection(
                 nav = nav,
                 rows = vm.mangaRows.collectAsStateSafe().value,
                 results = vm.mangaResults.collectAsStateSafe().value,
@@ -231,6 +268,446 @@ private fun NsfwContent(nav: NavHostController) {
                 errors = vm.realErrors.collectAsStateSafe().value,
                 searchErrors = vm.realSearchErrors.collectAsStateSafe().value,
             )
+        }
+    }
+}
+
+/**
+ * The Private dashboard — the only surface where adult playback history and adult bookmarks
+ * are visible (Phase 28 isolation). Public Home/Library flows strip every adult entry, so this
+ * tab is the single place adult Continue Watching / Continue Reading live, next to the tools
+ * that manage them.
+ */
+@Composable
+private fun NsfwPrivateTab(
+    nav: NavHostController,
+    vm: NsfwViewModel,
+    onBrowseTab: (Int) -> Unit,
+) {
+    val container = LocalContainer.current
+    val scope = rememberCoroutineScope()
+    val watching by vm.nsfwContinueWatching.collectAsStateSafe()
+    val reading by vm.nsfwContinueReading.collectAsStateSafe()
+    val bookmarks by vm.nsfwFavorites.collectAsStateSafe()
+    val globalSearch by container.settings.nsfwGlobalSearch.collectAsStateSafe()
+    val autoNsfw by container.settings.autoNsfwFromAddons.collectAsStateSafe()
+
+    var confirmClearHistory by rememberSaveable { mutableStateOf(false) }
+    var confirmClearBookmarks by rememberSaveable { mutableStateOf(false) }
+    var pendingWatchRemoval by remember { mutableStateOf<WatchEntry?>(null) }
+    var pendingBookmarkRemoval by remember { mutableStateOf<MediaItem?>(null) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().clipToBounds(),
+        contentPadding = PaddingValues(bottom = 24.dp + LocalFloatingNavBottomPadding.current),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item {
+            NsfwStatusCard(
+                historyCount = watching.size + reading.size,
+                onLock = { scope.launch { container.settings.setNsfwUnlocked(false) } },
+            )
+        }
+
+        if (watching.isNotEmpty()) {
+            item {
+                NsfwHistoryRail(
+                    title = "Continue Watching",
+                    reading = false,
+                    entries = watching,
+                    onOpen = { nav.navigate(Routes.detail(it.item)) },
+                    onRemove = { pendingWatchRemoval = it },
+                    onClearAll = { confirmClearHistory = true },
+                )
+            }
+        }
+        if (reading.isNotEmpty()) {
+            item {
+                NsfwHistoryRail(
+                    title = "Continue Reading",
+                    reading = true,
+                    entries = reading,
+                    onOpen = { nav.navigate(Routes.detail(it.item)) },
+                    onRemove = { pendingWatchRemoval = it },
+                    onClearAll = { confirmClearHistory = true },
+                )
+            }
+        }
+        if (bookmarks.isNotEmpty()) {
+            item {
+                NsfwBookmarksRail(
+                    items = bookmarks,
+                    onOpen = { nav.navigate(Routes.detail(it)) },
+                    onRemove = { pendingBookmarkRemoval = it },
+                    onClearAll = { confirmClearBookmarks = true },
+                )
+            }
+        }
+        if (watching.isEmpty() && reading.isEmpty() && bookmarks.isEmpty()) {
+            item {
+                EmptyState(
+                    "Nothing private yet",
+                    "Adult titles you watch or save appear here — never on Home or in the public Library.",
+                    icon = Icons.Filled.History,
+                )
+            }
+        }
+
+        item {
+            NsfwBrowseShortcuts(onOpen = onBrowseTab)
+        }
+
+        item {
+            NsfwManageCard(
+                globalSearch = globalSearch,
+                onGlobalSearch = { scope.launch { container.settings.setNsfwGlobalSearch(it) } },
+                autoNsfw = autoNsfw,
+                onAutoNsfw = { scope.launch { container.settings.setAutoNsfwFromAddons(it) } },
+                historyCount = watching.size + reading.size,
+                bookmarksCount = bookmarks.size,
+                onClearHistory = { confirmClearHistory = true },
+                onClearBookmarks = { confirmClearBookmarks = true },
+            )
+        }
+    }
+
+    pendingWatchRemoval?.let { entry ->
+        ConfirmRemoveDialog(
+            title = "Remove from Continue Watching?",
+            message = "\u201c${entry.item.title}\u201d will be removed and its saved progress cleared.",
+            onConfirm = { vm.removeNsfwWatch(entry.item.key); pendingWatchRemoval = null },
+            onDismiss = { pendingWatchRemoval = null },
+        )
+    }
+    pendingBookmarkRemoval?.let { item ->
+        ConfirmRemoveDialog(
+            title = "Remove bookmark?",
+            message = "\u201c${item.title}\u201d will be removed from your private bookmarks.",
+            onConfirm = { vm.removeNsfwFavorite(item); pendingBookmarkRemoval = null },
+            onDismiss = { pendingBookmarkRemoval = null },
+        )
+    }
+    if (confirmClearHistory) {
+        ConfirmRemoveDialog(
+            title = "Clear adult history?",
+            message = "All adult Continue Watching and Continue Reading entries and their saved progress will be removed. Your public history is untouched.",
+            onConfirm = { vm.clearNsfwHistory(); confirmClearHistory = false },
+            onDismiss = { confirmClearHistory = false },
+        )
+    }
+    if (confirmClearBookmarks) {
+        ConfirmRemoveDialog(
+            title = "Clear private bookmarks?",
+            message = "All adult bookmarks will be removed. Your public favourites are untouched.",
+            onConfirm = { vm.clearNsfwFavorites(); confirmClearBookmarks = false },
+            onDismiss = { confirmClearBookmarks = false },
+        )
+    }
+}
+
+/** Unlocked-state banner: purple-accented card marking the area as private, with a Lock action. */
+@Composable
+private fun NsfwStatusCard(historyCount: Int, onLock: () -> Unit) {
+    val nova = LocalNovaColors.current
+    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp)) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(nova.accent.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Lock, null, tint = nova.accent, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Private area unlocked",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = nova.textPrimary,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    if (historyCount == 0) "Adult history stays inside this hub."
+                    else "$historyCount adult title${if (historyCount == 1) "" else "s"} in progress — hidden everywhere else.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = nova.textTertiary,
+                )
+            }
+            TextButton(onClick = onLock) { Text("Lock") }
+        }
+    }
+}
+
+/** Horizontal progress cards for the hub's isolated history (mirrors the Home rail, hub-local). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NsfwHistoryRail(
+    title: String,
+    reading: Boolean,
+    entries: List<WatchEntry>,
+    onOpen: (WatchEntry) -> Unit,
+    onRemove: (WatchEntry) -> Unit,
+    onClearAll: () -> Unit,
+) {
+    val nova = LocalNovaColors.current
+    Column(Modifier.fillMaxWidth()) {
+        SectionHeader(
+            title,
+            trailing = { TextButton(onClick = onClearAll) { Text("Clear") } },
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = AppSpacing.screen),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(entries, key = { it.item.key }) { entry ->
+                Column(
+                    modifier = Modifier
+                        .width(220.dp)
+                        .combinedClickable(onClick = { onOpen(entry) }, onLongClick = { onRemove(entry) }),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(124.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(nova.surfaceElevated),
+                    ) {
+                        val img = entry.item.backdrop ?: entry.item.poster
+                        if (!img.isNullOrBlank()) {
+                            AsyncImage(img, entry.item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))),
+                        )
+                        Icon(
+                            if (reading) Icons.AutoMirrored.Filled.MenuBook else Icons.Filled.PlayArrow,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.align(Alignment.Center).size(40.dp),
+                        )
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .background(Color.White.copy(alpha = 0.25f)),
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(entry.progress.coerceIn(0f, 1f))
+                                    .height(4.dp)
+                                    .background(nova.accent),
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(50))
+                                .clickable { onRemove(entry) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(26.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.Black.copy(alpha = 0.62f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    "Remove",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        entry.item.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = nova.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    entry.videoTitle?.let {
+                        Text(it, style = MaterialTheme.typography.labelMedium, color = nova.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Horizontal rail of isolated adult bookmarks with remove + clear-all management. */
+@Composable
+private fun NsfwBookmarksRail(
+    items: List<MediaItem>,
+    onOpen: (MediaItem) -> Unit,
+    onRemove: (MediaItem) -> Unit,
+    onClearAll: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        SectionHeader(
+            "Private bookmarks",
+            trailing = { TextButton(onClick = onClearAll) { Text("Clear") } },
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = AppSpacing.screen),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(items, key = { it.key }) { item ->
+                PosterCard(
+                    item = item,
+                    onClick = { onOpen(item) },
+                    width = 110,
+                    onLongClick = { onRemove(item) },
+                    onRemove = { onRemove(item) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Jump cards into the three browse tabs, so the Private dashboard is the hub's front door. */
+@Composable
+private fun NsfwBrowseShortcuts(onOpen: (Int) -> Unit) {
+    val nova = LocalNovaColors.current
+    val entries = listOf(
+        Triple("NSFW Anime", "AniList, Jikan and add-on catalogues", 1),
+        Triple("NSFW Manga", "MangaDex adult catalogue", 2),
+        Triple("Real 18+", "Built-in sources and NSFW add-ons", 3),
+    )
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        entries.forEach { (title, subtitle, index) ->
+            GlassSurface(Modifier.fillMaxWidth(), onClick = { onOpen(index) }) {
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(title, style = MaterialTheme.typography.titleSmall, color = nova.textPrimary, fontWeight = FontWeight.SemiBold)
+                        Text(subtitle, style = MaterialTheme.typography.labelSmall, color = nova.textTertiary)
+                    }
+                    Icon(Icons.Filled.ChevronRight, null, tint = nova.accent, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Quick management tools for the private library: the isolation opt-ins plus destructive
+ * history/bookmark clears (each behind a confirmation dialog owned by [NsfwPrivateTab]).
+ */
+@Composable
+private fun NsfwManageCard(
+    globalSearch: Boolean,
+    onGlobalSearch: (Boolean) -> Unit,
+    autoNsfw: Boolean,
+    onAutoNsfw: (Boolean) -> Unit,
+    historyCount: Int,
+    bookmarksCount: Int,
+    onClearHistory: () -> Unit,
+    onClearBookmarks: () -> Unit,
+) {
+    val nova = LocalNovaColors.current
+    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                "Private library tools",
+                style = MaterialTheme.typography.titleSmall,
+                color = nova.textPrimary,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            // The isolation opt-in. Off by default, so the general Search screen and Home feed never
+            // surface adult content/extensions unless the user turns this on inside the hub.
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Show NSFW in general search",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = nova.textPrimary,
+                    )
+                    Text(
+                        "Off means Search stays adult-free. Adult add-ons are always available in this hub.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = nova.textTertiary,
+                    )
+                }
+                Spacer(Modifier.size(8.dp))
+                NovaSwitch(checked = globalSearch, onCheckedChange = onGlobalSearch)
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Include NSFW add-ons in Real 18+",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = nova.textPrimary,
+                    )
+                    Text(
+                        "Off means Real 18+ uses built-in sources only.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = nova.textTertiary,
+                    )
+                }
+                Spacer(Modifier.size(8.dp))
+                NovaSwitch(checked = autoNsfw, onCheckedChange = onAutoNsfw)
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onClearHistory,
+                enabled = historyCount > 0,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
+                    contentColor = MaterialTheme.colorScheme.error,
+                    disabledContainerColor = nova.surfaceElevated,
+                    disabledContentColor = nova.textTertiary,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Filled.History, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Clear adult history ($historyCount)")
+            }
+            Button(
+                onClick = onClearBookmarks,
+                enabled = bookmarksCount > 0,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
+                    contentColor = MaterialTheme.colorScheme.error,
+                    disabledContainerColor = nova.surfaceElevated,
+                    disabledContentColor = nova.textTertiary,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Filled.Favorite, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Clear private bookmarks ($bookmarksCount)")
+            }
         }
     }
 }

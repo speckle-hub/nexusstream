@@ -15,6 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowUp
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,11 +47,12 @@ import com.novastream.app.ui.vm.novaViewModel
 import androidx.compose.runtime.LaunchedEffect
 
 /**
- * Home feed row reordering (Phase 12).
+ * Home feed row reordering (Phase 12) plus hide and pin-to-top (Phase 30).
  *
  * Rows are produced dynamically by add-ons, so instead of drag-and-drop on a fixed list this shows
  * the current rows with up/down priority controls and persists the resulting title order. Unknown
- * rows keep their natural position after any explicitly ordered ones.
+ * rows keep their natural position after any explicitly ordered ones. Each row can additionally be
+ * hidden from the Home feed or pinned straight to the top.
  */
 @Composable
 fun HomeOrderScreen(nav: NavHostController) {
@@ -57,6 +61,8 @@ fun HomeOrderScreen(nav: NavHostController) {
     val vm = novaViewModel { HomeViewModel(it) }
     val rows by vm.rows.collectAsStateSafe()
     val saved by container.settings.homeOrder.collectAsStateSafe()
+    // Phase 30: hidden-row set backing the visibility toggles below.
+    val hidden by container.settings.hiddenHomeRows.collectAsStateSafe()
     val scope = rememberCoroutineScope()
 
     // Local working copy so moves are instant; persisted on every change. rememberSaveable so the
@@ -88,6 +94,23 @@ fun HomeOrderScreen(nav: NavHostController) {
         scope.launch { runCatching { container.settings.setHomeOrder(mutable) } }
     }
 
+    /** Phase 30: hide or re-show a row on the Home feed. */
+    fun setHidden(title: String, hide: Boolean) {
+        val next = if (hide) hidden + title else hidden - title
+        scope.launch { runCatching { container.settings.setHiddenHomeRows(next) } }
+    }
+
+    /** Phase 30: pin a row to the top of the Home feed (and unhide it when hidden). */
+    fun pinToTop(title: String) {
+        order = pinRowToTop(order, title)
+        scope.launch {
+            runCatching {
+                container.settings.setHomeOrder(order)
+                if (title in hidden) container.settings.setHiddenHomeRows(hidden - title)
+            }
+        }
+    }
+
     // navigationBarsPadding: pushed destination with no bottom tab bar.
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(
@@ -109,6 +132,7 @@ fun HomeOrderScreen(nav: NavHostController) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 itemsIndexed(order, key = { _, t -> t }) { index, title ->
+                    val isHidden = title in hidden
                     GlassSurface(Modifier.fillMaxWidth()) {
                         Row(
                             Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -117,10 +141,22 @@ fun HomeOrderScreen(nav: NavHostController) {
                             Text(
                                 "${index + 1}. $title",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = nova.textPrimary,
+                                color = if (isHidden) nova.textTertiary else nova.textPrimary,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.weight(1f),
                             )
+                            // Pin to top (Phase 30 dashboard).
+                            IconButton(onClick = { pinToTop(title) }) {
+                                Icon(Icons.Filled.KeyboardDoubleArrowUp, "Pin to top", tint = nova.textSecondary)
+                            }
+                            // Hide / show on the Home feed (Phase 30 dashboard).
+                            IconButton(onClick = { setHidden(title, !isHidden) }) {
+                                Icon(
+                                    if (isHidden) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                    if (isHidden) "Show row" else "Hide row",
+                                    tint = nova.textSecondary,
+                                )
+                            }
                             IconButton(onClick = { move(index, -1) }, enabled = index > 0) {
                                 Icon(Icons.Filled.KeyboardArrowUp, "Move up", tint = nova.textSecondary)
                             }
@@ -141,3 +177,16 @@ fun applyRowOrder(rows: List<CatalogRow>, order: List<String>): List<CatalogRow>
     val indexOf = order.withIndex().associate { it.value to it.index }
     return rows.sortedBy { indexOf[it.title] ?: Int.MAX_VALUE }
 }
+
+/**
+ * Drop hidden home rows (Phase 30 dashboard). Titles are matched exactly — an add-on rename
+ * surfaces the row again instead of hiding the wrong rail.
+ */
+fun applyRowVisibility(rows: List<CatalogRow>, hidden: Set<String>): List<CatalogRow> {
+    if (hidden.isEmpty()) return rows
+    return rows.filterNot { it.title in hidden }
+}
+
+/** Pin a row title to the front of a saved order (Phase 30 dashboard). */
+fun pinRowToTop(order: List<String>, title: String): List<String> =
+    listOf(title) + order.filterNot { it == title }

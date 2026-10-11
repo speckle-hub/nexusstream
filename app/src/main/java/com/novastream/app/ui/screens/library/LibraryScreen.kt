@@ -99,13 +99,16 @@ private data class PendingRemoval(val favorite: Boolean, val item: MediaItem)
 /**
  * The category chip bar under the segmented control. Both content sections (Downloads and My
  * Library) are filterable by the same set of categories, so one enum drives both.
+ *
+ * Phase 28 isolation: there is deliberately **no NSFW chip** — adult favourites and adult
+ * playback history are scrubbed from this public surface entirely (see `ActivityGrid`) and
+ * live only inside the PIN/biometric-gated NSFW Hub.
  */
 private enum class LibraryFilter(val label: String) {
     ALL("All"),
     MOVIES("Movies"),
     TV("TV Shows"),
-    ANIME("Anime"),
-    NSFW("NSFW");
+    ANIME("Anime");
 
     /**
      * Whether a title of [type] belongs here. `null` (an unknown/legacy type) only passes
@@ -120,7 +123,6 @@ private enum class LibraryFilter(val label: String) {
         MOVIES -> type == MediaType.MOVIE
         TV -> type == MediaType.SERIES
         ANIME -> type == MediaType.ANIME || type == MediaType.MANGA
-        NSFW -> type == MediaType.NSFW_ANIME || type == MediaType.NSFW_MANGA || type == MediaType.REAL
     }
 }
 
@@ -232,6 +234,11 @@ private fun DownloadsGrid(
     val listState = rememberLazyGridState()
     val videos = videoDownloads
     val chapters = downloads
+    // Phase 29: offline storage summary — total bytes across completed video downloads and
+    // downloaded manga chapters, so the tab answers "how much space is this using" at a glance.
+    val totalBytes = remember(videos, chapters) {
+        videos.sumOf { it.bytes } + chapters.sumOf { it.bytes }
+    }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = AppSpacing.posterMin),
         state = listState,
@@ -244,6 +251,13 @@ private fun DownloadsGrid(
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.item),
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            DownloadsStorageCard(
+                videoCount = videos.size,
+                chapterCount = chapters.size,
+                totalBytes = totalBytes,
+            )
+        }
         if (filter != LibraryFilter.ALL && videos.isEmpty() && chapters.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 EmptyState(
@@ -309,11 +323,14 @@ private fun ActivityGrid(
     onRemove: (PendingRemoval) -> Unit,
 ) {
     val listState = rememberLazyGridState()
-    val watched = history.filter { it.item.matches(filter) && !it.item.isReadable }
+    // Phase 28 isolation (defense in depth): the ViewModels already strip adult entries, but
+    // this grid is the last stop before pixels — a mis-tagged item reaching it is dropped here
+    // so the public Library rails can never render an adult poster, whatever feeds them.
+    val watched = history.filter { !it.item.isAdult && it.item.matches(filter) && !it.item.isReadable }
     // Reading progress lands in the same history list as watch progress, but it belongs to its own
     // section: a manga title must never show up under a Play CTA.
-    val reading = history.filter { it.item.matches(filter) && it.item.isReadable }
-    val saved = favorites.filter { it.matches(filter) }
+    val reading = history.filter { !it.item.isAdult && it.item.matches(filter) && it.item.isReadable }
+    val saved = favorites.filter { !it.isAdult && it.matches(filter) }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = AppSpacing.posterMin),
         state = listState,
@@ -362,7 +379,7 @@ private fun ActivityGrid(
             }
         }
 
-        // ---- Continue Reading (manga, normal + NSFW) -------------------------
+        // ---- Continue Reading (SFW manga; adult manga lives in the NSFW Hub) -
         if (reading.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SectionHeader("Continue Reading", modifier = Modifier.zIndex(10f))
@@ -580,6 +597,32 @@ private fun LibraryFilterBar(
                     style = MaterialTheme.typography.labelLarge,
                     color = if (active) nova.accent else nova.textSecondary,
                     fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+/** Offline storage summary card at the top of the Downloads tab (Phase 29). */
+@Composable
+private fun DownloadsStorageCard(videoCount: Int, chapterCount: Int, totalBytes: Long) {
+    val nova = LocalNovaColors.current
+    GlassSurface(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Download, null, tint = nova.accent, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                // Tabular figures so the byte readout keeps a stable width as downloads tick.
+                Text(
+                    formatBytes(totalBytes),
+                    style = MaterialTheme.typography.headlineSmall.tnum,
+                    color = nova.textPrimary,
+                )
+                Text(
+                    "$videoCount video${if (videoCount == 1) "" else "s"} · " +
+                        "$chapterCount chapter${if (chapterCount == 1) "" else "s"} stored offline",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = nova.textTertiary,
                 )
             }
         }

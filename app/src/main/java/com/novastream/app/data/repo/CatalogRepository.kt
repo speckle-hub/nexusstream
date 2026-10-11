@@ -39,7 +39,20 @@ class CatalogRepository(
             async { safeRow("Now Playing", MediaType.MOVIE) { TmdbClient.nowPlaying() } },
         )
         val base = jobs.mapNotNull { it.await() }
-        base + stremioRowsFor(setOf(MediaType.MOVIE, MediaType.SERIES, MediaType.ANIME))
+        (base + stremioRowsFor(setOf(MediaType.MOVIE, MediaType.SERIES, MediaType.ANIME)))
+            .mapNotNull { it.scrubbed() }
+    }
+
+    /**
+     * Phase 28 isolation safety net: the public Home feed must never carry an adult poster,
+     * even if a mis-tagged add-on catalog or a mis-labelled built-in item slips one in.
+     * Rows left empty by the scrub are dropped so the feed never renders an empty rail.
+     */
+    private fun CatalogRow.scrubbed(): CatalogRow? {
+        val kept = items.filterNot { it.isAdult }
+        if (kept.isEmpty()) return null
+        if (kept.size == items.size) return this
+        return copy(items = kept)
     }
 
     // ---- Generic section ----------------------------------------------------
@@ -318,7 +331,9 @@ class CatalogRepository(
         val filtered = if (isNsfwSection) {
             results.filter { it.addonId != "anilist" && it.addonId != "jikan" && it.addonId != "mangadex" || it.type == section }
         } else {
-            results
+            // Phase 28 isolation: a public (SFW) section must never surface an adult item, even
+            // if a mis-tagged add-on catalog or a mis-labelled built-in result slips one in.
+            results.filterNot { it.isAdult }
         }
         filtered.distinctBy { it.key }
     }
@@ -370,7 +385,11 @@ class CatalogRepository(
                 }
             }
         addonJobs.forEach { results += it.await() }
-        results.distinctBy { it.key }
+        // Phase 28 isolation: unless the user explicitly opted in from inside the NSFW Hub,
+        // the general Search screen stays adult-free at the *item* level too (the add-on filter
+        // above is not enough — a mis-tagged catalog on an SFW add-on could still leak one in).
+        val scrubbed = if (includeNsfw) results else results.filterNot { it.isAdult }
+        scrubbed.distinctBy { it.key }
     }
 
     // ---- Stremio rows -------------------------------------------------------
