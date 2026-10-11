@@ -73,6 +73,7 @@ import com.novastream.app.ui.components.ShimmerBox
 import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.screens.settings.applyRowOrder
+import com.novastream.app.ui.screens.settings.applyRowVisibility
 import com.novastream.app.ui.theme.AppSpacing
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.rememberPosterPalette
@@ -89,11 +90,19 @@ fun HomeScreen(nav: NavHostController) {
     val rawRows by vm.rows.collectAsStateSafe()
     // Phase 12: apply the user's saved home-row order (no-op when unset).
     val homeOrder by LocalContainer.current.settings.homeOrder.collectAsStateSafe()
-    val rows = remember(rawRows, homeOrder) { applyRowOrder(rawRows, homeOrder) }
+    // Phase 30: drop rows the user hid (no-op when none are hidden).
+    val hiddenRows by LocalContainer.current.settings.hiddenHomeRows.collectAsStateSafe()
+    val rows = remember(rawRows, homeOrder, hiddenRows) {
+        applyRowVisibility(applyRowOrder(rawRows, homeOrder), hiddenRows.toSet())
+    }
     val loading by vm.loading.collectAsStateSafe()
     val error by vm.error.collectAsStateSafe()
     val continueWatching by vm.continueWatching.collectAsStateSafe()
     val continueReading by vm.continueReading.collectAsStateSafe()
+    // Phase 28 isolation (defense in depth): the ViewModel strips adult entries, but the Home
+    // feed is a public surface — drop any mis-tagged adult item here as the last stop.
+    val safeContinueWatching = remember(continueWatching) { continueWatching.filterNot { it.item.isAdult } }
+    val safeContinueReading = remember(continueReading) { continueReading.filterNot { it.item.isAdult } }
 
     // Featured carousel pool: trending titles first (they have backdrops), then the rest of the
     // feed, deduped. Prefer items with real artwork so a premium banner never falls back to a
@@ -101,6 +110,7 @@ fun HomeScreen(nav: NavHostController) {
     val featured = remember(rows) {
         val trending = rows.firstOrNull { it.title.contains("Trending", true) }?.items.orEmpty()
         val pool = (trending + rows.flatMap { it.items }).distinctBy { it.key }
+            .filterNot { it.isAdult }
         val withArt = pool.filter { !it.backdrop.isNullOrBlank() }
         (withArt.ifEmpty { pool }).take(8)
     }
@@ -145,10 +155,10 @@ fun HomeScreen(nav: NavHostController) {
             }
         }
 
-        if (continueWatching.isNotEmpty()) {
+        if (safeContinueWatching.isNotEmpty()) {
             item {
                 ContinueWatchingRow(
-                    entries = continueWatching,
+                    entries = safeContinueWatching,
                     onClick = { nav.navigate(Routes.detail(it.item)) },
                     onRemove = { pendingRemoval = it },
                     onClearAll = { clearWatching = true },
@@ -156,14 +166,14 @@ fun HomeScreen(nav: NavHostController) {
             }
         }
 
-        // Manga reading progress (normal + NSFW) gets its own row so a reader can jump straight
-        // back into the last chapter they had open.
-        if (continueReading.isNotEmpty()) {
+        // SFW manga reading progress gets its own row so a reader can jump straight
+        // back into the last chapter they had open (adult manga lives in the NSFW Hub).
+        if (safeContinueReading.isNotEmpty()) {
             item {
                 ContinueWatchingRow(
                     title = "Continue Reading",
                     reading = true,
-                    entries = continueReading,
+                    entries = safeContinueReading,
                     onClick = { nav.navigate(Routes.detail(it.item)) },
                     onRemove = { pendingRemoval = it },
                     onClearAll = { clearReading = true },

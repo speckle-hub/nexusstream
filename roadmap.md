@@ -1,7 +1,45 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-11 — **Phase 27 (Part B): Updater UI Revamp.**
+> resume exactly where it left off. Last updated: 2026-10-11 — **v1.5.0 released.** Bundles
+> Phase 28 (brand icon + NSFW Hub overhaul, §2ah), Phase 29 (sleep timer, swipe zones, subtitle
+> styling, storage header, §2ai) and Phase 30 (tracker OAuth + bidirectional sync, hide/pin rows,
+> Chromecast, §2aj). `versionCode` 9 / `versionName` 1.5.0; signed release built →
+> `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `CEAAEBEC…46139`); tagged `v1.5.0` and pushed.
+> Verified: `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **161/161**,
+> `:app:assembleRelease` ✓ (signed).
+> Previous session, Last updated: 2026-10-11 — **Phase 30: Cloud Sync, Anime
+> Trackers & Customizable Dashboard.**
+> Trackers went from configured-but-dead to working both directions: **browser OAuth** for
+> Trakt/AniList/MyAnimeList (user-supplied client credentials, PKCE for MAL, deep-link callback
+> exchanging codes for tokens), **push on playback** (completion + 60 s heartbeat with
+> episode/season numbers) and **Trakt watched import**; the Home dashboard gained **hide rows**
+> and **pin-to-top** next to the existing reorder; and the player has a real **Chromecast route
+> button + session handoff** to the Default Media Receiver. Verified:
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **161/161** (+10 `TrackerOAuthTest`,
+> +8 `HomeRowsTest`). Full detail in **§2aj**.
+> Previous session, Last updated: 2026-10-11 — **Phase 29: Player Enhancements &
+> Offline Downloads Library.**
+> The player gained a **sleep timer** (15/30/45/60 min + end-of-episode, top-bar button + live
+> "Sleep Nm" chip + picker sheet, pause + progress snapshot on expiry), spec-literal **swipe
+> zones** (brightness left-half / volume right-half / horizontal scrub anywhere, dominant-axis
+> locking), an **in-player subtitle style overlay** (size, font color, background, position —
+> live-applied and persisted to Settings, next to the existing track picker + sync offset), and
+> the Library Downloads tab gained an **offline storage summary** header. Verified:
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **143/143** (+7 `SleepTimerTest`
+> cases). Full detail in **§2ai**.
+> Previous session, Last updated: 2026-10-11 — **Phase 28: Branding, App Icon
+> Replacement & NSFW Hub Overhaul.**
+> The launcher icon now matches the NexusStream brand (solid purple rounded-square + white "M"
+> lettermark with stream dot: new `ic_launcher_foreground` vector, `ic_launcher_background`
+> `#FF7C5CFF`, fresh PNGs in all five densities); public Home / search / Library rails are
+> desanitized of adult content (`MediaType.isAdult`/`MediaItem.isAdult` + safety-net scrubbing in
+> `CatalogRepository`, `HomeViewModel`, `LibraryViewModel`, `HomeScreen`, `LibraryScreen` — the
+> Library NSFW chip is gone); and the gated NSFW Hub opens on a new **Private** dashboard with
+> isolated adult Continue Watching / Continue Reading / bookmarks plus management tools (clear
+> adult history/bookmarks, both opt-ins, Lock now). Verified: `:app:compileDebugKotlin` ✓,
+> `:app:testDebugUnitTest` ✓ **136/136** (+7 `NsfwIsolationTest` cases). Full detail in **§2ah**.
+> Previous session, Last updated: 2026-10-11 — **Phase 27 (Part B): Updater UI Revamp.**
 > The auto-updater download flow now reports **real-time progress**: `downloadApkWithProgress()` streams the
 > APK in 8 KB chunks with throttled `DownloadProgress(downloadedBytes, totalBytes)` callbacks (fraction 0..1
 > + percent 0..100, null-safe on chunked responses), and `UpdateAvailableDialog` swaps its indeterminate
@@ -185,12 +223,14 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~20,900 LOC across 104 Kotlin source files in a single `:app` module (+15 test files). Unit tests
-(113 cases):
+~20,900 LOC across 108 Kotlin source files in a single `:app` module (+19 test files). Unit tests
+(161 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
-`TitleMatchTest.kt` (7, NSFW title matching — §2s),
+`TitleMatchTest.kt` (7, NSFW title matching — §2s), `NsfwIsolationTest.kt` (7, adult isolation — §2ah),
+`SleepTimerTest.kt` (7, sleep-timer mapping — §2ai), `TrackerOAuthTest.kt` (10, OAuth/PKCE — §2aj),
+`HomeRowsTest.kt` (8, dashboard order/visibility — §2aj),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
 
@@ -198,13 +238,14 @@ site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexu
 
 ## 2. Current focus
 
-**Topic: Phase 27 (Part B) — Updater UI Revamp with Real-Time Progress Bar.** The launch-time update
-dialog no longer shows a generic spinner while the APK downloads: `downloadApkWithProgress()` emits throttled
-`DownloadProgress` snapshots and the dialog renders a determinate `LinearProgressIndicator` with an exact
-percent + byte readout, a Cancel path that aborts cleanly, and a locked dialog (no silent orphan) while the
-bytes are in flight. Full detail in **§2ag**.
+**Topic: Phase 30 — Cloud Sync, Anime Trackers & Customizable Dashboard.** Working tracker sync
+both directions, hide/pin dashboard rows, and Chromecast handoff — on top of the pre-existing
+token/row/cast-settings foundations. Full detail in **§2aj**.
 
-Previous focus: Phase 27 (Part A) — UI & Layout Polish Fixes (§2af); Phase 26 — P0 Bug Fixes & Crash
+Previous focus: Phase 29 — Player Enhancements & Offline Downloads Library (§2ai);
+Phase 28 — Branding, App Icon Replacement & NSFW Hub Overhaul (§2ah);
+Phase 27 (Part B) — Updater UI Revamp with Real-Time Progress Bar (§2ag);
+Phase 27 (Part A) — UI & Layout Polish Fixes (§2af); Phase 26 — P0 Bug Fixes & Crash
 Prevention (§2ae); QoL follow-up (§2d close-out / §2ac);
 v1.4.1 release (§2ad); QoL polish pass (§2ab).
 
@@ -527,6 +568,228 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
   app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
+
+---
+
+## 2aj. Phase 30 — Cloud Sync, Anime Trackers & Customizable Dashboard (2026-10-11)
+
+**Topic:** Trakt/AniList/MAL sync, dashboard customization, and Cast/DLNA output.
+
+Status: **implemented and verified.** Audit first: the foundations existed but the headline
+feature was dead — `ScrobbleManager.syncAll` had **zero callers**, so every provider toggle and
+pasted token did nothing; the dashboard had reorder but no hide/pin; the player had a Cast icon
+that only opened system settings. This phase wires the missing links and adds the new surfaces.
+Files and verification at the end.
+
+### 1. Trakt.tv integration (watch history & progress sync)
+- **OAuth inside Settings (new).** The app ships no client secrets, so `TrackerOAuth.kt` builds
+  browser authorize URLs from credentials the user pastes from their own provider app
+  registration (new OAuth-credentials dialog + per-row Connect/Reconnect buttons for
+  Trakt/AniList/MAL; pasted tokens stay as the fallback). The `novastream://oauth` redirect
+  lands in the new transparent `OAuthCallbackActivity` (manifest `VIEW`/`BROWSABLE` filter),
+  which exchanges the code — JSON for Trakt/AniList, form + PKCE verifier for MAL — and stores
+  the token exactly like a pasted one. Every failure degrades to a toast.
+- **Bidirectional sync.** Push: playback now fires `ScrobbleEvent`s (completion ≥ 90 % once per
+  title plus a ~60 s progress heartbeat, with episode/season numbers) through the previously
+  dead `syncAll` path, and Trakt calls carry the user's OAuth client id as the required
+  `trakt-api-key` header (placeholder kept for pasted-token setups). Pull: new
+  `pullWatchedIds` reads Trakt `sync/watched` shows+movies, and Settings → "Import watched
+  from Trakt" marks matching local entries complete via the pure-tested
+  `parseTraktWatchedImdbIds` join (no IMDB id → skipped, never guessed).
+
+### 2. AniList & MyAnimeList auto-sync
+- **OAuth login:** same browser flow as Trakt — AniList is a plain code grant, MAL adds PKCE
+  S256 (hand-rolled base64url + `SecureRandom` verifier, no Android APIs; the RFC 7636 vector
+  is a unit test). The existing per-provider mutations already send episode progress + CURRENT /
+  COMPLETED status, so anime episodes reaching completion now update the tracker lists
+  automatically once connected. Score sync is out of scope (no scoring UI exists to source it).
+- Other providers (Kitsu/SIMKL) keep their token-paste rows; watched import reports unsupported
+  for them instead of guessing id mappings.
+
+### 3. Customizable home dashboard & pinned catalogs
+- **Hide rows (new).** `hiddenHomeRows` setting + `applyRowVisibility` (exact-title match) applied
+  in `HomeScreen` after the saved order; `HomeOrderScreen` rows gain eye toggles (hidden titles
+  dim) with instant persistence.
+- **Pin to top (new).** `pinRowToTop` moves any rail to the front of the saved order (unhiding it
+  when hidden) via a double-chevron button per row — genre/catalog rails included, since every
+  rail is just a titled row. Reorder (Phase 12) is unchanged.
+
+### 4. Chromecast & DLNA support
+- **Real Cast sender (new).** `media3-cast` + `mediarouter` + `play-services-cast-framework`
+  dependencies, `NovaCastOptionsProvider` targeting the Default Media Receiver (`CC1AD845`, so
+  no custom receiver registration), manifest options-provider metadata, a real
+  `MediaRouteButton` in the player top bar (device discovery + system chooser), and a guarded
+  `SessionManagerListener` (registered in `onResume`, removed in `onPause`) that loads the
+  current stream URL (mp4 vs HLS content type) onto the receiver once per URL and pauses local
+  playback so audio never doubles. No-Play-services devices get an empty route list, never a
+  crash (`runCatching` on `CastContext`).
+
+### Files
+`data/integrations/TrackerOAuth.kt` (new pure OAuth/PKCE builders), `data/integrations/ScrobbleManager.kt`
+(push client-id header, Trakt pull + `parseTraktWatchedImdbIds`), `data/local/SettingsStore.kt`
+(OAuth credential/verifier/hidden-row keys), `ui/player/OAuthCallbackActivity.kt` (new deep-link
+exchange), `ui/player/NovaCastOptionsProvider.kt` (new), `ui/player/PlayerActivity.kt` (scrobble
+triggers, Cast session + route button replacing the settings shortcut),
+`ui/screens/settings/SettingsScreen.kt` (Connect buttons, credentials dialog, watched import),
+`ui/screens/settings/HomeOrderScreen.kt` (hide/pin + pure helpers), `ui/screens/home/HomeScreen.kt`
+(hidden filter), `ui/vm/ViewModels.kt` (credential + import actions), `AndroidManifest.xml`
+(OAuth filter, Cast metadata), `app/build.gradle.kts` (Cast deps),
+`app/src/test/.../TrackerOAuthTest.kt` (+10), `app/src/test/.../HomeRowsTest.kt` (+8).
+
+### Verification (2026-10-11)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings; one
+  in-session API fix: `RemoteMediaClient.load(MediaInfo, Boolean)` is deprecated, so the handoff
+  uses the single-arg `load(MediaInfo)` autoplay overload).
+- `:app:testDebugUnitTest` → **161/161 tests, 0 failures, 0 errors** (+18 new).
+- Not pushed; no APK rebuilt this session. Device pass still needed: full OAuth grants against
+  real Trakt/AniList/MAL app registrations, completion + heartbeat arrivals on each tracker,
+  Trakt import marking, hide/pin persistence across restarts, and casting to a real receiver
+  (connect, title handoff, local pause, disconnect).
+
+---
+
+## 2ai. Phase 29 — Player Enhancements & Offline Downloads Library (2026-10-11)
+
+**Topic:** player controls (gestures, sleep timer), subtitle/audio customization, and offline
+downloads management.
+
+Status: **implemented and verified.** Audit first: most of this phase already existed and was
+verified rather than rebuilt — the Media3 swipe gestures (Phase 6), the Quality/Audio/Subtitle
+track picker with sync offset (Phase 15), the subtitle preference keys + custom overlay styling
+(Phase 11/15) and the Library Downloads tab with thumbnails, offline playback and deletion were
+all in place. The genuine deltas this session are the **sleep timer**, the **spec-literal swipe
+zones**, the **in-player subtitle style overlay** and the **storage summary header**. Files and
+verification at the end.
+
+### 1. Player gesture controls & sleep timer (`PlayerActivity.kt` / Media3)
+- **Swipe zones, spec-literal.** The old handler split the screen into 18 % brightness/volume
+  edges around a center seek area; it now matches the requested layout — vertical swipe on the
+  **left half** adjusts screen brightness, vertical swipe on the **right half** adjusts audio
+  volume, horizontal swipe **anywhere** scrubs. The mode locks to the dominant axis once the drag
+  passes a 24 px slop (`GESTURE_SLOP_PX`), so a slightly diagonal swipe never flips mid-gesture
+  between volume and seek, and the HUD seeds only after the lock (no more wrong-HUD flash from
+  touch-down jitter). Throttled seek flushing, HUD and double-tap behaviour are unchanged.
+- **Sleep timer (new).** `ui/player/SleepTimer.kt` holds the pure option mapping
+  (`OFF / 15 / 30 / 45 / 60 min / END_OF_EPISODE`, `delayMs()`, sheet `label()`,
+  `sleepStatusLabel()`); the Activity owns a cancellable `sleepJob` plus
+  `sleepOptionState`/`sleepDeadlineState`. Timed options pause playback, snapshot progress and
+  disarm with a "Sleep timer ended" toast; end-of-episode cancels any autoplay countdown at arm
+  time, suppresses re-triggering in the progress watcher, and fires at the natural end. Expiry is
+  deliberately pause-only: the controls hold a non-null player reference, so releasing ExoPlayer
+  while the screen is open would crash subsequent seeks — `onDestroy` still owns the release.
+- **Sleep UI.** Top-bar Timer/TimerOff button (amber when armed), a live "Sleep Nm" /
+  "Sleep: episode end" AssistChip in the bottom chip row (ticks with the 250 ms playhead ticker),
+  and a `SleepTimerSheet` bottom sheet with all six options, the remaining readout and
+  re-arm/off semantics.
+
+### 2. Advanced subtitle & audio track selector
+- **Audio track picker:** already existed — `TrackSheet` lists every embedded/external Media3
+  audio group with Default + per-track overrides. Verified, unchanged.
+- **Subtitle customization (new overlay).** `TrackSheet` gained a "Subtitle style" section next
+  to the existing stream list + sync-offset slider: text-size slider (60–200 %), four font-color
+  chips (white/yellow/cyan/green), background-opacity slider (0–100 %) and position slider
+  (0–30 %). Edits flow through `updateSubtitleStyle()` — clamped, written to the shared
+  `SettingsStore` keys (so Settings > Subtitles stays in sync) and applied live via a new
+  `LaunchedEffect(subtitleStyle, playerView)` plus the state-driven time-shifted overlay.
+  Outline/shadow needs no control: `applySubtitleStyle` already forces
+  `EDGE_TYPE_OUTLINE` with a black edge on every caption.
+
+### 3. Dedicated offline downloads library tab (`LibraryScreen.kt`)
+- Already existed as the Library "Downloads" section: completed video/anime downloads and manga
+  chapters with thumbnails, pause/resume/delete rows and direct offline playback (`CacheDataSource`
+  reads through the shared download cache; manga pages resolve from disk). Verified, kept.
+- **New: storage summary header.** `DownloadsStorageCard` sits atop the tab with the tabular
+  total bytes across videos + chapters and the "N videos · M chapters stored offline" count, so
+  the tab answers storage usage at a glance. Per-row bytes/percent/speed/ETA and deletion
+  actions are unchanged.
+
+### Files
+`ui/player/SleepTimer.kt` (new pure helper), `ui/player/PlayerActivity.kt` (sleep state/jobs,
+watcher hook, gesture zones, `SleepTimerSheet`, `TrackSheet` style section, live style plumbing),
+`ui/screens/library/LibraryScreen.kt` (`DownloadsStorageCard`),
+`app/src/test/.../SleepTimerTest.kt` (+7 timer cases).
+
+### Verification (2026-10-11)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings; one
+  in-session fix: `GESTURE_SLOP_PX` moved from the companion to file scope — top-level
+  composables cannot see private companion members).
+- `:app:testDebugUnitTest` → **143/143 tests, 0 failures, 0 errors** (+7 new).
+- Not pushed; no APK rebuilt this session. Device pass still needed: half-zone gesture feel +
+  HUD, timer firing (timed and episode-end, incl. no-autoplay suppression), in-player style edits
+  applying to both native and time-shifted captions, and the storage header totals.
+
+---
+
+## 2ah. Phase 28 — Branding, App Icon Replacement & NSFW Hub Overhaul (2026-10-11)
+
+**Topic:** first batch of the new roadmap updates — launcher icon branding, public-surface
+desanitization, and the secure NSFW Continue Watching hub + hub UI overhaul.
+
+Status: **implemented and verified.** Files and verification at the end.
+
+### 1. App icon replacement (`res/mipmap` & Manifest)
+- New `drawable/ic_launcher_foreground.xml`: the website logo's crisp white "M" zigzag lettermark
+  plus the stream dot (the dot is two 180° arc paths — VectorDrawable has no `<circle>`, and the
+  first build caught `attribute android:cx not found` at resource-link time), on artwork-only
+  transparency so any launcher skin stays legible.
+- `values/colors.xml` → `ic_launcher_background` is now solid brand purple `#FF7C5CFF` (was the
+  near-black `#FF0A0A0F`); both `mipmap-anydpi-v26` adaptive XMLs pair it with the foreground.
+- Fresh legacy PNGs generated for all five densities (`mdpi` 48 / `hdpi` 72 / `xhdpi` 96 /
+  `xxhdpi` 144 / `xxxhdpi` 192, square + round): purple rounded-square (square) / purple disc
+  (round) with the white "M" stroke + dot scaled from the website `icon.svg` geometry.
+- `AndroidManifest.xml` needed no change — it already points at `@mipmap/ic_launcher` /
+  `@mipmap/ic_launcher_round` (minSdk 24, so legacy PNGs still serve pre-O launchers).
+
+### 2. Homepage & global history desanitization
+- New model-level rule: `MediaType.isAdult` (exactly `NSFW_ANIME` / `NSFW_MANGA` / `REAL`) and
+  `MediaItem.isAdult` (`data/model/Models.kt`) — the single discriminator every layer uses.
+- `CatalogRepository`: `homeRows()` scrubs adult items per row (emptied rows dropped);
+  `searchInternal()` drops adult items for every SFW section; `globalSearch()` drops adult items
+  at the *item* level whenever the hub opt-in is off (the add-on flag filter alone could not stop
+  a mis-tagged catalog leaking one in).
+- `HomeViewModel.continueWatching` / `continueReading` now exclude adult entries; `LibraryViewModel`
+  `favorites` / `history` exclude adult entries; `HomeScreen` (rails + hero pool) and
+  `LibraryScreen.ActivityGrid` repeat the exclusion as defense-in-depth.
+- `LibraryScreen.LibraryFilter` lost its `NSFW` chip — the public Library is Movies / TV / Anime
+  only; adult favourites/history surface nowhere outside the hub.
+
+### 3. Dedicated secure NSFW Continue Watching hub (`NsfwViewModel`)
+- New isolated flows, collected solely by the PIN/biometric-gated hub:
+  `nsfwContinueWatching` (adult video: NSFW anime + Real 18+, unfinished),
+  `nsfwContinueReading` (NSFW manga, unfinished), `nsfwFavorites` (adult bookmarks).
+- Management actions: `removeNsfwWatch(key)`, `clearNsfwHistory()` (SFW progress kept),
+  `removeNsfwFavorite(item)`, `clearNsfwFavorites()` (SFW favourites kept). Adult progress is
+  still stored in the shared history — it is only *surfaced* behind the unlock gate.
+
+### 4. NSFW Hub UI polish & overhaul
+- Hub tabs are now **Private | NSFW Anime | NSFW Manga | Real 18+** — the Private dashboard is the
+  hub's front door: unlocked-state status card (accent-tinted lock glyph + Lock now), isolated
+  Continue Watching / Continue Reading rails (progress cards with ×/long-press remove + Clear),
+  Private bookmarks rail (110 dp cards + Clear), jump cards into the three browse tabs, and a
+  "Private library tools" management card (both opt-in switches + counted Clear adult history /
+  Clear private bookmarks buttons, every destructive path behind `ConfirmRemoveDialog`).
+- Header gained the dark/purple **Private** pill plus a Lock-now action (visible when a lock is
+  configured and the hub is unlocked); the old top-level search opt-in row moved into the tools
+  card, and a second switch for "Include NSFW add-ons in Real 18+" (`autoNsfwFromAddons`) was added
+  alongside it.
+
+### Files
+`res/drawable/ic_launcher_foreground.xml`, `res/values/colors.xml`,
+`res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher{,_round}.png`,
+`data/model/Models.kt` (`isAdult`), `data/repo/CatalogRepository.kt` (row/search scrubs),
+`ui/vm/ViewModels.kt` (public filters + hub flows), `ui/screens/home/HomeScreen.kt` (rail/hero guards),
+`ui/screens/library/LibraryScreen.kt` (chip removal + grid guards),
+`ui/screens/nsfw/NsfwHubScreen.kt` (Private dashboard overhaul),
+`app/src/test/.../NsfwIsolationTest.kt` (+7 isolation cases).
+
+### Verification (2026-10-11)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings; one
+  new-resource failure fixed in-session: `<circle>` is not a VectorDrawable element).
+- `:app:testDebugUnitTest` → **136/136 tests, 0 failures, 0 errors** (+7 new).
+- Not pushed; no APK rebuilt this session. Device pass still needed: launcher icon rendering
+  (adaptive + legacy, light/dark), public rails showing zero adult posters after adult playback,
+  hub Private tab showing that same playback only when unlocked, and the clear/lock management
+  paths.
 
 ---
 
@@ -3149,7 +3412,8 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
    `DownloadMaintenanceTest.kt` (8, download headers + orphan detection — §2p),
    `TitleMatchTest.kt` (7, NSFW title matching — §2s), `PlaybackMathTest.kt` (6, subtitle-sync cue
    selection + stats formatting — §2q), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
-   `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
+`MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3), `SearchCancellationTest.kt` (2),
+`UpdateCheckerTest.kt` (11, updater progress — §2ag) and `Phase26P0FixesTest.kt` (5).
    If more clients need coverage (MangaDex chapter filtering, AniList query building), extract the
    pure logic and add cases there.
 4. Optional later: flip `isMinifyEnabled = true`, smoke-test on a device, ship. Optional later:

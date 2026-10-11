@@ -49,7 +49,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import android.content.Intent
+import android.net.Uri
 import com.novastream.app.BuildConfig
+import com.novastream.app.data.integrations.OAuthProvider
+import com.novastream.app.data.integrations.authorizeUrl
+import com.novastream.app.data.integrations.pkceChallenge
+import com.novastream.app.data.integrations.randomVerifier
 import com.novastream.app.data.integrations.ReleaseInfo
 import com.novastream.app.data.integrations.UpdateChecker
 import com.novastream.app.data.integrations.downloadApk
@@ -142,6 +148,36 @@ fun SettingsScreen(nav: NavHostController) {
     val tokenMal by vm.tokenMal.collectAsStateSafe()
     val tokenKitsu by vm.tokenKitsu.collectAsStateSafe()
     val tokenSimkl by vm.tokenSimkl.collectAsStateSafe()
+    val oauthClientId by vm.oauthClientId.collectAsStateSafe()
+    val oauthClientSecret by vm.oauthClientSecret.collectAsStateSafe()
+    // Phase 30 dialog state.
+    var showOAuthCreds by remember { mutableStateOf(false) }
+
+    /**
+     * Browser OAuth connect for Trakt/AniList/MyAnimeList (Phase 30): opens the provider's
+     * authorize page with the user's own stored client id (MAL additionally stashes a fresh PKCE
+     * verifier for the callback); the `novastream://oauth` redirect finishes the grant.
+     */
+    fun connectOAuth(provider: OAuthProvider) {
+        scope.launch {
+            val id = container.settings.oauthClientIdOnce()
+            if (id.isBlank()) {
+                message = "Set your OAuth client ID first"
+                showOAuthCreds = true
+                return@launch
+            }
+            val state = "${provider.key}:${System.currentTimeMillis()}"
+            val url = if (provider == OAuthProvider.MAL) {
+                val verifier = randomVerifier()
+                container.settings.setOAuthVerifier(verifier)
+                provider.authorizeUrl(id, state, pkceChallenge(verifier))
+            } else {
+                provider.authorizeUrl(id, state)
+            }
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                .onFailure { message = "No browser available" }
+        }
+    }
 
     // SAF launchers for backup/restore + the storage folder picker.
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -384,12 +420,17 @@ fun SettingsScreen(nav: NavHostController) {
             SwitchRow("New-content notifications", "Notify when new episodes/chapters appear", notifyNewContent) { vm.setNotifyNewContent(it) }
         } }
 
-        item { if (settingsGroupVisible("Scrobbling & Sync", listOf("Trakt", "AniList", "MyAnimeList", "Kitsu", "SIMKL", "scrobble"))) SettingsGroup("Scrobbling & Sync") {
-            ScrobbleRow("Trakt", scrobbleTrakt, vm::setScrobbleTrakt, tokenTrakt) { tokenProvider = "trakt" }
-            ScrobbleRow("AniList", scrobbleAniList, vm::setScrobbleAniList, tokenAniList) { tokenProvider = "anilist" }
-            ScrobbleRow("MyAnimeList", scrobbleMal, vm::setScrobbleMal, tokenMal) { tokenProvider = "mal" }
-            ScrobbleRow("Kitsu", scrobbleKitsu, vm::setScrobbleKitsu, tokenKitsu) { tokenProvider = "kitsu" }
-            ScrobbleRow("SIMKL", scrobbleSimkl, vm::setScrobbleSimkl, tokenSimkl) { tokenProvider = "simkl" }
+        item { if (settingsGroupVisible("Scrobbling & Sync", listOf("Trakt", "AniList", "MyAnimeList", "Kitsu", "SIMKL", "scrobble", "OAuth", "Connect", "Import"))) SettingsGroup("Scrobbling & Sync") {
+            ScrobbleRow("Trakt", scrobbleTrakt, vm::setScrobbleTrakt, tokenTrakt, onEditToken = { tokenProvider = "trakt" }, onConnect = { connectOAuth(OAuthProvider.TRAKT) })
+            ScrobbleRow("AniList", scrobbleAniList, vm::setScrobbleAniList, tokenAniList, onEditToken = { tokenProvider = "anilist" }, onConnect = { connectOAuth(OAuthProvider.ANILIST) })
+            ScrobbleRow("MyAnimeList", scrobbleMal, vm::setScrobbleMal, tokenMal, onEditToken = { tokenProvider = "mal" }, onConnect = { connectOAuth(OAuthProvider.MAL) })
+            ScrobbleRow("Kitsu", scrobbleKitsu, vm::setScrobbleKitsu, tokenKitsu, onEditToken = { tokenProvider = "kitsu" })
+            ScrobbleRow("SIMKL", scrobbleSimkl, vm::setScrobbleSimkl, tokenSimkl, onEditToken = { tokenProvider = "simkl" })
+            // Phase 30: shared OAuth app credentials + Trakt watched import (pull direction).
+            SettingsRow("OAuth credentials", if (oauthClientId.isBlank()) "No client ID — tap to add" else "Client ID set") { showOAuthCreds = true }
+            SettingsRow("Import watched from Trakt", "Mark local titles Trakt lists as watched") {
+                vm.importWatched("trakt") { message = it }
+            }
         } }
 
         item { if (settingsGroupVisible("Backup & Updates", listOf("Export backup", "Import backup", "Update repository", "Check for updates", "update"))) SettingsGroup("Backup & Updates") {
@@ -452,6 +493,15 @@ fun SettingsScreen(nav: NavHostController) {
         )
     }
 
+    if (showOAuthCreds) {
+        OAuthCredentialsDialog(
+            clientId = oauthClientId,
+            clientSecret = oauthClientSecret,
+            onDismiss = { showOAuthCreds = false },
+            onSave = { id, secret -> vm.setOAuthCredentials(id, secret); showOAuthCreds = false },
+        )
+    }
+
     if (showRepo) {
         TokenDialog(
             provider = "repository",
@@ -503,7 +553,7 @@ fun SettingsScreen(nav: NavHostController) {
     }
 }
 
-/** One scrobble provider row: enable switch, token status and a token editor button. */
+/** One scrobble provider row: enable switch, token status, paste-token editor and optional browser OAuth connect. */
 @Composable
 private fun ScrobbleRow(
     name: String,
@@ -511,6 +561,7 @@ private fun ScrobbleRow(
     onToggle: (Boolean) -> Unit,
     token: String,
     onEditToken: () -> Unit,
+    onConnect: (() -> Unit)? = null,
 ) {
     val nova = LocalNovaColors.current
     Row(
@@ -526,8 +577,50 @@ private fun ScrobbleRow(
                 modifier = Modifier.clickable { onEditToken() },
             )
         }
+        // Browser OAuth grant (Phase 30): only offered where a flow exists; the pasted token
+        // stays as the fallback either way.
+        if (onConnect != null) {
+            TextButton(onClick = onConnect) { Text(if (token.isBlank()) "Connect" else "Reconnect") }
+        }
         NovaSwitch(checked = enabled, onCheckedChange = onToggle)
     }
+}
+
+/** OAuth app credentials dialog (Phase 30): the user's own provider client id/secret. */
+@Composable
+private fun OAuthCredentialsDialog(
+    clientId: String,
+    clientSecret: String,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit,
+) {
+    var id by remember { mutableStateOf(clientId) }
+    var secret by remember { mutableStateOf(clientSecret) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("OAuth credentials") },
+        text = {
+            Column {
+                Text(
+                    "Paste the client ID (and secret, except MyAnimeList) from your own app registration on the tracker's site.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LocalNovaColors.current.textTertiary,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = id, onValueChange = { id = it }, label = { Text("Client ID") }, singleLine = true)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = secret,
+                    onValueChange = { secret = it },
+                    label = { Text("Client secret") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                )
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSave(id.trim(), secret.trim()) }) { Text("Save") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

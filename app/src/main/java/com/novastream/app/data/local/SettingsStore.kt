@@ -116,6 +116,14 @@ class SettingsStore(private val context: Context) {
         val TOKEN_MAL = stringPreferencesKey("token_mal")
         val TOKEN_KITSU = stringPreferencesKey("token_kitsu")
         val TOKEN_SIMKL = stringPreferencesKey("token_simkl")
+        // Phase 30 tracker OAuth: credentials the user pastes from their own provider app
+        // registration (the app ships no client secrets). The transient PKCE verifier lives
+        // here too so the OAuth callback can finish the MAL exchange after the browser hop.
+        val OAUTH_CLIENT_ID = stringPreferencesKey("oauth_client_id")
+        val OAUTH_CLIENT_SECRET = stringPreferencesKey("oauth_client_secret")
+        val OAUTH_VERIFIER = stringPreferencesKey("oauth_verifier")
+        // Phase 30 dashboard: home-row titles the user hid (newline-joined; empty = show all).
+        val HIDDEN_HOME_ROWS = stringPreferencesKey("hidden_home_rows")
     }
 
     val theme: StateFlow<String> = context.dataStore.data.map { it[Keys.THEME] ?: "dark" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "dark")
@@ -185,6 +193,13 @@ class SettingsStore(private val context: Context) {
     val tokenMal: StateFlow<String> = context.dataStore.data.map { it[Keys.TOKEN_MAL] ?: "" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
     val tokenKitsu: StateFlow<String> = context.dataStore.data.map { it[Keys.TOKEN_KITSU] ?: "" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
     val tokenSimkl: StateFlow<String> = context.dataStore.data.map { it[Keys.TOKEN_SIMKL] ?: "" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
+    // Phase 30 tracker OAuth credentials (user-supplied; blank = OAuth connect unavailable).
+    val oauthClientId: StateFlow<String> = context.dataStore.data.map { it[Keys.OAUTH_CLIENT_ID] ?: "" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
+    val oauthClientSecret: StateFlow<String> = context.dataStore.data.map { it[Keys.OAUTH_CLIENT_SECRET] ?: "" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
+    // Phase 30 dashboard: hidden home-row titles.
+    val hiddenHomeRows: StateFlow<List<String>> = context.dataStore.data
+        .map { it[Keys.HIDDEN_HOME_ROWS]?.split('\n')?.filter { s -> s.isNotBlank() }.orEmpty() }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Most-recent-first list of past searches, capped at [MAX_RECENT]. */
     val recentSearches: StateFlow<List<String>> = context.dataStore.data
@@ -261,6 +276,29 @@ class SettingsStore(private val context: Context) {
             "kitsu" -> prefs[Keys.TOKEN_KITSU] = v
             "simkl" -> prefs[Keys.TOKEN_SIMKL] = v
         }
+    }
+
+    /** Persist the user's OAuth app credentials (shared across tracker providers). */
+    suspend fun setOAuthCredentials(clientId: String, clientSecret: String) = context.dataStore.edit {
+        it[Keys.OAUTH_CLIENT_ID] = clientId
+        it[Keys.OAUTH_CLIENT_SECRET] = clientSecret
+    }
+
+    /** Stash the PKCE verifier before the MAL browser hop; the callback consumes it once. */
+    suspend fun setOAuthVerifier(v: String?) = context.dataStore.edit {
+        if (v == null) it.remove(Keys.OAUTH_VERIFIER) else it[Keys.OAUTH_VERIFIER] = v
+    }
+
+    /** One-shot reads for background work that cannot collect the StateFlows. */
+    suspend fun oauthClientIdOnce(): String = context.dataStore.data.first()[Keys.OAUTH_CLIENT_ID].orEmpty()
+    suspend fun oauthClientSecretOnce(): String = context.dataStore.data.first()[Keys.OAUTH_CLIENT_SECRET].orEmpty()
+    suspend fun takeOAuthVerifier(): String? = context.dataStore.data.first()[Keys.OAUTH_VERIFIER].also {
+        context.dataStore.edit { prefs -> prefs.remove(Keys.OAUTH_VERIFIER) }
+    }
+
+    /** Persist the hidden home-row titles (Phase 30 dashboard). */
+    suspend fun setHiddenHomeRows(titles: List<String>) = context.dataStore.edit {
+        it[Keys.HIDDEN_HOME_ROWS] = titles.joinToString("\n")
     }
 
     /** One-shot snapshot of every scrobble provider (enabled + token), for the sync client. */

@@ -3,6 +3,7 @@ package com.novastream.app.data.integrations
 import com.novastream.app.data.local.SettingsStore
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
+import com.novastream.app.data.remote.httpGet
 import com.novastream.app.data.remote.httpPostJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,24 +22,46 @@ data class ScrobbleEvent(
 /**
  * Best-effort two-way history/rating sync for Trakt, AniList, MyAnimeList, Kitsu and SIMKL.
  *
- * Providers are configured with a pasted OAuth token (Settings → Scrobbling) because a full
- * interactive OAuth flow needs per-provider client ids/secrets and a redirect receiver. Each call
- * is wrapped in [runCatching] so a misconfigured token can never crash playback; a provider that
- * cannot identify the title (no shared numeric/IMDB id) is reported as skipped rather than guessed.
+ * Providers are configured with a pasted OAuth token or a browser OAuth grant (Settings →
+ * Scrobbling; see `TrackerOAuth.kt`) because the app ships no client ids/secrets of its own.
+ * Each call is wrapped in [runCatching] so a misconfigured token can never crash playback; a
+ * provider that cannot identify the title (no shared numeric/IMDB id) is reported as skipped
+ * rather than guessed.
  */
 class ScrobbleManager(private val settings: SettingsStore) {
 
     suspend fun syncAll(event: ScrobbleEvent): List<ScrobbleResult> = withContext(Dispatchers.IO) {
+        val clientId = settings.oauthClientIdOnce()
         settings.scrobbleSnapshot().filter { it.active }.map { cfg ->
-            runCatching { dispatch(cfg.provider, cfg.token, event) }
+            runCatching { dispatch(cfg.provider, cfg.token, clientId, event) }
                 .getOrElse { ScrobbleResult(cfg.provider, false, it.message ?: "Failed") }
         }
     }
 
-    private suspend fun dispatch(provider: String, token: String, e: ScrobbleEvent): ScrobbleResult =
+    /**
+     * Pull the provider's watched history as IMDB ids (Phase 30 bidirectional sync — the push
+     * direction is [syncAll]). Currently Trakt-only: AniList/MAL/Kitsu/SIMKL watched pulls need
+     * per-user list queries that have no shared-id join against local titles, so they report
+     * unsupported instead of guessing.
+     */
+    suspend fun pullWatchedIds(provider: String, token: String): Set<String> = withContext(Dispatchers.IO) {
+        if (provider != "trakt") return@withContext emptySet()
+        val clientId = settings.oauthClientIdOnce()
+        val headers = mapOf(
+            "Authorization" to "Bearer $token",
+            "trakt-api-version" to "2",
+            "trakt-api-key" to clientId.ifBlank { "nexusstream" },
+        )
+        val ids = mutableSetOf<String>()
+        runCatching { ids += parseTraktWatchedImdbIds(httpGet("https://api.trakt.tv/sync/watched/shows", headers)) }
+        runCatching { ids += parseTraktWatchedImdbIds(httpGet("https://api.trakt.tv/sync/watched/movies", headers)) }
+        ids
+    }
+
+    private suspend fun dispatch(provider: String, token: String, clientId: String, e: ScrobbleEvent): ScrobbleResult =
         when (provider) {
             "anilist" -> aniList(token, e)
-            "trakt" -> trakt(token, e)
+            "trakt" -> trakt(token, clientId, e)
             "simkl" -> simkl(token, e)
             "mal" -> mal(token, e)
             "kitsu" -> kitsu(token, e)
@@ -61,7 +84,7 @@ class ScrobbleManager(private val settings: SettingsStore) {
     }
 
     /** Trakt needs an IMDB/TMDB id; items whose id looks like an IMDB id sync cleanly. */
-    private suspend fun trakt(token: String, e: ScrobbleEvent): ScrobbleResult {
+    private suspend fun trakt(token: String, clientId: String, e: ScrobbleEvent): ScrobbleResult {
         val imdb = e.item.id.takeIf { it.startsWith("tt") }
             ?: return skipped("trakt", "no IMDB id")
         val watchedAt = isoNow()
@@ -79,7 +102,9 @@ class ScrobbleManager(private val settings: SettingsStore) {
             mapOf(
                 "Authorization" to "Bearer $token",
                 "trakt-api-version" to "2",
-                "trakt-api-key" to "nexusstream",
+                // The user's own OAuth client id when they connected via browser; the placeholder
+                // keeps pasted-token setups working against Trakt's required api-key header.
+                "trakt-api-key" to clientId.ifBlank { "nexusstream" },
             ),
         )
         return ScrobbleResult("trakt", true, "Synced to Trakt")
@@ -135,3 +160,23 @@ class ScrobbleManager(private val settings: SettingsStore) {
             .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
             .format(java.util.Date())
 }
+
+/**
+ * IMDB ids from a Trakt `sync/watched` response (Phase 30 pull direction).
+ *
+ * Both shapes are accepted: `[{"movie":{"ids":{"imdb":"tt…"}}}]` and
+ * `[{"show":{"ids":{"imdb":"tt…"}}}]`. Entries without an IMDB id are skipped — never guessed.
+ * Pure JVM so the join key the import path depends on is unit-tested.
+ */
+fun parseTraktWatchedImdbIds(responseJson: String): Set<String> = runCatching {
+    val ids = mutableSetOf<String>()
+    com.google.gson.JsonParser.parseString(responseJson).asJsonArray.forEach { el ->
+        if (!el.isJsonObject) return@forEach
+        val obj = el.asJsonObject
+        val entry = obj.getAsJsonObject("movie") ?: obj.getAsJsonObject("show") ?: return@forEach
+        entry.getAsJsonObject("ids")
+            ?.get("imdb")?.takeIf { it.isJsonPrimitive }?.asString
+            ?.takeIf { it.startsWith("tt") }?.let { ids += it }
+    }
+    ids
+}.getOrDefault(emptySet())

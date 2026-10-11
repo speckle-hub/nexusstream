@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -71,24 +72,30 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *
      * Reading entries are excluded here — they are surfaced separately through [continueReading]
      * so a manga title never lands under a Play CTA.
+     *
+     * Phase 28 isolation: adult titles are excluded too — they only surface inside the gated
+     * NSFW Hub's own Continue Watching ([NsfwViewModel.nsfwContinueWatching]), never on Home.
      */
     val continueWatching: StateFlow<List<WatchEntry>> =
         container.libraryStore.history
             .map { list ->
-                list.filter { !it.item.isReadable && it.progress < COMPLETED_THRESHOLD }
+                list.filter { !it.item.isReadable && !it.item.isAdult && it.progress < COMPLETED_THRESHOLD }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * In-progress manga (normal + NSFW), newest first — powers the "Continue Reading" row.
+     * In-progress SFW manga, newest first — powers the "Continue Reading" row.
      *
      * Both kinds of progress live in the same history list (the reader records page/total as the
      * entry's position/duration, so `progress` is the reading percentage); only the split is new.
+     *
+     * Phase 28 isolation: NSFW manga is excluded here and lives in the NSFW Hub's own
+     * Continue Reading ([NsfwViewModel.nsfwContinueReading]) instead.
      */
     val continueReading: StateFlow<List<WatchEntry>> =
         container.libraryStore.history
             .map { list ->
-                list.filter { it.item.isReadable && it.progress < COMPLETED_THRESHOLD }
+                list.filter { it.item.isReadable && !it.item.isAdult && it.progress < COMPLETED_THRESHOLD }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -238,6 +245,64 @@ class AnimeViewModel(private val container: AppContainer) : ViewModel() {
 }
 
 class NsfwViewModel(private val container: AppContainer) : ViewModel() {
+    /**
+     * Isolated adult Continue Watching — the *only* place adult video progress surfaces.
+     *
+     * The public Home/Library flows strip every adult entry (Phase 28 isolation), so this
+     * adult-only flow, collected solely by the PIN/biometric-gated NSFW Hub, is the single
+     * surface where NSFW-anime / Real 18+ resume state is visible.
+     */
+    val nsfwContinueWatching: StateFlow<List<WatchEntry>> =
+        container.libraryStore.history
+            .map { list ->
+                list.filter { it.item.isAdult && !it.item.isReadable && it.progress < COMPLETED_THRESHOLD }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Isolated adult Continue Reading (NSFW manga only) — same gating as [nsfwContinueWatching].
+     */
+    val nsfwContinueReading: StateFlow<List<WatchEntry>> =
+        container.libraryStore.history
+            .map { list ->
+                list.filter { it.item.isAdult && it.item.isReadable && it.progress < COMPLETED_THRESHOLD }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Isolated adult bookmarks — adult favourites kept out of the public Library and managed
+     * from inside the hub.
+     */
+    val nsfwFavorites: StateFlow<List<MediaItem>> =
+        container.libraryStore.favorites
+            .map { list -> list.filter { it.isAdult } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Drop one adult Continue Watching / Reading entry, clearing its saved progress. */
+    fun removeNsfwWatch(key: String) {
+        viewModelScope.launch { container.libraryStore.removeWatch(key) }
+    }
+
+    /** Drop every adult history entry currently visible in the hub (SFW progress is kept). */
+    fun clearNsfwHistory() {
+        viewModelScope.launch {
+            (nsfwContinueWatching.value + nsfwContinueReading.value)
+                .forEach { container.libraryStore.removeWatch(it.item.key) }
+        }
+    }
+
+    /** Drop one adult bookmark. */
+    fun removeNsfwFavorite(item: MediaItem) {
+        viewModelScope.launch { container.libraryStore.removeFavorite(item.key) }
+    }
+
+    /** Drop every adult bookmark (SFW favourites are kept). */
+    fun clearNsfwFavorites() {
+        viewModelScope.launch {
+            nsfwFavorites.value.forEach { container.libraryStore.removeFavorite(it.key) }
+        }
+    }
+
     val animeRows = MutableStateFlow<List<CatalogRow>>(emptyList())
     val mangaRows = MutableStateFlow<List<CatalogRow>>(emptyList())
     val realRows = MutableStateFlow<List<CatalogRow>>(emptyList())
@@ -545,17 +610,25 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
      * this screen is where a malformed entry would turn into a crash (a null `type` reaching
      * `Routes.detail`), so each entry is checked individually: one bad title is dropped, the rest
      * of the list still renders.
+     *
+     * Phase 28 isolation: adult favourites are excluded — they live in the NSFW Hub's isolated
+     * bookmarks ([NsfwViewModel.nsfwFavorites]) and must never appear in the public Library.
      */
     val favorites: StateFlow<List<MediaItem>> =
         container.libraryStore.favorites
-            .map { list -> list.filterSafe { it.id.isNotBlank() } }
+            .map { list -> list.filterSafe { it.id.isNotBlank() && !it.isAdult } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Continue-watching entries whose title is still usable, de-duplicated by title key. */
+    /**
+     * Continue-watching entries whose title is still usable, de-duplicated by title key.
+     *
+     * Phase 28 isolation: adult entries are excluded for the same reason as favourites above —
+     * the public Library rails stay adult-free; see [NsfwViewModel] for the hub-side flows.
+     */
     val history: StateFlow<List<WatchEntry>> =
         container.libraryStore.history
             .map { list ->
-                list.filterSafe { it.item.id.isNotBlank() }
+                list.filterSafe { it.item.id.isNotBlank() && !it.item.isAdult }
                     .distinctBy { it.item.key }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -977,6 +1050,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val tokenMal = container.settings.tokenMal.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
     val tokenKitsu = container.settings.tokenKitsu.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
     val tokenSimkl = container.settings.tokenSimkl.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    // Phase 30 tracker OAuth credentials (user-supplied app registration).
+    val oauthClientId = container.settings.oauthClientId.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val oauthClientSecret = container.settings.oauthClientSecret.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
     val cacheSize = MutableStateFlow(0L)
 
@@ -1041,6 +1117,38 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setScrobbleKitsu(v: Boolean) = viewModelScope.launch { container.settings.setScrobbleKitsu(v) }
     fun setScrobbleSimkl(v: Boolean) = viewModelScope.launch { container.settings.setScrobbleSimkl(v) }
     fun setToken(provider: String, v: String) = viewModelScope.launch { container.settings.setToken(provider, v) }
+    fun setOAuthCredentials(clientId: String, clientSecret: String) = viewModelScope.launch {
+        container.settings.setOAuthCredentials(clientId, clientSecret)
+    }
+
+    /**
+     * Pull the provider's watched history and mark matching local titles complete (Phase 30
+     * bidirectional sync — the push direction fires from playback; see `PlayerActivity`).
+     * [onDone] receives a human message for the Settings notice dialog. Trakt-only for now;
+     * other providers report unsupported instead of guessing id mappings.
+     */
+    fun importWatched(provider: String, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val message = runCatching {
+                val token = container.settings.scrobbleSnapshot().firstOrNull { it.provider == provider }?.token.orEmpty()
+                if (token.isBlank()) return@runCatching "No $provider token — connect or paste one first"
+                if (provider != "trakt") return@runCatching "Watched import supports Trakt for now"
+                val ids = container.scrobbleManager.pullWatchedIds(provider, token)
+                if (ids.isEmpty()) return@runCatching "No watched titles found on Trakt"
+                var marked = 0
+                container.libraryStore.history.first().forEach { entry ->
+                    if (entry.item.id in ids && entry.durationMs > 0 &&
+                        entry.positionMs < (entry.durationMs * 0.95f).toLong()
+                    ) {
+                        container.libraryStore.recordWatch(entry.copy(positionMs = entry.durationMs))
+                        marked++
+                    }
+                }
+                if (marked == 0) "Local history already matches Trakt" else "Marked $marked title${if (marked == 1) "" else "s"} watched from Trakt"
+            }.getOrElse { "Import failed: ${it.message}" }
+            onDone(message)
+        }
+    }
     fun setNsfwPin(pin: String?) = viewModelScope.launch { container.settings.setNsfwPin(pin) }
     fun unlockNsfw() = viewModelScope.launch { container.settings.setNsfwUnlocked(true) }
 

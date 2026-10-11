@@ -51,6 +51,19 @@
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:theme="@style/Theme.NovaStream.Player" />
 
+        <!-- Tracker OAuth redirect target (Phase 30): novastream://oauth?code=…&state=…. -->
+        <activity
+            android:name=".ui.player.OAuthCallbackActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="novastream" android:host="oauth" />
+            </intent-filter>
+        </activity>
+
         <!-- Media3 download service: foreground job that owns the offline download queue. -->
         <service
             android:name=".data.download.NovaDownloadService"
@@ -66,5 +79,10 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Chromecast sender options (Phase 30): Default Media Receiver, no custom app id. -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.novastream.app.ui.player.NovaCastOptionsProvider" />
     </application>
 </manifest>
