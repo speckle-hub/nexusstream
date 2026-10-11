@@ -1,7 +1,21 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-08 — **v1.4.1 released.** Three
+> resume exactly where it left off. Last updated: 2026-10-11 — **Phase 27 (Part B): Updater UI Revamp.**
+> The auto-updater download flow now reports **real-time progress**: `downloadApkWithProgress()` streams the
+> APK in 8 KB chunks with throttled `DownloadProgress(downloadedBytes, totalBytes)` callbacks (fraction 0..1
+> + percent 0..100, null-safe on chunked responses), and `UpdateAvailableDialog` swaps its indeterminate
+> spinner for a determinate **LinearProgressIndicator** plus a tabular `Downloading update… 45% (18.2 MB /
+> 40.5 MB)` readout — "Later" becomes **Cancel** mid-download (aborts the job, deletes the partial, parks
+> the dialog back in idle) while outside-tap/Back is ignored so the job is never orphaned. Verified:
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **129/129** (+5 `UpdateCheckerTest`
+> cases). Full detail in **§2ag**.
+> Previous session, Last updated: 2026-10-11 — **Phase 27 (Part A): UI & Layout Polish Fixes (§2af).**
+> Nav-bar padding, detail stats overflow, dangling header, poster × hit area; verified **124/124**.
+> Previous session, Last updated: 2026-10-11 — **Phase 26: P0 Bug Fixes & Crash Prevention (§2ae).**
+> Top 5 critical audit issues fixed (manga downloads, detail TMDB guard, video cache key, Stremio dedupe);
+> verified `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **124/124**.
+> Previous session, Last updated: 2026-10-08 — **v1.4.1 released.** Three
 > device-reported fixes: **switches no longer look invisible when off** (new shared `NovaSwitch`),
 > the **Browse → Anime / NSFW rails now fit ~3 cards across like the Search grid** (`railCard`
 > 150 → 100 dp), and **NSFW search merges AniList + Jikan + NSFW add-ons** instead of stopping at
@@ -184,13 +198,15 @@ site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexu
 
 ## 2. Current focus
 
-**Topic: QoL follow-up (§2d close-out).** Finished the last two open backlog items: the app-wide
-**tabular-figures sweep** (`TextStyle.tnum` across Library stats/downloads, Settings and the player
-stats overlay) and the **glass elevation system** (real shadow + top-edge highlight on
-`GlassSurface`, plus the M3 `surfaceContainer*` roles mapped in the theme). Full detail in **§2ac**.
+**Topic: Phase 27 (Part B) — Updater UI Revamp with Real-Time Progress Bar.** The launch-time update
+dialog no longer shows a generic spinner while the APK downloads: `downloadApkWithProgress()` emits throttled
+`DownloadProgress` snapshots and the dialog renders a determinate `LinearProgressIndicator` with an exact
+percent + byte readout, a Cancel path that aborts cleanly, and a locked dialog (no silent orphan) while the
+bytes are in flight. Full detail in **§2ag**.
 
-Previous focus: QoL polish pass (§2ab) — empty states, poster loading, reduced motion; GitHub
-auto-update dialog & repository fallback (Phase 25, §2aa).
+Previous focus: Phase 27 (Part A) — UI & Layout Polish Fixes (§2af); Phase 26 — P0 Bug Fixes & Crash
+Prevention (§2ae); QoL follow-up (§2d close-out / §2ac);
+v1.4.1 release (§2ad); QoL polish pass (§2ab).
 
 Previous focus: NSFW isolation & Browse → Anime (§2z); the public release and the website (§2y);
 source neutrality (§2x); Phase 21 (§2v) —
@@ -511,6 +527,135 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
   app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
+
+---
+
+## 2ag. Phase 27 (Part B) — Updater UI Revamp with Real-Time Progress Bar (2026-10-11)
+
+**Topic:** replace the updater's generic spinner with a detailed, real-time progress bar.
+
+Status: **implemented and verified.** Files and verification at the end.
+
+### 1. Progress-emitting downloader (`UpdateChecker.kt`)
+- New pure-JVM `DownloadProgress(downloadedBytes, totalBytes?)` with `fraction: Float?` (0..1, null when
+  the total is unknown/non-positive) and `percent: Int?` (0..100, clamped, rounded), plus
+  `formatUpdateBytes()` (MB/KB/B bands) and `downloadProgressLabel()` (`Downloading update… 45%
+  (18.2 MB / 40.5 MB)`, degrading to `Downloading update… 18.2 MB` on chunked responses and to a bare
+  `Downloading update…` before the first byte).
+- New `downloadApkWithProgress(context, url, onProgress)` streams the response in 8 KB chunks,
+  `ensureActive()`-checked per chunk so cancellation aborts immediately, deletes any stale partial
+  before starting, emits an initial 0-byte snapshot, then throttles to ~1 emission per 100 ms or per
+  percent-point (so the dialog recomposes ~10×/s, not per chunk), and deletes the partial on both
+  failure and cancellation — rethrowing `CancellationException` explicitly because `runCatching`
+  would otherwise swallow it into a silent `null`. The old `downloadApk(context, url)` is kept as a
+  progress-blind delegate (still used by the Settings "Check for updates" row).
+
+### 2. Revamped dialog (`MainActivity.kt` → `StartupUpdateCheck` + `UpdateAvailableDialog`)
+- `StartupUpdateCheck` now owns `progress: DownloadProgress?` (keyed on the release tag so a new release
+  resets it) and the active `downloadJob: Job?`. The Update action launches the job with a progress
+  callback writing straight into Compose state; completion clears `downloading`/job state and either
+  fires the installer or reports failure, while `CancellationException` parks the dialog back in idle
+  with a "Download cancelled." notice instead of dismissing it.
+- `UpdateAvailableDialog` gains `progress` + `onCancel` params. While downloading, the notes column adds
+  a `LinearProgressIndicator` (determinate via `progress = { fraction }` when the total is known,
+  indeterminate otherwise) and the tabular (`tnum`) status line from `downloadProgressLabel()`. The
+  Update button stays disabled with its spinner, **"Later" becomes "Cancel"** (aborts the job, partial
+  deleted, dialog returns to idle for a retry), and `onDismissRequest` is ignored mid-download so an
+  outside-tap/Back can never silently orphan the job.
+
+### Files
+`data/integrations/UpdateChecker.kt` (`DownloadProgress`, `formatUpdateBytes`, `downloadProgressLabel`,
+`downloadApkWithProgress`, `downloadApk` delegate), `ui/MainActivity.kt` (job + progress state, revamped
+dialog), `app/src/test/.../UpdateCheckerTest.kt` (+5 progress cases).
+
+### Verification (2026-10-11)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings).
+- `:app:testDebugUnitTest --rerun-tasks` → **129/129 tests, 0 failures, 0 errors** (+5 new).
+- Not pushed; no APK rebuilt this session. Device pass still needed: real release-asset download showing
+  live percent/bytes, Cancel → idle + retry, installer hand-off after a completed bar.
+
+---
+
+## 2af. Phase 27 (Part A) — UI & Layout Polish Fixes (2026-10-11)
+
+**Topic:** the 4 UI/layout fixes identified in the audit.
+
+Status: **implemented and verified.** Files and verification at the end.
+
+### 1. System navigation-bar padding (pushed destinations)
+- **Problem:** bottom content and action rows on pushed destinations (no bottom tab bar) could slide
+  under the system gesture/navigation bar — `DetailScreen` (fixed 40 dp bottom), `SourcesScreen` /
+  `HomeOrderScreen` (32 dp), `CollectionScreen` (32 dp), `AddonManagerScreen` tabs (16 dp all-round)
+  and the route-only `NsfwHubScreen` (24 dp + a `LocalFloatingNavBottomPadding` that is 0 with no bar)
+  all used fixed bottom padding with no system inset.
+- **Fix:** root `Column`/`Box` of each pushed destination now applies `Modifier.navigationBarsPadding()`
+  (import added per file) with an explanatory comment — the list itself keeps its existing content padding
+  and the inset is applied outside it, so edge-to-edge artwork/status-bar behaviour is unchanged. Tab
+  screens (`Home`, `Search`, `Anime`, `Manga`, `Library`, `Settings`) already clear the bar through
+  `LocalFloatingNavBottomPadding` (which sums `FloatingNavBarHeight + 16 dp + navInset + 12 dp`), so they
+  needed no change; `FloatingPillNavBar` itself already offsets by `navInset + 16 dp`.
+
+### 2. Detail stats text overflow (`DetailScreen.kt` → `MetaStatsRow`)
+- **Problem:** the votes / release-date / status / episode-count row was an unconstrained `Row` with no
+  `maxLines`/`overflow` — a long string ran past the screen edge.
+- **Fix:** the row is now `Modifier.fillMaxWidth()`; the rating badge keeps its fixed pill, and every
+  trailing stat gets `maxLines = 1`, `TextOverflow.Ellipsis` and `Modifier.weight(1f, fill = false)` so
+  the set shares the available width and truncates instead of overflowing.
+
+### 3. Dangling "Continue Watching" header (`LibraryScreen.kt` → `ActivityGrid`)
+- **Problem:** the header rendered unconditionally while its cards rendered only `if (watched.isNotEmpty())`
+  — a user with only manga progress saw an empty "Continue Watching" header above "Continue Reading".
+- **Fix:** the header now renders only `if (watched.isNotEmpty() || (watched.isEmpty() && reading.isEmpty()))`
+  — i.e. when it has cards or when the whole section is empty and the empty state needs its anchor.
+
+### 4. Poster "×" touch-target overlap (`Components.kt` → `PosterCard`)
+- **Problem:** the 48 dp centred hit box at 6 dp inset covered most of the poster's top-left corner and
+  swallowed taps meant to open the title.
+- **Fix:** hit box tucked into the corner — 40 dp @ 2 dp inset, `contentAlignment = TopStart` with the
+  22 dp chip offset 4 dp inside (glyph 12 dp) — so the tappable region hugs the corner instead of
+  spreading over the artwork while staying close to the accessibility floor.
+
+### Files
+`ui/screens/detail/DetailScreen.kt` (nav padding + stats row), `ui/screens/sources/SourcesScreen.kt`,
+`ui/screens/settings/HomeOrderScreen.kt`, `ui/screens/collection/CollectionScreen.kt`,
+`ui/screens/addons/AddonManagerScreen.kt`, `ui/screens/nsfw/NsfwHubScreen.kt` (nav padding),
+`ui/screens/library/LibraryScreen.kt` (header guard), `ui/components/Components.kt` (× hit area).
+
+### Verification (2026-10-11)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings).
+- `:app:testDebugUnitTest --rerun-tasks` → **124/124 tests, 0 failures, 0 errors**.
+- Not pushed; no APK rebuilt this session (UI-only pass — device check still needed for gesture-bar
+  clearance, stats truncation and the corner hit area).
+
+---
+
+## 2ae. Phase 26 — P0 Bug Fixes & Crash Prevention (2026-10-11)
+
+**Topic:** top 5 critical P0 issues identified in the audit.
+
+Status: **implemented and verified.** Files and verification at the end.
+
+### 1. Fix Manga Chapter Downloads (`MangaDownloadManager.kt`)
+- **Instant state insertion & start:** `MangaDownloadManager.enqueue()` previously updated `_downloads` through a private `update(key)` helper that quietly dropped any key not already present in `_downloads.value`. Consequently, newly enqueued chapters were never added to the in-memory state until the app restarted and `loadFromDisk()` ran, and the subsequent `start(key)` immediately bailed out (`_downloads.value[key] ?: return@launch`). `enqueue()` now inserts directly into `_downloads` via `_downloads.update { it + (queued.key to queued) }`, persists metadata, and starts downloading immediately.
+- **ENOSPC / disk-full safety:** Wrapped `file.writeBytes(data)` in a `runCatching` block. On disk write failure (e.g. storage full / `ENOSPC`), the partial file is safely cleaned up, the chapter status is marked as `FAILED` with descriptive error details, `notifyFailed` alerts the user, and metadata is persisted without crashing the coroutine or application.
+
+### 2. Guard Detail Page Against Missing/Failed TMDB Keys (`ViewModels.kt` & `TmdbClient.kt`)
+- **Graceful fallback on missing/blank TMDB key or network failure:** In `DetailViewModel`, `buildSeasons()` calls inside `viewModelScope.launch` (both in `load()` and `fillBuiltInEpisodes()`) are wrapped in `runCatching` blocks with a dedicated `fallbackBasicSeasons()` fallback. If `BuildConfig.TMDB_API_KEY` is missing or blank, or if network requests throw `IOException`, or if `MetadataRepository.detail(item)` returns null, the detail page synthesizes basic metadata from `item` and falls back to Stremio-style episode grouping instead of crashing.
+- **Safe JSON array & object parsing:** Added `optJsonArray()` and `optJsonObject()` helpers in `TmdbClient.kt`. Replaced unsafe direct `getAsJsonArray()` / `getAsJsonObject()` calls across all endpoints (`results`, `genre_ids`, `tv_results`, `movie_results`, `credits`, `cast`, `crew`, `seasons`, `episodes`, `videos`, `alternative_titles`, `recommendations`) to guarantee malformed or mismatched JSON types never trigger fatal `ClassCastException` or `IllegalStateException` crashes.
+
+### 3. Fix Video Download Cache Key (`VideoDownloadManager.kt`)
+- **Media3 custom cache key alignment:** Added `.setCustomCacheKey(id)` to Media3 `DownloadRequest.Builder` in `VideoDownloadManager.buildRequest()`. Previously, Media3 defaulted the cache key to the stream URL while `DownloadExporter.export()` queried `SimpleCache.getCachedSpans(id)` by the download UUID `id`, causing `getCachedSpans()` to return empty spans and leaving exported files empty. Aligning `customCacheKey` with `id` allows `DownloadExporter` to stream downloaded cache spans into the user's custom storage folder.
+
+### 4. Deduplicate Stremio Catalog Rails (`StremioClient.kt`, `CatalogRepository.kt`, `Components.kt`)
+- **Deduplication across catalog fetch and rails:** Applied `distinctBy { it.key }` across `StremioClient.fetchCatalog()`, `CatalogRepository.stremioRowsFor()`, `stremioNsfwRows()`, `safeRow()`, `nsfwRow()`, and `loadCatalog()`.
+- **UI Compose crash prevention:** Added `val uniqueItems = items.distinctBy { it.key }` before `itemsIndexed()` in `MediaRow` (`Components.kt`). This eliminates duplicate item keys from add-on feeds and completely prevents fatal `IllegalArgumentException: Key was already used` crashes when rendering `LazyRow` rails.
+
+### Files
+`data/download/MangaDownloadManager.kt`, `data/remote/TmdbClient.kt`, `ui/vm/ViewModels.kt`, `data/download/VideoDownloadManager.kt`, `data/remote/StremioClient.kt`, `data/repo/CatalogRepository.kt`, `ui/components/Components.kt`, `app/src/test/java/com/novastream/app/Phase26P0FixesTest.kt`.
+
+### Verification (2026-10-11)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0).
+- `:app:testDebugUnitTest --rerun-tasks` → **124/124 tests, 0 failures, 0 errors** (17 test result classes; +5 new tests in `Phase26P0FixesTest.kt`).
 
 ---
 
@@ -2978,6 +3123,9 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-07 | **Website optimization pass:** first-load JS 240 → **216 kB**, page chunk 134 → **92 kB** (LazyMotion `domAnimation`, `motion.*` → `m.*`, `optimizePackageImports`); Sparkles pauses offscreen, Nebula/all keyframes honor `prefers-reduced-motion`; SEO pack — `metadataBase` (`NEXT_PUBLIC_SITE_URL`), Twitter card, SVG favicon, generated `opengraph-image`, `sitemap.xml`, `robots.txt`, branded 404; `poweredByHeader` off. Deployed to **Vercel** (root dir `website`, auto-redeploy on push). |
 | 2026-10-08 | **v1.4.0 released:** NSFW isolation + Browse → Anime (§2z), launch-time GitHub auto-update dialog + default-repo fallback (§2aa), and the QoL/visual pass — empty-state halos + Retry, poster shimmer/error, reduced motion, app-wide tabular figures, glass elevation + M3 `surfaceContainer*` (§2ab/§2ac). `versionCode` 6 / `versionName` 1.4.0. Verified `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **119/119**, `:app:assembleRelease` ✅ (signed); `dist/NovaStream.apk` refreshed (38,330,038 bytes, SHA-256 `F45FA749…20C4`); website CTA/hero → v1.4.0; source pushed (`16a55a4`) and the **`v1.4.0` GitHub Release published with `app-release.apk`** (asset digest `sha256:f45fa749…20c4`; `releases/latest` → v1.4.0). |
 | 2026-10-08 | **v1.4.1 released (§2ad):** device-report fixes — shared `NovaSwitch` (off state was near-invisible on this theme), `AppSpacing.railCard` 150 → **100 dp** so Browse → Anime/NSFW rails match the Search 3-across density, and `searchNsfwAnime` now **merges AniList + Jikan + NSFW add-ons** (no early return) with caps raised (AniList 40→50, Jikan paged to 50, MangaDex →100). `versionCode` 7 / `versionName` 1.4.1. Verified `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **119/119**, `:app:assembleRelease` ✅ (signed); `dist/NovaStream.apk` refreshed (38,330,038 bytes, SHA-256 `81078DB4…B290`, versionName verified 1.4.1); website → v1.4.1. |
+| 2026-10-11 | **Phase 26 — P0 Bug Fixes & Crash Prevention (§2ae):** top 5 audit issues fixed — (1) `MangaDownloadManager.enqueue` directly inserts new downloads into `_downloads` StateFlow so downloads start immediately without restart; `file.writeBytes` wrapped in `runCatching` preventing `ENOSPC`/disk-full crashes. (2) `DetailViewModel.buildSeasons` and `loadSeasonEpisodes` calls guarded in `viewModelScope.launch` with fallback to basic metadata/seasons on missing/blank TMDB keys and network IOExceptions; hardened `TmdbClient` with `optJsonArray`/`optJsonObject` against malformed JSON responses. (3) Media3 `DownloadRequest.Builder` sets `.setCustomCacheKey(id)` in `VideoDownloadManager` so cache keys match download IDs, allowing `DownloadExporter` to write files to the custom folder. (4) Stremio catalog fetching and rails deduplicated with `distinctBy { it.key }` across `StremioClient`, `CatalogRepository`, and `MediaRow` to prevent `IllegalArgumentException: Key was already used` Compose crashes. Added `Phase26P0FixesTest` (5 cases → **124 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **124/124 tests / 0 failures** ✅. |
+| 2026-10-11 | **Phase 27 (Part A) — UI & Layout Polish Fixes (§2af):** 4 audit items — (1) `navigationBarsPadding()` on pushed destinations (Detail, Sources, Home Order, Collection, Add-on Manager, NSFW Hub; tab screens already covered via `LocalFloatingNavBottomPadding`). (2) `MetaStatsRow` constrained (`fillMaxWidth` + `maxLines = 1` + `Ellipsis` + shared weight). (3) "Continue Watching" header guarded (`watched.isNotEmpty()` or fully empty). (4) Poster "×" hit area tucked to corner (48 dp @ 6 dp → 40 dp @ 2 dp top-start, 22 dp chip). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **124/124 / 0 failures** ✅. Not pushed, no APK. |
+| 2026-10-11 | **Phase 27 (Part B) — Updater UI Revamp (§2ag):** `downloadApkWithProgress()` streams APK in 8 KB `ensureActive()`-checked chunks with throttled `DownloadProgress` callbacks (fraction/percent null-safe, partial deleted on fail/cancel, `CancellationException` rethrown); `UpdateAvailableDialog` shows determinate `LinearProgressIndicator` + tabular `Downloading update… 45% (18.2 MB / 40.5 MB)` line, Update disabled, "Later"→"Cancel" mid-download (aborts job, parks dialog in idle), outside-tap/Back ignored while downloading. `downloadApk()` kept as delegate for Settings. Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **129/129 / 0 failures** ✅ (+5 `UpdateCheckerTest`). Not pushed, no APK. |
 
 ---
 

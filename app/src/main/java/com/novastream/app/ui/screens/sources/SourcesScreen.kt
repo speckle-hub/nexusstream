@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -111,7 +112,9 @@ fun SourcesScreen(nav: NavHostController) {
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    // navigationBarsPadding: pushed destination with no bottom tab bar, so the last row must
+    // clear the system gesture/nav bar on its own.
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 4.dp, end = AppSpacing.screen, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

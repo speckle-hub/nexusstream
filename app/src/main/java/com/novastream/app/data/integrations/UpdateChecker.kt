@@ -9,9 +9,11 @@ import com.novastream.app.data.remote.obj
 import com.novastream.app.data.remote.parseJson
 import com.novastream.app.data.remote.str
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
+import kotlin.math.roundToInt
 
 /** A GitHub release that may carry a newer APK. */
 data class ReleaseInfo(
@@ -82,22 +84,117 @@ object UpdateChecker {
 }
 
 /**
- * Downloads a release APK into the app cache so it can be handed to the system installer.
- * Returns the file on success, `null` on any failure.
+ * A snapshot of an in-flight APK download: bytes written so far and the total when the server
+ * reports one (`Content-Length` may be absent on chunked responses, hence nullable).
  */
-suspend fun downloadApk(context: Context, url: String): File? = withContext(Dispatchers.IO) {
+data class DownloadProgress(
+    val downloadedBytes: Long,
+    val totalBytes: Long?,
+) {
+    /** 0..1 when the total is known and positive, else null (caller shows indeterminate). */
+    val fraction: Float?
+        get() = totalBytes
+            ?.takeIf { it > 0 }
+            ?.let { (downloadedBytes.toDouble() / it).coerceIn(0.0, 1.0).toFloat() }
+
+    /** 0..100 when the total is known, else null. */
+    val percent: Int?
+        get() = fraction?.let { (it * 100).roundToInt().coerceIn(0, 100) }
+}
+
+/** "38.3 MB" / "512 KB" / "128 B" — shared by the progress label and its unit tests. */
+fun formatUpdateBytes(bytes: Long): String = when {
+    bytes >= 1_000_000 -> String.format("%.1f MB", bytes / 1_000_000.0)
+    bytes >= 1_000 -> String.format("%.0f KB", bytes / 1_000.0)
+    else -> "$bytes B"
+}
+
+/**
+ * One-line status for the update dialog, e.g. `Downloading update… 45% (18.2 MB / 40.5 MB)`.
+ * Falls back to `Downloading update… 18.2 MB` when the server hides the total.
+ */
+fun downloadProgressLabel(progress: DownloadProgress?): String = when {
+    progress == null -> "Downloading update…"
+    progress.percent != null && progress.totalBytes != null ->
+        "Downloading update… ${progress.percent}% " +
+            "(${formatUpdateBytes(progress.downloadedBytes)} / ${formatUpdateBytes(progress.totalBytes)})"
+    else -> "Downloading update… ${formatUpdateBytes(progress.downloadedBytes)}"
+}
+
+/**
+ * Downloads a release APK into the app cache so it can be handed to the system installer,
+ * reporting live progress through [onProgress] (invoked on the IO thread — callers writing to
+ * Compose state must be on a thread-safe snapshot path, which plain `mutableStateOf` writes are).
+ *
+ * Progress is throttled to one emission per ~100 ms or per percent-point so the dialog recomposes
+ * at most ~10×/s instead of per 8 KB chunk. Cancellation aborts the copy, deletes the partial file
+ * and returns `null`; any other failure also returns `null` (callers show their own message).
+ */
+suspend fun downloadApkWithProgress(
+    context: Context,
+    url: String,
+    onProgress: (DownloadProgress) -> Unit = {},
+): File? = withContext(Dispatchers.IO) {
     runCatching {
         val dir = File(context.cacheDir, "updates").apply { mkdirs() }
         val out = File(dir, "nexusstream-update.apk")
+        // A stale partial from a cancelled run must never be mistaken for a finished APK.
+        if (out.exists()) out.delete()
         val request = Request.Builder().url(url).build()
         Http.client.newCall(request).execute().use { resp ->
             if (!resp.isSuccessful) error("HTTP ${resp.code}")
+            val total = resp.body?.contentLength()?.takeIf { it > 0 }
             val stream = resp.body?.byteStream() ?: error("Empty response")
-            stream.use { input -> out.outputStream().use { input.copyTo(it) } }
+            var downloaded = 0L
+            var lastEmitMs = 0L
+            var lastPercent = -1
+            onProgress(DownloadProgress(0, total))
+            stream.use { input ->
+                out.outputStream().use { output ->
+                    val buf = ByteArray(8192)
+                    while (true) {
+                        ensureActive()
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        output.write(buf, 0, n)
+                        downloaded += n
+                        val now = System.currentTimeMillis()
+                        val percent = DownloadProgress(downloaded, total).percent ?: -1
+                        if (now - lastEmitMs >= 100 || percent != lastPercent) {
+                            lastEmitMs = now
+                            lastPercent = percent
+                            onProgress(DownloadProgress(downloaded, total))
+                        }
+                    }
+                }
+            }
+            onProgress(DownloadProgress(downloaded, total))
         }
         out
-    }.getOrNull()
+    }.getOrElse {
+        // Cancellation (or failure) leaves no partial behind; CancellationException is rethrown
+        // by getOrElse's contract? No — runCatching captures it, so rethrow explicitly to keep
+        // the caller's Job cancellable instead of swallowing it into a silent `null`.
+        if (it is kotlinx.coroutines.CancellationException) {
+            runCatching { File(File(context.cacheDir, "updates"), "nexusstream-update.apk").delete() }
+            throw it
+        }
+        runCatching { outDelete(context) }
+        null
+    }
 }
+
+private fun outDelete(context: Context) {
+    runCatching { File(File(context.cacheDir, "updates"), "nexusstream-update.apk").delete() }
+}
+
+/**
+ * Downloads a release APK into the app cache so it can be handed to the system installer.
+ * Returns the file on success, `null` on any failure. Progress-blind callers (e.g. the Settings
+ * "Check for updates" row) use this; the launch-time dialog uses [downloadApkWithProgress].
+ */
+suspend fun downloadApk(context: Context, url: String): File? =
+    downloadApkWithProgress(context, url)
 
 /** Launches the system APK installer for a downloaded update via a [FileProvider] URI. */
 fun installApk(context: Context, file: File) {

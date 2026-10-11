@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -320,7 +321,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
         }
     } ?: (detail?.name ?: item.title)
 
-    Box(Modifier.fillMaxSize()) {
+    // navigationBarsPadding so the last row/CTA never slides under the system gesture/nav bar
+    // on pushed destinations (no bottom tab bar to provide the inset here).
+    Box(Modifier.fillMaxSize().navigationBarsPadding()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp)) {
 
         // ---- Banner / cover header -------------------------------------------
@@ -922,7 +925,10 @@ private fun MetaStatsRow(item: MediaItem, detail: com.novastream.app.data.model.
         else -> null
     }
 
+    // Constrained row: each trailing stat is single-line + ellipsized with a shared weight so a
+    // long votes/date/status/count string truncates instead of running past the screen edge.
     Row(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -936,15 +942,56 @@ private fun MetaStatsRow(item: MediaItem, detail: com.novastream.app.data.model.
             ) {
                 Icon(Icons.Filled.Star, null, tint = nova.accent, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(3.dp))
-                Text(it, style = MaterialTheme.typography.labelMedium, color = nova.accent, fontWeight = FontWeight.SemiBold)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = nova.accent,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         votes?.takeIf { it > 0 }?.let {
-            Text("${formatCount(it)} votes", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
+            Text(
+                "${formatCount(it)} votes",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
         }
-        year?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.8f)) }
-        status?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.8f)) }
-        count?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.8f)) }
+        year?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+        status?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+        count?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
     }
 }
 

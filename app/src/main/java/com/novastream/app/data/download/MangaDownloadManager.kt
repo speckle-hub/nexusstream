@@ -87,9 +87,10 @@ class MangaDownloadManager(private val context: Context) {
     fun enqueue(download: MangaDownload) {
         if (_downloads.value[download.key]?.status == DownloadStatus.COMPLETED) return
         val seeded = if (download.total > 0) download else download.copy(total = download.pages.size)
-        update(download.key) { seeded.copy(status = DownloadStatus.QUEUED, error = null) }
-        persistMeta(seeded)
-        start(download.key)
+        val queued = seeded.copy(status = DownloadStatus.QUEUED, error = null)
+        _downloads.update { it + (queued.key to queued) }
+        persistMeta(queued)
+        start(queued.key)
     }
 
     fun pause(key: String) {
@@ -168,7 +169,15 @@ class MangaDownloadManager(private val context: Context) {
                         _downloads.value[key]?.let { persistMeta(it) }
                         return@launch
                     }
-                    file.writeBytes(data)
+                    val writeResult = runCatching { file.writeBytes(data) }
+                    if (writeResult.isFailure) {
+                        val err = writeResult.exceptionOrNull()?.message ?: "Disk write failed"
+                        runCatching { file.delete() }
+                        update(key) { it.copy(status = DownloadStatus.FAILED, error = "Disk write failed: $err") }
+                        notifyFailed(_downloads.value[key]?.mangaTitle ?: "Chapter", "Disk write failed: $err")
+                        _downloads.value[key]?.let { persistMeta(it) }
+                        return@launch
+                    }
                 }
                 done++
                 bytes += file.length()
@@ -222,7 +231,7 @@ class MangaDownloadManager(private val context: Context) {
             } else d
             loaded[restored.key] = restored
         }
-        if (loaded.isNotEmpty()) _downloads.value = loaded
+        if (loaded.isNotEmpty()) _downloads.update { it + loaded }
     }
 
     private fun notifyFailed(title: String, error: String) {

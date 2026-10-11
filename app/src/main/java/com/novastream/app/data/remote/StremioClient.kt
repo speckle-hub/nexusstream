@@ -117,27 +117,29 @@ object StremioClient {
             .filter { it.value.isNotBlank() }
             .joinToString("&") { "${it.key}=${enc(it.value)}" }
         val url = "${base(addon.transportUrl)}/catalog/$type/$catalogId$extraPath.json"
-        val root = parseJson(httpGet(url)).asJsonObject
-        val metas = root.getAsJsonArray("metas") ?: return emptyList()
-        return metas.mapNotNull { parseMetaItem(it, addon) }
+        val root = runCatching { parseJson(httpGet(url)).asJsonObject }.getOrNull() ?: return emptyList()
+        val metas = root.get("metas")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        return metas.mapNotNull { parseMetaItem(it, addon) }.distinctBy { it.key }
     }
 
     fun parseMetaItem(el: JsonElement, addon: Addon?): MediaItem? {
         if (!el.isJsonObject) return null
         val o = el.asJsonObject
-        val id = o.get("id")?.asString ?: return null
-        val rawType = o.get("type")?.asString ?: addon?.types?.firstOrNull() ?: "movie"
+        val id = o.get("id")?.takeIf { it.isJsonPrimitive }?.asString ?: return null
+        val rawType = o.get("type")?.takeIf { it.isJsonPrimitive }?.asString ?: addon?.types?.firstOrNull() ?: "movie"
         val type = mapType(rawType, addon)
         return MediaItem(
             id = id,
             type = type,
-            title = o.get("name")?.asString ?: id,
-            poster = o.get("poster")?.asString,
-            backdrop = o.get("background")?.asString,
-            year = o.get("releaseInfo")?.asString,
-            rating = o.get("imdbRating")?.asString?.toDoubleOrNull(),
-            description = o.get("description")?.asString,
-            genres = o.getAsJsonArray("genres")?.map { it.asString } ?: emptyList(),
+            title = o.get("name")?.takeIf { it.isJsonPrimitive }?.asString ?: id,
+            poster = o.get("poster")?.takeIf { it.isJsonPrimitive }?.asString,
+            backdrop = o.get("background")?.takeIf { it.isJsonPrimitive }?.asString,
+            year = o.get("releaseInfo")?.takeIf { it.isJsonPrimitive }?.asString,
+            rating = o.get("imdbRating")?.takeIf { it.isJsonPrimitive }?.asString?.toDoubleOrNull(),
+            description = o.get("description")?.takeIf { it.isJsonPrimitive }?.asString,
+            genres = o.get("genres")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull {
+                if (it.isJsonPrimitive) it.asString else null
+            } ?: emptyList(),
             addonId = addon?.id,
             catalogId = null,
             addonName = addon?.name,

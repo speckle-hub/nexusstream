@@ -32,6 +32,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,14 +58,18 @@ import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.novastream.app.BuildConfig
 import com.novastream.app.NovaApp
+import com.novastream.app.data.integrations.DownloadProgress
 import com.novastream.app.data.integrations.ReleaseInfo
 import com.novastream.app.data.integrations.UpdateChecker
 import com.novastream.app.data.integrations.downloadApk
+import com.novastream.app.data.integrations.downloadApkWithProgress
+import com.novastream.app.data.integrations.downloadProgressLabel
 import com.novastream.app.data.integrations.installApk
 import com.novastream.app.ui.nav.NovaApp as NovaAppUi
 import com.novastream.app.ui.theme.LocalNovaColors
 import com.novastream.app.ui.theme.NovaStreamTheme
 import com.novastream.app.ui.vm.LocalContainer
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -201,9 +206,12 @@ private fun StartupUpdateCheck() {
     }
 
     val info = release ?: return
+    var progress by remember(info.tag) { mutableStateOf<DownloadProgress?>(null) }
+    var downloadJob by remember(info.tag) { mutableStateOf<Job?>(null) }
     UpdateAvailableDialog(
         info = info,
         downloading = downloading,
+        progress = progress,
         failure = failure,
         onUpdate = {
             val url = info.apkUrl
@@ -218,23 +226,39 @@ private fun StartupUpdateCheck() {
                     )
                 }
                 release = null
-            } else {
-                scope.launch {
+            } else if (!downloading) {
+                downloadJob = scope.launch {
                     downloading = true
                     failure = null
-                    val file = downloadApk(context, url)
-                    downloading = false
-                    if (file != null) {
-                        release = null
-                        runCatching { installApk(context, file) }
-                            .onFailure { failure = "Couldn't launch the installer" }
-                    } else {
-                        failure = "Download failed. Check your connection and try again."
+                    progress = null
+                    try {
+                        val file = downloadApkWithProgress(context, url) { p -> progress = p }
+                        downloading = false
+                        downloadJob = null
+                        if (file != null) {
+                            release = null
+                            runCatching { installApk(context, file) }
+                                .onFailure { failure = "Couldn't launch the installer" }
+                        } else {
+                            failure = "Download failed. Check your connection and try again."
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        // Graceful cancel: drop the partial file (the downloader already deleted it),
+                        // park the dialog back in its idle state and say so.
+                        downloading = false
+                        downloadJob = null
+                        progress = null
+                        failure = "Download cancelled."
                     }
                 }
             }
         },
+        // While downloading, outside-tap/Back must not silently orphan the job: the only way out
+        // is the Cancel button, which parks the dialog back in idle instead of dismissing it.
         onDismiss = { if (!downloading) release = null },
+        onCancel = {
+            downloadJob?.cancel()
+        },
     )
 }
 
@@ -243,9 +267,11 @@ private fun StartupUpdateCheck() {
 private fun UpdateAvailableDialog(
     info: ReleaseInfo,
     downloading: Boolean,
+    progress: DownloadProgress?,
     failure: String?,
     onUpdate: () -> Unit,
     onDismiss: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     val nova = LocalNovaColors.current
     AlertDialog(
@@ -276,6 +302,28 @@ private fun UpdateAvailableDialog(
                 Text("What's new", style = MaterialTheme.typography.labelLarge, color = nova.textSecondary)
                 Spacer(Modifier.height(6.dp))
                 Text(notes, style = MaterialTheme.typography.bodyMedium, color = nova.textPrimary)
+                // Real-time download progress replaces the old indeterminate spinner: a determinate
+                // bar + exact percent/byte readout when the server reports a total, falling back to
+                // an indeterminate bar + byte count on chunked responses.
+                if (downloading) {
+                    Spacer(Modifier.height(14.dp))
+                    val fraction = progress?.fraction
+                    if (fraction != null) {
+                        LinearProgressIndicator(
+                            progress = { fraction },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = nova.accent,
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = nova.accent)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        downloadProgressLabel(progress),
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                        color = nova.textSecondary,
+                    )
+                }
                 failure?.let {
                     Spacer(Modifier.height(10.dp))
                     Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
@@ -296,7 +344,15 @@ private fun UpdateAvailableDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !downloading) { Text("Later") }
+            // While downloading, "Later" becomes "Cancel": it aborts the coroutine job (the partial
+            // file is deleted) and parks the dialog back in idle instead of dismissing it, so the
+            // user can retry without waiting for the next cold boot. secondary dismissal (outside
+            // tap / Back) is ignored mid-download so the job is never orphaned silently.
+            if (downloading) {
+                TextButton(onClick = onCancel) { Text("Cancel") }
+            } else {
+                TextButton(onClick = onDismiss) { Text("Later") }
+            }
         },
     )
 }

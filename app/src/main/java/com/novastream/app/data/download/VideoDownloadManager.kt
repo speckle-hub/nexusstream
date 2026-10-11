@@ -326,6 +326,7 @@ class VideoDownloadManager(private val context: Context) {
 
     private fun buildRequest(id: String, url: String, kind: VideoKind, meta: VideoDownloadMeta): DownloadRequest {
         val builder = DownloadRequest.Builder(id, Uri.parse(url))
+            .setCustomCacheKey(id)
             .setData(Http.gson.toJson(meta).toByteArray())
         // Nudge Media3 to the HLS downloader; progressive streams are inferred from the URI.
         if (kind == VideoKind.HLS) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
