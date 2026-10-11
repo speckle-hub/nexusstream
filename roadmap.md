@@ -6,6 +6,10 @@
 > styling, storage header, §2ai) and Phase 30 (tracker OAuth + bidirectional sync, hide/pin rows,
 > Chromecast, §2aj). `versionCode` 9 / `versionName` 1.5.0; signed release built →
 > `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `CEAAEBEC…46139`); tagged `v1.5.0` and pushed.
+> The **`v1.5.0` GitHub Release is published with `app-release.apk` attached** (asset digest
+> `sha256:ceaaebec…46139`; verified `releases/latest/download/app-release.apk` → HTTP 200 /
+> 40,140,687 bytes), so the in-app update dialog and the site CTA now serve v1.5.0; website
+> CTA/hero bumped to v1.5.0 (`next build` ✓).
 > Verified: `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **161/161**,
 > `:app:assembleRelease` ✓ (signed).
 > Previous session, Last updated: 2026-10-11 — **Phase 30: Cloud Sync, Anime
