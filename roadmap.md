@@ -9,8 +9,11 @@
 > `versionName` 1.6.0; source committed + pushed to `main`. Verified
 > `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **176/176** (+5), `:app:assembleDebug` ✓.
 > Device pass (real provider playback) still outstanding. Aniyomi/Mihon runtime not yet built.
-> No signed release APK built and no GitHub Release/tag created this session — the in-app updater
-> therefore still serves v1.5.1 until that step is done.
+> Signed release built → `dist/NovaStream.apk` (43,659,423 bytes, SHA-256 `43CC67BF…385B9D`);
+> tagged `v1.6.0` and pushed (tag `v1.6.0`). **The `v1.6.0` GitHub Release is NOT published** — the
+> environment has no `gh` CLI / GitHub token, so `app-release.apk` could not be attached; the
+> in-app updater therefore still serves v1.5.1 until the Release is created.
+> To finish: `gh release create v1.6.0 app/build/outputs/apk/release/app-release.apk --title "v1.6.0"`.
 > Previous session, Last updated: 2026-10-12 — **v1.5.1 released.** P0 hotfix
 > (§2ak) shipped: `versionCode` 10 / `versionName` 1.5.1; signed release built →
 > `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`); tagged `v1.5.1` and pushed.
@@ -806,6 +809,9 @@ URLs were removed from `retiredRepoUrls` so adding one is not pruned on the next
 ### Verification
 - `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **176/176** (+5 `CloudStreamSupportTest`)
   · `:app:assembleDebug` ✓ (no duplicate classes).
+- `:app:assembleRelease` ✓ (signed, `CN=NovaStream`) → `dist/NovaStream.apk` (43,659,423 bytes,
+  SHA-256 `43CC67BFADA7E67DBB7628199019932167F63F6FE06A1696D1F4F408C2385B9D`); `v1.6.0` tagged +
+  pushed. GitHub Release asset NOT published (no `gh`/token in the build environment).
 - **Still needed:** a device pass — install a phisher98 provider, confirm providers load, search
   returns items, and a title returns playable links. The `.cs3` dex + provider network paths cannot
   be exercised on the JVM.
