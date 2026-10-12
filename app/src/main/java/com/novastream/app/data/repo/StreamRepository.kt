@@ -4,11 +4,13 @@ import com.novastream.app.data.adult.AdultRepository
 import com.novastream.app.data.adult.AdultSources
 import com.novastream.app.data.hentai.HentaiEpisode
 import com.novastream.app.data.hentai.HentaiRepository
+import com.novastream.app.data.cloudstream.CloudStreamSources
 import com.novastream.app.data.local.AddonStore
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
 import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.model.SubtitleTrack
+import com.novastream.app.data.model.Video
 import com.novastream.app.data.remote.StremioClient
 import com.novastream.app.data.remote.TmdbClient
 import kotlinx.coroutines.async
@@ -22,7 +24,10 @@ data class StreamsResult(
 )
 
 /** Resolves playable streams and subtitles from every enabled Stremio addon. */
-class StreamRepository(private val addonRepo: AddonRepository) {
+class StreamRepository(
+    private val addonRepo: AddonRepository,
+    private val cloudStreamRepo: CloudStreamRepository,
+) {
 
     /** Resolve (stremioType, id) for stream addon queries. */
     private suspend fun resolveId(item: MediaItem): Pair<String, String> {
@@ -61,6 +66,14 @@ class StreamRepository(private val addonRepo: AddonRepository) {
             return StreamsResult(direct)
         }
 
+        // CloudStream provider items own their streams: a movie uses the provider's data URL, an
+        // episode carries it in [videoId] (see CloudStreamSources).
+        if (item.addonId?.startsWith(CloudStreamSources.ADDON_PREFIX) == true) {
+            val video = videoId?.takeIf { it.isNotBlank() }?.let { Video(id = it) }
+            val direct = runCatching { cloudStreamRepo.streamsFor(item, video) }.getOrDefault(emptyList())
+            return StreamsResult(direct)
+        }
+
         // NSFW anime gets a built-in stream source so the section plays with zero add-ons
         // installed: the built-in results lead the list and the enabled Stremio NSFW add-ons are
         // queried alongside them as extra / fallback entries. Unchanged from before this pass.
@@ -82,7 +95,20 @@ class StreamRepository(private val addonRepo: AddonRepository) {
                 )
             }
         }
-        return stremioStreamsDetailed(item, videoId)
+        val base = stremioStreamsDetailed(item, videoId)
+        // CloudStream provider plugins contribute extra real links for movies: search the loaded
+        // providers by title and merge their extractor streams ahead of the add-on results.
+        if (item.type == MediaType.MOVIE && !item.title.isBlank()) {
+            val extra = runCatching { cloudStreamRepo.titleStreams(item.title, item.type) }
+                .getOrDefault(emptyList())
+            if (extra.isNotEmpty()) {
+                return StreamsResult(
+                    streams = (extra.ranked() + base.streams).distinctBy { streamKey(it) },
+                    errors = base.errors,
+                )
+            }
+        }
+        return base
     }
 
     /** Streams from the built-in hentai sources for [item] / [videoId]. */

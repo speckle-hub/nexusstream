@@ -68,6 +68,10 @@ class NovaApp : Application(), ImageLoaderFactory {
         appScope.launch {
             runCatching { container.extensionRepository.reloadAll() }
         }
+        // Re-load installed CloudStream .cs3 provider plugins so their sources are live this session.
+        appScope.launch {
+            runCatching { container.cloudStreamRepository.reloadAll() }
+        }
         // Apply the user's max-parallel-downloads setting to Media3, and keep it live on change.
         collectSafely(container.settings.maxParallel) {
             DownloadManagerProvider.setMaxParallel(this@NovaApp, it)

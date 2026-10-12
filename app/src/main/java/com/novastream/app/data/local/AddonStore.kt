@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.gson.reflect.TypeToken
+import com.novastream.app.data.cloudstream.CloudStreamInstalled
 import com.novastream.app.data.model.Addon
+import com.novastream.app.data.model.AddonKind
 import com.novastream.app.data.model.CloudStreamExt
 import com.novastream.app.data.model.MangaExt
 import com.novastream.app.data.model.RemoteRepo
@@ -18,6 +20,7 @@ class AddonStore(private val context: Context) {
     private val K_ADDONS = stringPreferencesKey("installed_addons")
     private val K_REPOS = stringPreferencesKey("remote_repos")
     private val K_CS = stringPreferencesKey("installed_cloudstream")
+    private val K_CS_PLUGINS = stringPreferencesKey("cloudstream_plugins")
     private val K_MANGA = stringPreferencesKey("installed_manga_ext")
 
     private inline fun <reified T> decode(json: String?): List<T> {
@@ -35,11 +38,15 @@ class AddonStore(private val context: Context) {
         if (stored.isEmpty()) Defaults.repos else stored
     }
     val cloudStreamInstalled: Flow<List<CloudStreamExt>> = context.dataStore.data.map { decode<CloudStreamExt>(it[K_CS]) }
+
+    /** CloudStream `.cs3` plugins downloaded + loaded in-process (the runnable provider list). */
+    val cloudStreamPlugins: Flow<List<CloudStreamInstalled>> = context.dataStore.data.map { decode<CloudStreamInstalled>(it[K_CS_PLUGINS]) }
     val mangaInstalled: Flow<List<MangaExt>> = context.dataStore.data.map { decode<MangaExt>(it[K_MANGA]) }
 
     suspend fun saveAddons(list: List<Addon>) = context.dataStore.edit { it[K_ADDONS] = Http.gson.toJson(list) }
     suspend fun saveRepos(list: List<RemoteRepo>) = context.dataStore.edit { it[K_REPOS] = Http.gson.toJson(list) }
     suspend fun saveCloudStream(list: List<CloudStreamExt>) = context.dataStore.edit { it[K_CS] = Http.gson.toJson(list) }
+    suspend fun saveCloudStreamPlugins(list: List<CloudStreamInstalled>) = context.dataStore.edit { it[K_CS_PLUGINS] = Http.gson.toJson(list) }
     suspend fun saveMangaExt(list: List<MangaExt>) = context.dataStore.edit { it[K_MANGA] = Http.gson.toJson(list) }
 
     object Defaults {
@@ -49,6 +56,29 @@ class AddonStore(private val context: Context) {
          * seeded; users add their own repositories and add-ons in the Add-on Manager.
          */
         val repos: List<RemoteRepo> = emptyList()
+
+        /**
+         * Well-known provider repositories offered as one-tap adds in the Add-on Manager. They are
+         * deliberately **not** seeded (the app still ships source-neutral): the user opts in by
+         * tapping Add, which is a single stored URL.
+         */
+        val recommendedRepos: List<Pair<String, RemoteRepo>> = listOf(
+            "Phisher98 — Movies & TV (CloudStream)" to RemoteRepo(
+                "Phisher98",
+                "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/builds/repo.json",
+                AddonKind.CLOUDSTREAM,
+            ),
+            "Yuzono — Anime (Aniyomi)" to RemoteRepo(
+                "Yuzono",
+                "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
+                AddonKind.ANIYOMI,
+            ),
+            "Keiyoushi — Manga (Mihon)" to RemoteRepo(
+                "Keiyoushi",
+                "https://github.com/keiyoushi/extensions/raw/repo/index.pb",
+                AddonKind.KEIYOUSHI,
+            ),
+        )
 
         /** Metadata catalogs (posters, descriptions, episode lists). */
         val metadataAddons: List<String> = listOf(
@@ -101,12 +131,8 @@ class AddonStore(private val context: Context) {
         val retiredRepoUrls: List<String> = listOf(
             "https://raw.githubusercontent.com/hexated/cloudstream-extensions-hexated/builds/repo.json",
             "https://raw.githubusercontent.com/JoeTinnySpace/cloudstream-extensions-hexated/builds/repo.json",
-            "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/builds/repo.json",
             "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json",
-            "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
             "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json",
-            "https://github.com/keiyoushi/extensions/raw/repo/index.pb",
-            "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json",
         )
     }
 }

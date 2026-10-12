@@ -1,6 +1,7 @@
 package com.novastream.app.data.repo
 
 import com.novastream.app.data.adult.AdultRepository
+import com.novastream.app.data.cloudstream.CloudStreamSources
 import com.novastream.app.data.local.SettingsStore
 import com.novastream.app.data.model.Addon
 import com.novastream.app.data.model.CatalogDef
@@ -22,7 +23,16 @@ import kotlinx.coroutines.withTimeout
 class CatalogRepository(
     private val addonRepo: AddonRepository,
     private val settings: SettingsStore,
+    private val cloudStreamRepo: CloudStreamRepository,
 ) {
+
+    /** Search every loaded CloudStream provider, bounded and failure-isolated per provider. */
+    private suspend fun cloudStreamSearch(query: String): List<MediaItem> = coroutineScope {
+        val providers = runCatching { cloudStreamRepo.providers() }.getOrDefault(emptyList()).take(15)
+        providers.map { provider ->
+            async { runCatching { CloudStreamSources.search(provider, query) }.getOrDefault(emptyList()) }
+        }.flatMap { it.await() }
+    }
 
     private suspend fun safeRow(title: String, type: MediaType, block: suspend () -> List<MediaItem>): CatalogRow? =
         runCatching { block() }.getOrNull()?.distinctBy { it.key }?.takeIf { it.isNotEmpty() }?.let { CatalogRow(title, it, type = type) }
@@ -370,6 +380,8 @@ class CatalogRepository(
             async { runCatching { MangaDexClient.search(query) }.getOrDefault(emptyList()) },
         )
         jobs.forEach { results += it.await() }
+        // CloudStream provider plugins (installed .cs3) also serve the search screen.
+        results += cloudStreamSearch(query)
         // NSFW-flagged add-ons are only consulted when the user explicitly opted in from the
         // isolated NSFW Hub; otherwise the general Search screen stays adult-free.
         val includeNsfw = settings.nsfwGlobalSearch.first()

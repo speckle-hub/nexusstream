@@ -923,6 +923,13 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
     val mangaInstalled: StateFlow<List<MangaExt>> =
         container.addonRepository.mangaInstalled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Installed + loaded CloudStream `.cs3` plugins (the runnable providers). */
+    val cloudStreamPlugins: StateFlow<List<com.novastream.app.data.cloudstream.CloudStreamInstalled>> =
+        container.cloudStreamRepository.installed.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Number of live providers contributed by loaded CloudStream plugins. */
+    fun loadedProviderCount(): Int = runCatching { container.cloudStreamRepository.providers().size }.getOrDefault(0)
+
     val message = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
     val catalog = MutableStateFlow<List<Any>>(emptyList())
@@ -985,9 +992,26 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
             busy.value = false
         }
     }
-    fun installCloudStream(ext: CloudStreamExt) { viewModelScope.launch { container.addonRepository.installCloudStream(ext); message.value = "Added ${ext.name}" } }
+    /** Download + load a CloudStream `.cs3` plugin so its providers become live stream sources. */
+    fun installCloudStream(ext: CloudStreamExt) {
+        viewModelScope.launch {
+            busy.value = true
+            container.cloudStreamRepository.install(ext)
+                .onSuccess {
+                    container.addonRepository.installCloudStream(ext)
+                    message.value = "Installed ${ext.name}"
+                }
+                .onFailure { message.value = "Failed: ${it.message}" }
+            busy.value = false
+        }
+    }
     fun installMangaExt(ext: MangaExt) { viewModelScope.launch { container.addonRepository.installMangaExt(ext); message.value = "Added ${ext.name}" } }
-    fun uninstallCloudStream(url: String) { viewModelScope.launch { container.addonRepository.uninstallCloudStream(url) } }
+    fun uninstallCloudStream(url: String) {
+        viewModelScope.launch {
+            container.cloudStreamRepository.uninstall(url)
+            container.addonRepository.uninstallCloudStream(url)
+        }
+    }
     fun uninstallMangaExt(pkg: String) { viewModelScope.launch { container.addonRepository.uninstallMangaExt(pkg) } }
     fun clearMessage() { message.value = null }
 }

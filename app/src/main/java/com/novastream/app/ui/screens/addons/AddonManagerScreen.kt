@@ -213,6 +213,27 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
                 ) { Text("Add repository") }
             }
         }
+        // Well-known repositories offered as one-tap adds (never auto-installed).
+        val recommended = com.novastream.app.data.local.AddonStore.Defaults.recommendedRepos
+            .filter { it.second.kind == kind && myRepos.none { r -> r.url == it.second.url } }
+        if (recommended.isNotEmpty()) {
+            item { Text("Recommended", style = MaterialTheme.typography.titleMedium, color = nova.textSecondary) }
+            items(recommended) { (label, repo) ->
+                GlassSurface(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(label, style = MaterialTheme.typography.titleMedium, color = nova.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(repo.url, style = MaterialTheme.typography.labelMedium, color = nova.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(onClick = { vm.addRepo(repo) }, enabled = !busy) {
+                            Icon(Icons.Filled.Download, "Add $label", tint = nova.accent)
+                        }
+                    }
+                }
+            }
+        }
+
         item { Text("Repositories", style = MaterialTheme.typography.titleMedium, color = nova.textSecondary) }
         if (myRepos.isEmpty()) item { EmptyState("No repositories added", "Paste a repository URL above to browse its extensions.") }
         items(myRepos) { repo ->

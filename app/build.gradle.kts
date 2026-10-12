@@ -24,8 +24,8 @@ android {
         applicationId = "com.novastream.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 10
-        versionName = "1.5.1"
+        versionCode = 11
+        versionName = "1.6.0"
         vectorDrawables { useSupportLibrary = true }
         // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
         val localProps = Properties().apply {
@@ -73,7 +73,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
-        freeCompilerArgs += listOf("-Xjvm-default=all")
+        freeCompilerArgs += listOf("-Xjvm-default=all", "-Xskip-metadata-version-check")
     }
     buildFeatures {
         compose = true
@@ -145,4 +145,7 @@ dependencies {
 
     // In-app torrent streaming engine (jlibtorrent) so Real 18+ / P2P Stremio streams play directly.
     implementation("com.github.TorrentStream:TorrentStream-Android:2.7.0")
+
+    // CloudStream provider runtime: lets .cs3 extensions load in-process (see data/cloudstream).
+    implementation("com.github.recloudstream.cloudstream:library:4.7.0")
 }
