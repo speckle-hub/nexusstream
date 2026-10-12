@@ -12,6 +12,7 @@ import android.os.Build
 import android.provider.Settings
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.Log
 import android.util.Rational
 import android.view.View
 import android.widget.Toast
@@ -195,9 +196,21 @@ class PlayerActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
 
-        item = readItem(intent) ?: run { finish(); return }
-        val first = readSource(intent) ?: run { finish(); return }
-        episodes = readEpisodes(intent)
+        // P0 guardrails: a malformed intent (or a Gson-hole payload with runtime
+        // nulls in non-null slots) finishes with a log line instead of crashing.
+        val parsedItem = readItem(intent)
+        if (!isValidPlayerItem(parsedItem)) {
+            Log.e(PLAYER_TAG, "aborting launch: item missing or invalid in intent")
+            finish(); return
+        }
+        item = requireNotNull(parsedItem)
+        val first = readSource(intent)
+        if (!isPlayableStreamSource(first)) {
+            Log.e(PLAYER_TAG, "aborting launch: source missing or has no playable URL")
+            Toast.makeText(this, "This stream can't be played.", Toast.LENGTH_SHORT).show()
+            finish(); return
+        }
+        episodes = sanitizeEpisodes(readEpisodes(intent))
         index = readIndex(intent)
 
         val settings = (application as NovaApp).container.settings
@@ -217,11 +230,11 @@ class PlayerActivity : ComponentActivity() {
         )
         val preferredQuality = settings.preferredQuality.value
 
-        source = first
-        httpFactory.setDefaultRequestProperties(source.headers)
-        subs = if (subtitlesEnabled) readSubs(intent) else emptyList()
+        source = requireNotNull(first)
+        httpFactory.setDefaultRequestProperties(safeStreamHeaders(source))
+        subs = if (subtitlesEnabled) sanitizeSubtitleTracks(readSubs(intent)) else emptyList()
         titleState.value = if (index >= 0) episodeTitle(episodes.getOrNull(index)) else item.title
-        subtitleState.value = first.name ?: first.title
+        subtitleState.value = source.name ?: source.title
         episodesState.value = episodes
         indexState.value = index
         brightnessValue = settings.playerBrightness.value.takeIf { it in 0f..1f }
@@ -237,11 +250,17 @@ class PlayerActivity : ComponentActivity() {
             setParameters(params)
         }
         trackSelector = selector
-        val exo = ExoPlayer.Builder(this)
-            .setTrackSelector(selector)
-            .setLoadControl(loadControl)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-            .build()
+        val exo = try {
+            ExoPlayer.Builder(this)
+                .setTrackSelector(selector)
+                .setLoadControl(loadControl)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+                .build()
+        } catch (t: Throwable) {
+            Log.e(PLAYER_TAG, "ExoPlayer init failed", t)
+            Toast.makeText(this, "Player unavailable: ${t.message ?: "init failed"}", Toast.LENGTH_LONG).show()
+            finish(); return
+        }
         player = exo
         exo.playWhenReady = true
         exo.setPlaybackSpeed(playbackSpeed)
@@ -259,8 +278,14 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         })
-        exo.setMediaItem(buildMediaItem())
-        exo.prepare()
+        try {
+            exo.setMediaItem(buildMediaItem())
+            exo.prepare()
+        } catch (t: Throwable) {
+            Log.e(PLAYER_TAG, "media load failed for ${runCatching { item.key }.getOrDefault("?")}", t)
+            Toast.makeText(this, "This stream can't be played.", Toast.LENGTH_SHORT).show()
+            finish(); return
+        }
         // Resume first, then start persisting: the watcher must not record position 0 over the
         // saved spot before the seek lands (see [resumeResolved]).
         lifecycleScope.launch {
@@ -325,6 +350,7 @@ class PlayerActivity : ComponentActivity() {
                     onOpenVlc = { openInPackage("org.videolan.vlc") },
                     onOpenMpv = { openInPackage("is.xyz.mpv") },
                     onOpenOther = { openExternal() },
+                    onCastSettings = { openCastSettings() },
                     onGestures = { mode, amount ->
                         // Returns the normalized level (0..1) so the gesture HUD can render it.
                         when (mode) {
@@ -388,9 +414,12 @@ class PlayerActivity : ComponentActivity() {
     private fun buildMediaItem(): Media3Item {
         val builder = Media3Item.Builder()
             .setUri(source.playableUrl)
-            .setMediaId(item.key)
-        val configs = subs.mapIndexed { idx, s ->
-            Media3Item.SubtitleConfiguration.Builder(Uri.parse(s.url))
+            .setMediaId(runCatching { item.key }.getOrDefault("unknown"))
+        // Each subtitle config is built defensively: one poisoned entry (Gson null URL)
+        // must not take down the whole media item.
+        val configs = subs.mapIndexedNotNull { idx, s ->
+            runCatching {
+                Media3Item.SubtitleConfiguration.Builder(Uri.parse(s.url))
                 .setMimeType(mimeFor(s.url))
                 .setLanguage(s.lang)
                 .setLabel(s.lang.uppercase())
@@ -398,6 +427,7 @@ class PlayerActivity : ComponentActivity() {
                 // pre-selected; the rest stay available but inactive.
                 .setSelectionFlags(if (idx == 0) C.SELECTION_FLAG_DEFAULT else 0)
                 .build()
+            }.getOrNull()
         }
         if (configs.isNotEmpty()) builder.setSubtitleConfigurations(configs)
         return builder.build()
@@ -406,44 +436,68 @@ class PlayerActivity : ComponentActivity() {
     /** Load a new source into the existing player (used by reload and episode switching). */
     private fun applySource(newSource: StreamSource, newSubs: List<SubtitleTrack>) {
         source = newSource
-        subs = newSubs
+        subs = sanitizeSubtitleTracks(newSubs)
         failedUrls.clear()
         autoTriggered = false
         scrobbled = false
         countdownState.value = null
         val exo = player ?: return
-        httpFactory.setDefaultRequestProperties(newSource.headers)
-        exo.setMediaItem(buildMediaItem())
-        exo.prepare()
+        httpFactory.setDefaultRequestProperties(safeStreamHeaders(newSource))
+        runCatching {
+            exo.setMediaItem(buildMediaItem())
+            exo.prepare()
+        }.onFailure { e ->
+            Log.e(PLAYER_TAG, "episode-switch load failed", e)
+            Toast.makeText(this, "This stream can't be played.", Toast.LENGTH_SHORT).show()
+            return
+        }
         exo.playWhenReady = true
     }
 
     /**
      * Try the next backup mirror for this stream. Returns false when there are no alternatives left.
      * Candidate order is the primary URL followed by [StreamSource.alternates].
+     *
+     * Runs inside the ExoPlayer error callback, so the whole body is contained: any throw
+     * becomes a `false` (which shows the playback-failed toast) instead of a crash. In
+     * particular `copy()` on a Gson-hole instance re-runs the generated null-checks, so a
+     * holey source is shed for a clean one carrying just the next URL.
      */
     private fun tryFailover(): Boolean {
-        val candidates = (listOfNotNull(source.playableUrl) + source.alternates).distinct()
-        val next = candidates.firstOrNull { it !in failedUrls && it != source.playableUrl } ?: return false
-        source.playableUrl?.let { failedUrls += it }
-        source = source.copy(url = next)
-        httpFactory.setDefaultRequestProperties(source.headers)
-        Toast.makeText(this, "Switching to backup source\u2026", Toast.LENGTH_SHORT).show()
-        val resumeAt = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
-        player?.let {
-            it.setMediaItem(buildMediaItem())
-            it.prepare()
-            it.seekTo(resumeAt)
-            it.playWhenReady = true
-        }
-        return true
+        return runCatching {
+            val current = source.playableUrl
+            val candidates = (listOfNotNull(current) + safeStreamAlternates(source))
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+            val next = candidates.firstOrNull { it !in failedUrls && it != current } ?: return false
+            current?.let { failedUrls += it }
+            source = runCatching { source.copy(url = next) }
+                .getOrElse { StreamSource(url = next) }
+            httpFactory.setDefaultRequestProperties(safeStreamHeaders(source))
+            Toast.makeText(this, "Switching to backup source\u2026", Toast.LENGTH_SHORT).show()
+            val resumeAt = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
+            player?.let {
+                it.setMediaItem(buildMediaItem())
+                it.prepare()
+                it.seekTo(resumeAt)
+                it.playWhenReady = true
+            }
+            true
+        }.getOrDefault(false)
     }
 
     private fun reload() {
         autoTriggered = false
         player?.let {
-            it.setMediaItem(buildMediaItem())
-            it.prepare()
+            runCatching {
+                it.setMediaItem(buildMediaItem())
+                it.prepare()
+            }.onFailure { e ->
+                Log.e(PLAYER_TAG, "reload failed", e)
+                Toast.makeText(this, "This stream can't be played.", Toast.LENGTH_SHORT).show()
+                return
+            }
             it.playWhenReady = true
         }
     }
@@ -458,11 +512,12 @@ class PlayerActivity : ComponentActivity() {
             val container = (application as NovaApp).container
             val streams = runCatching { container.streamRepository.streamsFor(item, ep.id) }
                 .getOrDefault(emptyList())
-            val playable = streams.firstOrNull { it.playableUrl != null } ?: streams.firstOrNull()
-            if (playable?.playableUrl == null) {
+            val playable = streams.firstOrNull { isPlayableStreamSource(it) } ?: streams.firstOrNull()
+            if (!isPlayableStreamSource(playable)) {
                 Toast.makeText(this@PlayerActivity, "No playable stream for the next episode", Toast.LENGTH_SHORT).show()
                 return@launch
             }
+            val episodeSource = requireNotNull(playable)
             val foundSubs = if (subtitlesEnabled) {
                 runCatching { container.streamRepository.subtitlesFor(item, ep.id) }.getOrDefault(emptyList())
             } else emptyList()
@@ -472,9 +527,9 @@ class PlayerActivity : ComponentActivity() {
             titleState.value = episodeTitle(ep)
             subtitleState.value = buildString {
                 append("S${ep.season ?: 1} E${ep.episode ?: (target + 1)}")
-                playable.name?.takeIf { it.isNotBlank() }?.let { append(" \u00b7 $it") }
+                episodeSource.name?.takeIf { it.isNotBlank() }?.let { append(" \u00b7 $it") }
             }
-            applySource(playable, foundSubs)
+            applySource(episodeSource, foundSubs)
         }
     }
 
@@ -583,8 +638,9 @@ class PlayerActivity : ComponentActivity() {
             val container = (application as NovaApp).container
             val streams = runCatching { container.streamRepository.streamsFor(item, ep.id) }
                 .getOrDefault(emptyList())
-            val source = streams.firstOrNull { it.playableUrl != null } ?: return@launch
-            val url = source.playableUrl ?: return@launch
+            val source = streams.firstOrNull { isPlayableStreamSource(it) } ?: return@launch
+            val url = source.playableUrl
+            if (url.isNullOrBlank()) return@launch
             val kind = if (url.contains(".m3u8", ignoreCase = true)) VideoKind.HLS else VideoKind.PROGRESSIVE
             val label = buildString {
                 append(item.title)
@@ -592,8 +648,8 @@ class PlayerActivity : ComponentActivity() {
             }
             container.videoDownloadManager.enqueue(
                 item, url, label, ep.title, kind,
-                headers = source.headers,
-                alternates = source.alternates,
+                headers = safeStreamHeaders(source),
+                alternates = safeStreamAlternates(source),
             )
         }
     }
@@ -794,6 +850,19 @@ class PlayerActivity : ComponentActivity() {
         runCatching { startActivity(i) }
     }
 
+    /** Pre-Phase-30 fallback: open the system cast/wireless-display settings when available. */
+    private fun openCastSettings() {
+        val intents = buildList {
+            add(Intent(Settings.ACTION_CAST_SETTINGS))
+            add(Intent("android.settings.WIFI_DISPLAY_SETTINGS"))
+        }
+        for (i in intents) {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (runCatching { startActivity(i) }.isSuccess) return
+        }
+        Toast.makeText(this, "No cast/DLNA target available on this device", Toast.LENGTH_SHORT).show()
+    }
+
     /** Launch a specific external player by package, falling back to the generic chooser. */
     private fun openInPackage(pkg: String) {
         val url = source.playableUrl ?: return
@@ -833,15 +902,16 @@ class PlayerActivity : ComponentActivity() {
 
     /** Hand the current stream to the connected receiver (once per URL) and pause locally. */
     private fun onCastConnected() {
-        val url = source.playableUrl ?: return
+        val url = source.playableUrl
+        if (url.isNullOrBlank()) return
         if (castLoadedUrl == url) return
         val remote = castSessionManager()?.currentCastSession?.remoteMediaClient ?: return
         val metadata = MediaMetadata(MediaMetadata.MEDIA_TYPE_MOVIE).apply {
-            putString(MediaMetadata.KEY_TITLE, item.title)
+            putString(MediaMetadata.KEY_TITLE, runCatching { item.title }.getOrDefault(""))
         }
         val media = MediaInfo.Builder(url)
             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
-            .setContentType(if (url.contains(".m3u8", ignoreCase = true)) "application/x-mpegurl" else "videos/mp4")
+            .setContentType(if (url.contains(".m3u8", ignoreCase = true)) "application/x-mpegurl" else "video/mp4")
             .setMetadata(metadata)
             .build()
         // Single-arg load autoplays on the receiver (the two-arg overload is deprecated).
@@ -1027,6 +1097,10 @@ class PlayerActivity : ComponentActivity() {
     }
 }
 
+/** Log tag for player launch/cast diagnostics (file-level: top-level composables
+ * cannot see private companion members). */
+private const val PLAYER_TAG = "PlayerActivity"
+
 /** Heuristic intro/outro windows used when a stream supplies no chapter markers. */
 private const val DEFAULT_INTRO_END_MS = 90_000L
 private const val DEFAULT_OUTRO_MS = 90_000L
@@ -1129,6 +1203,7 @@ private fun PlayerScreen(
     onOpenVlc: () -> Unit,
     onOpenMpv: () -> Unit,
     onOpenOther: () -> Unit,
+    onCastSettings: () -> Unit,
 ) {
     var controlsVisible by remember { mutableStateOf(true) }
     var showTracks by remember { mutableStateOf(false) }
@@ -1396,17 +1471,32 @@ private fun PlayerScreen(
                     }
                     IconButton(onClick = { showExternal = true }) { Icon(Icons.Filled.OpenInNew, "Open in external player", tint = Color.White) }
                     // Phase 30 Chromecast: the real route picker (device discovery + chooser).
-                    // Devices without Play services simply see no cast destinations.
-                    AndroidView(
-                        factory = { ctx ->
-                            MediaRouteButton(ctx).apply {
-                                routeSelector = MediaRouteSelector.Builder()
-                                    .addControlCategory(CastMediaControlIntent.categoryForCast(CAST_RECEIVER_APP_ID))
-                                    .build()
-                            }
-                        },
-                        modifier = Modifier.size(48.dp),
-                    )
+                    // Devices without Play services simply see no cast destinations; if the
+                    // button itself can't init, fall back to the system cast-settings
+                    // shortcut instead of crashing the player.
+                    var castFallback by remember { mutableStateOf(false) }
+                    if (castFallback) {
+                        IconButton(onClick = onCastSettings) {
+                            Icon(Icons.Filled.Cast, "Cast / DLNA", tint = Color.White)
+                        }
+                    } else {
+                        AndroidView(
+                            factory = { ctx ->
+                                runCatching {
+                                    MediaRouteButton(ctx).apply {
+                                        routeSelector = MediaRouteSelector.Builder()
+                                            .addControlCategory(CastMediaControlIntent.categoryForCast(CAST_RECEIVER_APP_ID))
+                                            .build()
+                                    }
+                                }.getOrElse { e ->
+                                    Log.e(PLAYER_TAG, "MediaRouteButton init failed; using settings fallback", e)
+                                    scope.launch { castFallback = true }
+                                    View(ctx).apply { visibility = View.GONE }
+                                }
+                            },
+                            modifier = Modifier.size(48.dp),
+                        )
+                    }
                     IconButton(onClick = onPip) { Icon(Icons.Filled.PictureInPictureAlt, "PiP", tint = Color.White) }
                     IconButton(onClick = onRotate) { Icon(Icons.Filled.ScreenRotation, "Rotate", tint = Color.White) }
                     // Sleep timer: armed state reads amber so it is visible at a glance over video.

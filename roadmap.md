@@ -1,7 +1,16 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-11 — **v1.5.0 released.** Bundles
+> resume exactly where it left off. Last updated: 2026-10-12 — **v1.5.1 released.** P0 hotfix
+> (§2ak) shipped: `versionCode` 10 / `versionName` 1.5.1; signed release built →
+> `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`); tagged `v1.5.1` and pushed.
+> Previous session, Last updated: 2026-10-12 — **P0 hotfix: Play-crash guardrails (§2ak).**
+> Player launch path hardened (validated intent extras, sanitized subs/episodes/headers, guarded
+> ExoPlayer build + media load, Cast button fallback, `video/mp4` typo fix); verified
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **171/171** (+10 `PlayerStartupTest`).
+> Not pushed; no APK rebuilt this session. Device pass still needed (logcat confirmation + Play
+> from detail/torrent/downloads on GMS and non-GMS devices).
+> Previous session, Last updated: 2026-10-11 — **v1.5.0 released.** Bundles
 > Phase 28 (brand icon + NSFW Hub overhaul, §2ah), Phase 29 (sleep timer, swipe zones, subtitle
 > styling, storage header, §2ai) and Phase 30 (tracker OAuth + bidirectional sync, hide/pin rows,
 > Chromecast, §2aj). `versionCode` 9 / `versionName` 1.5.0; signed release built →
@@ -227,14 +236,15 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~20,900 LOC across 108 Kotlin source files in a single `:app` module (+19 test files). Unit tests
-(161 cases):
+~20,900 LOC across 109 Kotlin source files in a single `:app` module (+20 test files). Unit tests
+(171 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
 `TitleMatchTest.kt` (7, NSFW title matching — §2s), `NsfwIsolationTest.kt` (7, adult isolation — §2ah),
 `SleepTimerTest.kt` (7, sleep-timer mapping — §2ai), `TrackerOAuthTest.kt` (10, OAuth/PKCE — §2aj),
-`HomeRowsTest.kt` (8, dashboard order/visibility — §2aj),
+`HomeRowsTest.kt` (8, dashboard order/visibility — §2aj), `PlayerStartupTest.kt` (10, player
+launch guards — §2ak),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
 
@@ -242,9 +252,12 @@ site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexu
 
 ## 2. Current focus
 
-**Topic: Phase 30 — Cloud Sync, Anime Trackers & Customizable Dashboard.** Working tracker sync
-both directions, hide/pin dashboard rows, and Chromecast handoff — on top of the pre-existing
-token/row/cast-settings foundations. Full detail in **§2aj**.
+**Topic: v1.5.1 released** — the P0 Play-crash hotfix (§2ak) is tagged, pushed and
+published with the signed APK attached. Device pass still outstanding (logcat + Play on
+GMS/non-GMS hardware).
+
+Previous focus: P0 hotfix — Play-crash guardrails (§2ak); Phase 30 — Cloud Sync, Anime
+Trackers & Customizable Dashboard (§2aj);
 
 Previous focus: Phase 29 — Player Enhancements & Offline Downloads Library (§2ai);
 Phase 28 — Branding, App Icon Replacement & NSFW Hub Overhaul (§2ah);
@@ -649,6 +662,80 @@ triggers, Cast session + route button replacing the settings shortcut),
   real Trakt/AniList/MAL app registrations, completion + heartbeat arrivals on each tracker,
   Trakt import marking, hide/pin persistence across restarts, and casting to a real receiver
   (connect, title handoff, local pause, disconnect).
+
+---
+
+## 2ak. P0 hotfix — Play-crash guardrails (2026-10-12)
+
+**Topic:** crash on tapping Play (P0 regression report against the v1.5.0 player).
+
+Status: **implemented and verified (statically + unit).** No device/`adb` is available in this
+environment, so there is no logcat — the cause was root-caused by static analysis plus
+binary verification against the Gradle-cached libraries, and every candidate edge now fails
+gracefully instead of crashing. Files and verification at the end.
+
+### 1. Root-cause inspection (no logcat available)
+- `MediaItem.Builder.setUri(String?)` tolerates null (verified via `javap` on
+  `media3-common-1.3.1`: `setUri(String)` delegates to `setUri(Uri)` with no `build()`
+  validation), and `MediaRouteButton` is a plain `View` with no AppCompat-theme requirement
+  (verified on `mediarouter-1.7.0`) — so neither is a deterministic crash on its own.
+- The actual holes on the Play path are the unguarded edges around them: unvalidated intent
+  extras, the Gson null-field hole (`headers`/`alternates`/`subs`/`episodes` can carry
+  runtime nulls in non-null slots — the same bug class as Phase 13/21), an unguarded
+  ExoPlayer build + `setMediaItem`/`prepare`, an unguarded Cast button init on non-GMS
+  devices, and a real `videos/mp4` content-type typo in the Cast handoff.
+
+### 2. Defend-and-recover guardrails
+- **New pure `ui/player/PlayerStartup.kt`** (repo pattern: pure helper + unit test):
+  `isValidPlayerItem` / `isPlayableStreamSource` / `sanitizeSubtitleTracks` /
+  `sanitizeEpisodes` / `safeStreamHeaders` / `safeStreamAlternates` — every helper is total
+  (per-entry `runCatching`, never throws, even on Gson-poisoned payloads).
+- **`PlayerActivity.onCreate`:** item/source validated before use (bad intent → `Log.e` +
+  toast + `finish`, never a crash); episodes/subs sanitized; headers read through
+  `safeStreamHeaders`; ExoPlayer build and `setMediaItem`/`prepare` each wrapped with
+  `Log.e` breadcrumbs + toast + `finish` fallback.
+- **`buildMediaItem`:** media id read defensively; each subtitle config built per-entry
+  (`mapIndexedNotNull` + `runCatching`) so one poisoned sub can't kill the item.
+- **`applySource` / `tryFailover`:** sanitized subs/headers/alternates; failover candidates
+  trimmed, blank-filtered and de-duped; episode-switch load failure toasts instead of throwing.
+- **Cast (Phase 30):** `MediaRouteButton` creation wrapped — on failure the top bar recomposes
+  to the pre-Phase-30 Cast icon opening the system cast-settings shortcut
+  (`openCastSettings()` restored); `onCastConnected` ignores blank URLs, reads the title
+  defensively, and the handoff content type is fixed to `video/mp4`.
+- **Review follow-ups:** `tryFailover()` (reachable from the ExoPlayer error callback) is fully
+  contained — a holey `copy()` sheds to a clean `StreamSource(url)` and any throw becomes
+  `false`; `reload()` mirrors `applySource`'s containment; episode/auto-download stream
+  picking uses `isPlayableStreamSource` (blank URLs no longer win over good mirrors) with
+  sanitized headers/alternates into the download queue.
+- **Logging:** file-level `PLAYER_TAG` (top-level composables can't see private companion
+  members — same lesson as `GESTURE_SLOP_PX`) used for all six `Log.e` breadcrumbs, so the
+  next field report identifies itself in logcat.
+
+### Files
+`ui/player/PlayerStartup.kt` (new pure guards), `ui/player/PlayerActivity.kt` (launch
+validation, guarded build/prepare/failover, Cast fallback, typo fix),
+`app/src/test/.../PlayerStartupTest.kt` (+10).
+
+### Verification (2026-10-12)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (one in-session fix: `TAG` moved from the
+  companion to file scope as `PLAYER_TAG`).
+- `:app:testDebugUnitTest` → **171/171 tests, 0 failures, 0 errors** (+10 new; incl. a live
+  reproduction of the Gson hole — `"{}"` decodes to runtime nulls, the raw access throws,
+  the guard absorbs it).
+- Local + remote paths reasoned through (detail direct/torrent via the guarded `intent` path;
+  Library downloads via `playDownloaded`, whose stale-JSON items are now rejected gracefully
+  instead of NPEing) — **device pass still needed**: logcat confirmation plus Play from
+  detail/torrent/downloads on GMS and non-GMS hardware.
+- Not pushed; no APK rebuilt this session.
+
+### Release (2026-10-12, v1.5.1)
+- `versionCode` 10 / `versionName` 1.5.1; `:app:compileDebugKotlin` ✓,
+  `:app:testDebugUnitTest` ✓ **171/171**, `:app:assembleRelease` ✓ (signed).
+- `dist/NovaStream.apk` refreshed (**40,140,687 bytes**, SHA-256
+  `A58E3D2B12C030E556BFA0DC27AF820301EA4D8D360E6BDD5E65E4E27E7E1151`;
+  `versionCode` 10 / `versionName` 1.5.1 verified in `output-metadata.json`, `PlayerStartup`
+  verified in the release dex); tagged `v1.5.1` and pushed.
+- Website CTA/hero still on v1.5.0 — bump outstanding.
 
 ---
 
@@ -3394,6 +3481,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-11 | **Phase 27 (Part A) — UI & Layout Polish Fixes (§2af):** 4 audit items — (1) `navigationBarsPadding()` on pushed destinations (Detail, Sources, Home Order, Collection, Add-on Manager, NSFW Hub; tab screens already covered via `LocalFloatingNavBottomPadding`). (2) `MetaStatsRow` constrained (`fillMaxWidth` + `maxLines = 1` + `Ellipsis` + shared weight). (3) "Continue Watching" header guarded (`watched.isNotEmpty()` or fully empty). (4) Poster "×" hit area tucked to corner (48 dp @ 6 dp → 40 dp @ 2 dp top-start, 22 dp chip). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **124/124 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-11 | **Phase 27 (Part B) — Updater UI Revamp (§2ag):** `downloadApkWithProgress()` streams APK in 8 KB `ensureActive()`-checked chunks with throttled `DownloadProgress` callbacks (fraction/percent null-safe, partial deleted on fail/cancel, `CancellationException` rethrown); `UpdateAvailableDialog` shows determinate `LinearProgressIndicator` + tabular `Downloading update… 45% (18.2 MB / 40.5 MB)` line, Update disabled, "Later"→"Cancel" mid-download (aborts job, parks dialog in idle), outside-tap/Back ignored while downloading. `downloadApk()` kept as delegate for Settings. Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **129/129 / 0 failures** ✅ (+5 `UpdateCheckerTest`). Not pushed, no APK. |
 | 2026-10-11 | **v1.4.2 released:** Phase 26 + 27A + 27B shipped as commit `2ce2156` (`versionCode` 8 / `versionName` 1.4.2; compile ✅, 129/129 tests ✅, signed `:app:assembleRelease` ✅ → `dist/NovaStream.apk`, 38,330,042 bytes, SHA-256 `5AB52C87…4C6E`); annotated tag `v1.4.2` pushed; **GitHub Release `NexusStream v1.4.2` published with `app-release.apk` attached** (38,330,042 bytes) so `releases/latest/download/app-release.apk` now serves v1.4.2 to the in-app updater and the site CTA; website hero badge + download CTA bumped to v1.4.2 (`next build` ✅, 216 kB first-load) and pushed as `8ced0ca` (Vercel auto-redeploys on push). |
+| 2026-10-12 | **v1.5.1 released:** P0 Play-crash hotfix (§2ak) shipped — `versionCode` 10 / `versionName` 1.5.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **171/171**, `:app:assembleRelease` ✅ (signed) → `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`; `PlayerStartup` verified in the release dex); tagged `v1.5.1` and pushed; **GitHub Release `NexusStream v1.5.1` published with `app-release.apk` attached** so `releases/latest/download/app-release.apk` now serves v1.5.1. Website CTA/hero bump to v1.5.1 outstanding. |
 
 ---
 
