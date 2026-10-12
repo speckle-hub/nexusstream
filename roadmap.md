@@ -1,7 +1,17 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-12 — **v1.5.1 released.** P0 hotfix
+> resume exactly where it left off. Last updated: 2026-10-12 — **CloudStream provider runtime
+> (§2al): real `.cs3` extensions now load and run in-process.** Depends on the CloudStream
+> `library` (JitPack 4.7.0) + app-module shims; Add-on Manager install downloads + loads a
+> provider, Search/Detail/Streams surface its results, and the phisher98 / yuzono / Keiyoushi
+> repos are offered as one-tap **Recommended** (addable, not seeded). `versionCode` 11 /
+> `versionName` 1.6.0; source committed + pushed to `main`. Verified
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **176/176** (+5), `:app:assembleDebug` ✓.
+> Device pass (real provider playback) still outstanding. Aniyomi/Mihon runtime not yet built.
+> No signed release APK built and no GitHub Release/tag created this session — the in-app updater
+> therefore still serves v1.5.1 until that step is done.
+> Previous session, Last updated: 2026-10-12 — **v1.5.1 released.** P0 hotfix
 > (§2ak) shipped: `versionCode` 10 / `versionName` 1.5.1; signed release built →
 > `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`); tagged `v1.5.1` and pushed.
 > Previous session, Last updated: 2026-10-12 — **P0 hotfix: Play-crash guardrails (§2ak).**
@@ -236,15 +246,16 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~20,900 LOC across 109 Kotlin source files in a single `:app` module (+20 test files). Unit tests
-(171 cases):
+~24,800 LOC across 117 Kotlin source files in a single `:app` module (+23 test files). Unit tests
+(176 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
 `TitleMatchTest.kt` (7, NSFW title matching — §2s), `NsfwIsolationTest.kt` (7, adult isolation — §2ah),
 `SleepTimerTest.kt` (7, sleep-timer mapping — §2ai), `TrackerOAuthTest.kt` (10, OAuth/PKCE — §2aj),
 `HomeRowsTest.kt` (8, dashboard order/visibility — §2aj), `PlayerStartupTest.kt` (10, player
-launch guards — §2ak),
+launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id scheme + repo policy —
+§2al),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
 
@@ -740,6 +751,70 @@ validation, guarded build/prepare/failover, Cast fallback, typo fix),
   verified `releases/latest` → v1.5.1 and `releases/latest/download/app-release.apk` →
   HTTP 200 / 40,140,687 bytes), so the in-app update dialog now serves v1.5.1.
 - Website CTA/hero bumped to v1.5.1 (`next build` ✓) and pushed (Vercel auto-redeploys).
+
+---
+
+## 2al. CloudStream provider runtime — run real `.cs3` extensions in-process (2026-10-12)
+
+**Topic: make the provider repositories "fully work" — an installed CloudStream extension must
+produce real, playable stream links.** Recon first: the repos already parse (CloudStream
+`repo.json` → `plugins.json` hop, Aniyomi `index.min.json`, Keiyoushi `index.pb` + JSON mirror),
+but "install" only stored name/icon/version metadata — nothing ran. The app's own `data/ext` engine
+uses a custom `NexusExtension` contract that real `.cs3` / Mihon `.apk` files do not implement, so a
+bridge was required.
+
+Status: **implemented; compiles + unit-tested; device pass required.**
+
+### 1. CloudStream runtime dependency
+- Added `com.github.recloudstream.cloudstream:library:4.7.0` (JitPack) as `implementation`, which
+  brought its real dependency tree (NiceHttp, jsoup, Jackson, Ktor, kotlinx-serialization, rhino,
+  NewPipeExtractor, …). `-Xskip-metadata-version-check` is set because the library is built with a
+  newer Kotlin than the project's 2.0.20. **4.7.0** was required over 4.8.0: the latter declares
+  `minCompileSdk=36` while the project is on `compileSdk 34` / AGP 8.5; 4.7.0 declares
+  `minCompileSdk=1`.
+
+### 2. App-module shims (`com.lagradost.cloudstream3`)
+Providers are compiled against the CloudStream **app**, so inlined `CloudStreamApp.getKey/setKey`,
+`CommonActivity.showToast`, and `DataStore` member calls must resolve at runtime. Added
+`CloudStreamApp`, `CommonActivity`, and `utils/DataStore` shims (SharedPreferences-backed settings,
+real Toasts) mirroring the upstream public surface.
+
+### 3. In-process loader (`data/cloudstream/CloudStreamRuntime.kt`)
+`PathClassLoader(cs3File, appClassLoader)` → read `manifest.json` → instantiate the
+`BasePlugin` → call `load()`, which self-registers every `MainAPI` provider into `APIHolder`.
+`unload()` removes the plugin's providers. Mirrors CloudStream's own `PluginManager.loadPlugin`.
+
+### 4. Adapter + repository
+- `CloudStreamSources`: search → `MediaItem` (`addonId = cloudstream:<provider>`, `id` = provider
+  page URL), `load()` → episodes (`Video.id` carries the provider "data" string), `loadLinks()` →
+  app `StreamSource`s (url / quality / referer+headers). `metaDetail()` builds the detail page.
+- `CloudStreamRepository`: download `.cs3` into app-private storage, load, persist
+  (`AddonStore.cloudStreamPlugins`), uninstall, and reload every installed plugin on launch.
+
+### 5. Wiring
+- Add-on Manager **Install** for a CloudStream extension now downloads **and loads** the plugin.
+- **Search** merges loaded providers' results; **Detail** and **StreamRepository** resolve
+  CloudStream items, and movies additionally get provider links matched by title.
+- The player already consumes `StreamSource` (url + headers), so links play with no further work.
+
+### 6. Recommended repositories (not seeded)
+The three requested repos — **phisher98** (CloudStream), **yuzono** (Aniyomi), **Keiyoushi**
+(Mihon) — are offered as one-tap **Recommended** entries in their tabs. Per the owner's choice they
+are **not** auto-seeded (`Defaults.repos` stays empty; the app remains source-neutral), and their
+URLs were removed from `retiredRepoUrls` so adding one is not pruned on the next launch.
+
+### Verification
+- `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **176/176** (+5 `CloudStreamSupportTest`)
+  · `:app:assembleDebug` ✓ (no duplicate classes).
+- **Still needed:** a device pass — install a phisher98 provider, confirm providers load, search
+  returns items, and a title returns playable links. The `.cs3` dex + provider network paths cannot
+  be exercised on the JVM.
+
+### Known gaps / next
+- **Aniyomi (yuzono) & Mihon (Keiyoushi) runtime** is not built yet: those extensions extend
+  `eu.kanade.tachiyomi.*`, a different API, and need their own loader shim.
+- **Legacy CloudStream `Plugin`** (extends `BasePlugin`, `load(context)`, resources) is not shimmed —
+  only the modern `BasePlugin` + `registerMainAPI` shape loads.
 
 ---
 

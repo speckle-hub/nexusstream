@@ -5,6 +5,7 @@ import com.novastream.app.data.adult.AdultRepository
 import com.novastream.app.data.adult.AdultSource
 import com.novastream.app.data.adult.AdultSources
 import com.novastream.app.data.adult.adultTitlesMatch
+import com.novastream.app.data.cloudstream.CloudStreamSources
 import com.novastream.app.data.hentai.HentaiRepository
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
@@ -18,7 +19,10 @@ import com.novastream.app.data.remote.TmdbClient
 import kotlinx.coroutines.withTimeout
 
 /** Resolves full metadata for any MediaItem regardless of its source. */
-class MetadataRepository(private val addonRepo: AddonRepository) {
+class MetadataRepository(
+    private val addonRepo: AddonRepository,
+    private val cloudStreamRepo: CloudStreamRepository,
+) {
 
     /**
      * Resolve the best available metadata for an item. Every candidate source is attempted in
@@ -30,6 +34,12 @@ class MetadataRepository(private val addonRepo: AddonRepository) {
         AdultSources.byId(item.addonId)?.let { source ->
             val adult = runCatching { AdultRepository.detail(item.id, source) }.getOrNull()
             if (adult != null) return adultMeta(source, item, adult)
+        }
+        // CloudStream provider items resolve their own metadata (episode list included).
+        if (item.addonId?.startsWith(CloudStreamSources.ADDON_PREFIX) == true) {
+            val provider = cloudStreamRepo.providerFor(item.addonId)
+            val d = provider?.let { runCatching { CloudStreamSources.metaDetail(it, item) }.getOrNull() }
+            return d ?: fallbackDetail(item)
         }
         val candidates = candidateSources(item)
         var best: MetaDetail? = null

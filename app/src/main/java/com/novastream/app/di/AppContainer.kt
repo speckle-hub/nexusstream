@@ -13,6 +13,7 @@ import com.novastream.app.data.local.MetadataCache
 import com.novastream.app.data.local.SettingsStore
 import com.novastream.app.data.repo.AddonRepository
 import com.novastream.app.data.repo.CatalogRepository
+import com.novastream.app.data.repo.CloudStreamRepository
 import com.novastream.app.data.repo.MetadataRepository
 import com.novastream.app.data.repo.StreamRepository
 
@@ -32,9 +33,13 @@ class AppContainer(context: Context) {
     val videoDownloadManager = VideoDownloadManager(context)
 
     val addonRepository = AddonRepository(addonStore)
-    val catalogRepository = CatalogRepository(addonRepository, settings)
-    val metadataRepository = MetadataRepository(addonRepository)
-    val streamRepository = StreamRepository(addonRepository)
+
+    // Runs real CloudStream .cs3 provider plugins in-process (see data/cloudstream).
+    val cloudStreamRepository = CloudStreamRepository(addonStore, context.applicationContext)
+
+    val catalogRepository = CatalogRepository(addonRepository, settings, cloudStreamRepository)
+    val metadataRepository = MetadataRepository(addonRepository, cloudStreamRepository)
+    val streamRepository = StreamRepository(addonRepository, cloudStreamRepository)
 
     // Phase 12 integrations.
     val scrobbleManager = ScrobbleManager(settings)
