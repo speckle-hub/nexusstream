@@ -735,6 +735,10 @@ validation, guarded build/prepare/failover, Cast fallback, typo fix),
   `A58E3D2B12C030E556BFA0DC27AF820301EA4D8D360E6BDD5E65E4E27E7E1151`;
   `versionCode` 10 / `versionName` 1.5.1 verified in `output-metadata.json`, `PlayerStartup`
   verified in the release dex); tagged `v1.5.1` and pushed.
+- **GitHub Release `NexusStream v1.5.1` published with `app-release.apk` attached**
+  (40,140,687 bytes, asset digest `sha256:a58e3d2b…e1151` matching the local build;
+  verified `releases/latest` → v1.5.1 and `releases/latest/download/app-release.apk` →
+  HTTP 200 / 40,140,687 bytes), so the in-app update dialog now serves v1.5.1.
 - Website CTA/hero still on v1.5.0 — bump outstanding.
 
 ---
