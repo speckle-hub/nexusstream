@@ -10,10 +10,10 @@
 > `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest` ✓ **176/176** (+5), `:app:assembleDebug` ✓.
 > Device pass (real provider playback) still outstanding. Aniyomi/Mihon runtime not yet built.
 > Signed release built → `dist/NovaStream.apk` (43,659,423 bytes, SHA-256 `43CC67BF…385B9D`);
-> tagged `v1.6.0` and pushed (tag `v1.6.0`). **The `v1.6.0` GitHub Release is NOT published** — the
-> environment has no `gh` CLI / GitHub token, so `app-release.apk` could not be attached; the
-> in-app updater therefore still serves v1.5.1 until the Release is created.
-> To finish: `gh release create v1.6.0 app/build/outputs/apk/release/app-release.apk --title "v1.6.0"`.
+> tagged `v1.6.0`, pushed, and the **`v1.6.0` GitHub Release is published with `app-release.apk`
+> attached** (asset digest `sha256:43cc67bf…85b9d`; verified `releases/latest` → v1.6.0 and
+> `releases/latest/download/app-release.apk` → HTTP 200 / 43,659,423 bytes), so the in-app update
+> dialog now serves v1.6.0. Website CTA/hero bumped to v1.6.0 (`next build` ✓).
 > Previous session, Last updated: 2026-10-12 — **v1.5.1 released.** P0 hotfix
 > (§2ak) shipped: `versionCode` 10 / `versionName` 1.5.1; signed release built →
 > `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`); tagged `v1.5.1` and pushed.
@@ -811,7 +811,8 @@ URLs were removed from `retiredRepoUrls` so adding one is not pruned on the next
   · `:app:assembleDebug` ✓ (no duplicate classes).
 - `:app:assembleRelease` ✓ (signed, `CN=NovaStream`) → `dist/NovaStream.apk` (43,659,423 bytes,
   SHA-256 `43CC67BFADA7E67DBB7628199019932167F63F6FE06A1696D1F4F408C2385B9D`); `v1.6.0` tagged +
-  pushed. GitHub Release asset NOT published (no `gh`/token in the build environment).
+  pushed, and the GitHub Release published with `app-release.apk` attached (digest
+  `sha256:43cc67bfada7e67dbb7628199019932167f63f6fe06a1696d1f4f408c2385b9d`).
 - **Still needed:** a device pass — install a phisher98 provider, confirm providers load, search
   returns items, and a title returns playable links. The `.cs3` dex + provider network paths cannot
   be exercised on the JVM.
