@@ -40,6 +40,15 @@ private object RetryOn429Interceptor : Interceptor {
 
 /** Shared HTTP layer used by every remote client. */
 object Http {
+    /** Shared pool so scrapers reuse connections instead of handshaking per host. */
+    private val pool = okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES)
+
+    /** Shared dispatcher: bounded parallelism so 12 concurrent scrapes don't self-throttle. */
+    private val dispatcher: okhttp3.Dispatcher = okhttp3.Dispatcher().apply {
+        maxRequests = 32
+        maxRequestsPerHost = 6
+    }
+
     val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -47,7 +56,27 @@ object Http {
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
+        .connectionPool(pool)
+        .dispatcher(dispatcher)
         .addInterceptor(RetryOn429Interceptor)
+        .build()
+
+    /**
+     * Fast list client for initial catalog/list loads (Phase 32): short timeouts and **no**
+     * 429 retry — a list hop that rate-limits degrades to "this source has nothing" instead of
+     * paying backoff before the tab can paint. Redirects are still followed (adult mirrors
+     * forward http→https constantly); the short timeouts bound the chain. Detail/stream
+     * paths keep the full [client] above.
+     */
+    val listClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .writeTimeout(8, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .retryOnConnectionFailure(false)
+        .connectionPool(pool)
+        .dispatcher(dispatcher)
         .build()
 
     val gson: Gson = Gson()
@@ -188,6 +217,25 @@ private suspend fun singleHttpGet(url: String, headers: Map<String, String>): St
             resp.body?.string() ?: ""
         }
     }
+
+/**
+ * Phase 32 fast list fetch: single attempt on [Http.listClient] (short timeouts, no retry).
+ * A 4xx/5xx or a hung host fails fast so one slow mirror never stalls a catalog row —
+ * callers treat it exactly like a dead source.
+ */
+suspend fun httpGetList(
+    url: String,
+    headers: Map<String, String> = emptyMap(),
+): String = withContext(Dispatchers.IO) {
+    val builder = Request.Builder().url(url).get()
+        .globalIdentity()
+        .header("Accept", "application/json, text/plain, */*")
+    headers.forEach { (k, v) -> builder.header(k, v) }
+    Http.listClient.newCall(builder.build()).execute().use { resp: Response ->
+        if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
+        resp.body?.string() ?: ""
+    }
+}
 
 suspend fun httpGetBytes(
     url: String,

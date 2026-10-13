@@ -2,11 +2,17 @@ package com.novastream.app.data.adult
 
 import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.remote.httpGet
+import com.novastream.app.data.remote.httpGetList
+import com.novastream.app.data.repo.PageCache
+import com.novastream.app.data.repo.ScraperRace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -51,6 +57,7 @@ object AdultHttp {
     }
 
     suspend fun get(url: String, referer: String? = null): String {
+        pageCache.get(url)?.let { return it }
         val headers = mutableMapOf(
             "User-Agent" to BROWSER_UA,
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -74,8 +81,45 @@ object AdultHttp {
         if (looksLikeChallenge(body)) {
             throw AdultSourceException("Blocked by the site's bot protection")
         }
+        pageCache.put(url, body)
         return body
     }
+
+    /**
+     * Phase 32 fast list fetch for catalog/home rows: served from the in-memory [pageCache]
+     * when fresh (back-navigation is instant, no network), otherwise a single-attempt
+     * fail-fast fetch. Detail/stream paths keep [get] (full retries).
+     */
+    suspend fun getList(url: String, referer: String? = null): String {
+        pageCache.get(url)?.let { return it }
+        val headers = mutableMapOf(
+            "User-Agent" to BROWSER_UA,
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language" to "en-US,en;q=0.9",
+            "Upgrade-Insecure-Requests" to "1",
+            "Sec-Fetch-Dest" to "document",
+            "Sec-Fetch-Mode" to "navigate",
+            "Sec-Fetch-Site" to "none",
+        )
+        if (!referer.isNullOrBlank()) headers["Referer"] = referer
+        val body = try {
+            httpGetList(url, headers)
+        } catch (e: Exception) {
+            val msg = e.message.orEmpty()
+            if (msg.contains("403") || msg.contains("503") || msg.contains("429")) {
+                throw AdultSourceException("Blocked by the site's bot protection", e)
+            }
+            throw AdultSourceException("Couldn't reach the site ($msg)", e)
+        }
+        if (looksLikeChallenge(body)) {
+            throw AdultSourceException("Blocked by the site's bot protection")
+        }
+        pageCache.put(url, body)
+        return body
+    }
+
+    /** In-memory list-HTML cache: navigating back/forth in the Real 18+ hub is instant. */
+    private val pageCache = PageCache()
 
     /**
      * Outcome of pre-flighting a candidate media URL. Only [DEAD] removes a stream: a
@@ -128,16 +172,24 @@ object AdultHttp {
     /** Drop only the streams that fail with a definitive server rejection; keep order. */
     internal suspend fun verifyPlayable(streams: List<StreamSource>): List<StreamSource> {
         if (streams.isEmpty()) return streams
-        if (streams.none { !it.playableUrl.isNullOrBlank() }) return emptyList()
+        // Fail-fast pre-filter: obviously-non-media URLs (thumbnails, subtitle tracks,
+        // non-http schemes) never reach the probe. All built-in feeds serve http(s) media.
+        val candidates = streams.filter { ScraperRace.isPlayableCandidate(it.playableUrl) }
+        if (candidates.isEmpty()) return emptyList()
         return coroutineScope {
-            streams
+            candidates
                 .map { stream ->
                     async {
-                        val url = stream.playableUrl
-                        if (url.isNullOrBlank()) return@async null
-                        when (probe(url, stream.headers)) {
-                            ProbeResult.DEAD -> null
-                            ProbeResult.ALIVE, ProbeResult.NETWORK -> stream
+                        probeSemaphore.withPermit {
+                            val url = stream.playableUrl
+                            if (url.isNullOrBlank()) return@async null
+                            val result = runCatching {
+                                withTimeout(ScraperRace.PROVIDER_TIMEOUT_MS) { probe(url, stream.headers) }
+                            }.getOrDefault(ProbeResult.NETWORK)
+                            when (result) {
+                                ProbeResult.DEAD -> null
+                                ProbeResult.ALIVE, ProbeResult.NETWORK -> stream
+                            }
                         }
                     }
                 }
@@ -145,6 +197,9 @@ object AdultHttp {
                 .filterNotNull()
         }
     }
+
+    /** Caps concurrent pre-flight probes so a 20-link list doesn't open 20 connections at once. */
+    private val probeSemaphore = Semaphore(8)
 
     private fun looksLikeChallenge(body: String): Boolean {
         val head = body.take(4000).lowercase()
