@@ -87,14 +87,6 @@ data class StreamSource(
     /** Raw Stremio "sources" entries, e.g. "tracker:udp://...", "dht:...". */
     val sources: List<String> = emptyList(),
     /**
-     * Optional chapter/intro/outro markers (milliseconds). When an add-on or HLS manifest supplies
-     * them the player shows real "Skip Intro"/"Skip Outro" actions; when absent it falls back to a
-     * conservative heuristic window. See `PlayerActivity`.
-     */
-    val introStartMs: Long? = null,
-    val introEndMs: Long? = null,
-    val outroStartMs: Long? = null,
-    /**
      * Backup mirror URLs tried in order when [url] fails mid-playback (Phase 12 multi-source
      * failover). Populated by sources that resolve the same stream through several hosts.
      */

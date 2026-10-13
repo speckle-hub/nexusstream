@@ -271,7 +271,7 @@ fun SettingsScreen(nav: NavHostController) {
             SwitchRow("True AMOLED black", "Replace dark surfaces with pitch #000000", amoledBlack) { vm.setAmoledBlack(it) }
         } }
 
-        item { if (settingsGroupVisible("Player", listOf("Preferred quality", "Autoplay next episode", "Subtitles enabled", "Audio boost", "Normalize volume", "Autoplay", "playback speed", "external player", "skip intro"))) SettingsGroup("Player") {
+        item { if (settingsGroupVisible("Player", listOf("Preferred quality", "Autoplay next episode", "Subtitles enabled", "Audio boost", "Normalize volume", "Autoplay", "playback speed", "external player"))) SettingsGroup("Player") {
             SwitchRow("Use external player", "Open streams in a third-party player", external) { vm.setPlayerExternal(it) }
             SettingsRow("Preferred quality", quality) {
                 val opts = listOf("Auto", "4K", "1080p", "720p", "480p")

@@ -13,10 +13,19 @@ import com.novastream.app.data.remote.StremioClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Manages Stremio addons and any user-added external provider repositories. */
 class AddonRepository(private val store: AddonStore) {
+
+    /**
+     * Phase 34: serializes every read-modify-write on the stored lists. Rapid toggling
+     * (enable/disable) from the Add-on Manager used to interleave `first()` + `saveAddons()`,
+     * losing writes and surfacing NPE / ConcurrentModificationException crashes.
+     */
+    private val mutationMutex = Mutex()
 
     val addons: Flow<List<Addon>> = store.addons
     val repos: Flow<List<RemoteRepo>> = store.repos
@@ -28,10 +37,12 @@ class AddonRepository(private val store: AddonStore) {
     suspend fun install(url: String): Result<Addon> = withContext(Dispatchers.IO) {
         runCatching {
             val addon = StremioClient.fetchManifest(url.trim())
-            val current = store.addons.first().toMutableList()
-            current.removeAll { it.id == addon.id }
-            current.add(addon)
-            store.saveAddons(current)
+            mutationMutex.withLock {
+                val current = runCatching { store.addons.first() }.getOrDefault(emptyList()).toMutableList()
+                current.removeAll { it.id == addon.id }
+                current.add(addon)
+                store.saveAddons(current.toList())
+            }
             addon
         }
     }
@@ -43,42 +54,58 @@ class AddonRepository(private val store: AddonStore) {
     }
 
     suspend fun setEnabled(id: String, enabled: Boolean) {
-        val current = store.addons.first().toMutableList()
-        val idx = current.indexOfFirst { it.id == id }
-        if (idx >= 0) {
-            current[idx] = current[idx].copy(enabled = enabled)
-            store.saveAddons(current)
+        runCatching {
+            mutationMutex.withLock {
+                val current = store.addons.first().toMutableList()
+                val idx = current.indexOfFirst { runCatching { it.id == id }.getOrDefault(false) }
+                if (idx >= 0) {
+                    current[idx] = runCatching { current[idx].copy(enabled = enabled) }.getOrNull() ?: return@withLock
+                    store.saveAddons(current.toList())
+                }
+            }
         }
     }
 
     suspend fun remove(id: String) {
-        val current = store.addons.first().toMutableList()
-        current.removeAll { it.id == id }
-        store.saveAddons(current)
+        runCatching {
+            mutationMutex.withLock {
+                val current = runCatching { store.addons.first() }.getOrDefault(emptyList()).toMutableList()
+                current.removeAll { runCatching { it.id == id }.getOrDefault(false) }
+                store.saveAddons(current.toList())
+            }
+        }
     }
 
     suspend fun update(id: String): Result<Addon> = withContext(Dispatchers.IO) {
         runCatching {
-            val current = store.addons.first()
-            val existing = current.firstOrNull { it.id == id } ?: error("not installed")
+            val current = runCatching { store.addons.first() }.getOrDefault(emptyList())
+            val existing = current.firstOrNull { runCatching { it.id == id }.getOrDefault(false) } ?: error("not installed")
             val fresh = StremioClient.fetchManifest(existing.transportUrl)
-            val list = current.toMutableList()
-            val idx = list.indexOfFirst { it.id == id }
-            list[idx] = fresh.copy(enabled = existing.enabled)
-            store.saveAddons(list)
+            mutationMutex.withLock {
+                val list = runCatching { store.addons.first() }.getOrDefault(emptyList()).toMutableList()
+                val idx = list.indexOfFirst { runCatching { it.id == id }.getOrDefault(false) }
+                if (idx >= 0) {
+                    list[idx] = runCatching { fresh.copy(enabled = existing.enabled) }.getOrNull() ?: fresh
+                    store.saveAddons(list.toList())
+                }
+            }
             fresh
         }
     }
 
     suspend fun updateAll() {
-        store.addons.first().forEach { update(it.id) }
+        // Phase 34: snapshot ids first — iterating the live list while update() rewrites the
+        // store was the ConcurrentModificationException path.
+        val ids = runCatching { store.addons.first().mapNotNull { runCatching { it.id }.getOrNull() } }
+            .getOrDefault(emptyList()).toList()
+        ids.forEach { runCatching { update(it) } }
     }
 
     suspend fun ensureDefaults() {
         // Prune any retired/dead seed repos from existing installs (the app no longer seeds
         // provider repositories; users add their own in the Add-on Manager).
         ensureDefaultRepos()
-        val current = store.addons.first()
+        val current = runCatching { store.addons.first() }.getOrDefault(emptyList())
         if (current.isEmpty()) {
             installMany(AddonStore.Defaults.stremioAddons.distinct())
             return
@@ -87,9 +114,18 @@ class AddonRepository(private val store: AddonStore) {
         // providers removed in the source-neutrality pass), then re-seed any missing default
         // add-ons (metadata + subtitles only) so existing installs keep those working.
         val retired = AddonStore.Defaults.retiredHosts
-        val removed = current.filter { addon -> retired.any { addon.transportUrl.contains(it) } }
-        if (removed.isNotEmpty()) store.saveAddons(current - removed.toSet())
-        val present = (if (removed.isEmpty()) current else store.addons.first()).map { it.transportUrl }
+        val removed = current.filter { addon ->
+            runCatching { retired.any { addon.transportUrl.contains(it) } }.getOrDefault(false)
+        }
+        if (removed.isNotEmpty()) {
+            mutationMutex.withLock {
+                val fresh = runCatching { store.addons.first() }.getOrDefault(emptyList())
+                store.saveAddons((fresh - removed.toSet()).toList())
+            }
+        }
+        val present = runCatching {
+            (if (removed.isEmpty()) current else store.addons.first()).map { it.transportUrl }
+        }.getOrDefault(emptyList())
         val missing = AddonStore.Defaults.streamAddons.filter { url -> present.none { it.contains(hostOf(url)) } }
         if (missing.isNotEmpty()) installMany(missing.distinct())
     }
@@ -100,21 +136,23 @@ class AddonRepository(private val store: AddonStore) {
      * shipping), so in practice this only prunes the retired seed URLs from existing installs.
      */
     suspend fun ensureDefaultRepos() {
-        val stored = store.repos.first().toMutableList()
-        var changed = false
-        val retired = AddonStore.Defaults.retiredRepoUrls
-        if (retired.isNotEmpty()) {
-            val before = stored.size
-            stored.removeAll { repo -> retired.any { it == repo.url } }
-            if (stored.size != before) changed = true
-        }
-        AddonStore.Defaults.repos.forEach { repo ->
-            if (stored.none { it.url == repo.url }) {
-                stored.add(repo)
-                changed = true
+        mutationMutex.withLock {
+            val stored = runCatching { store.repos.first() }.getOrDefault(emptyList()).toMutableList()
+            var changed = false
+            val retired = AddonStore.Defaults.retiredRepoUrls
+            if (retired.isNotEmpty()) {
+                val before = stored.size
+                stored.removeAll { repo -> runCatching { retired.any { it == repo.url } }.getOrDefault(false) }
+                if (stored.size != before) changed = true
             }
+            AddonStore.Defaults.repos.forEach { repo ->
+                if (stored.none { runCatching { it.url == repo.url }.getOrDefault(false) }) {
+                    stored.add(repo)
+                    changed = true
+                }
+            }
+            if (changed) store.saveRepos(stored.toList())
         }
-        if (changed) store.saveRepos(stored)
     }
 
     /** "example.com" from "https://example.com/manifest.json" — used for duplicate checks. */
@@ -126,17 +164,25 @@ class AddonRepository(private val store: AddonStore) {
     // ---- Repos --------------------------------------------------------------
 
     suspend fun addRepo(repo: RemoteRepo) {
-        val list = store.repos.first().toMutableList()
-        if (list.none { it.url == repo.url }) {
-            list.add(repo)
-            store.saveRepos(list)
+        runCatching {
+            mutationMutex.withLock {
+                val list = runCatching { store.repos.first() }.getOrDefault(emptyList()).toMutableList()
+                if (list.none { runCatching { it.url == repo.url }.getOrDefault(false) }) {
+                    list.add(repo)
+                    store.saveRepos(list.toList())
+                }
+            }
         }
     }
 
     suspend fun removeRepo(url: String) {
-        val list = store.repos.first().toMutableList()
-        list.removeAll { it.url == url }
-        store.saveRepos(list)
+        runCatching {
+            mutationMutex.withLock {
+                val list = runCatching { store.repos.first() }.getOrDefault(emptyList()).toMutableList()
+                list.removeAll { runCatching { it.url == url }.getOrDefault(false) }
+                store.saveRepos(list.toList())
+            }
+        }
     }
 
     // ---- Provider extension catalogues -------------------------------------
@@ -151,29 +197,45 @@ class AddonRepository(private val store: AddonStore) {
         withContext(Dispatchers.IO) { runCatching { KeiyoushiRepo.fetch(repoUrl) }.getOrDefault(emptyList()) }
 
     suspend fun installCloudStream(ext: CloudStreamExt) {
-        val list = store.cloudStreamInstalled.first().toMutableList()
-        list.removeAll { it.url == ext.url }
-        list.add(ext)
-        store.saveCloudStream(list)
+        runCatching {
+            mutationMutex.withLock {
+                val list = runCatching { store.cloudStreamInstalled.first() }.getOrDefault(emptyList()).toMutableList()
+                list.removeAll { runCatching { it.url == ext.url }.getOrDefault(false) }
+                list.add(ext)
+                store.saveCloudStream(list.toList())
+            }
+        }
     }
 
     suspend fun installMangaExt(ext: MangaExt) {
-        val list = store.mangaInstalled.first().toMutableList()
-        list.removeAll { it.pkg == ext.pkg }
-        list.add(ext)
-        store.saveMangaExt(list)
+        runCatching {
+            mutationMutex.withLock {
+                val list = runCatching { store.mangaInstalled.first() }.getOrDefault(emptyList()).toMutableList()
+                list.removeAll { runCatching { it.pkg == ext.pkg }.getOrDefault(false) }
+                list.add(ext)
+                store.saveMangaExt(list.toList())
+            }
+        }
     }
 
     suspend fun uninstallCloudStream(url: String) {
-        val list = store.cloudStreamInstalled.first().toMutableList()
-        list.removeAll { it.url == url }
-        store.saveCloudStream(list)
+        runCatching {
+            mutationMutex.withLock {
+                val list = runCatching { store.cloudStreamInstalled.first() }.getOrDefault(emptyList()).toMutableList()
+                list.removeAll { runCatching { it.url == url }.getOrDefault(false) }
+                store.saveCloudStream(list.toList())
+            }
+        }
     }
 
     suspend fun uninstallMangaExt(pkg: String) {
-        val list = store.mangaInstalled.first().toMutableList()
-        list.removeAll { it.pkg == pkg }
-        store.saveMangaExt(list)
+        runCatching {
+            mutationMutex.withLock {
+                val list = runCatching { store.mangaInstalled.first() }.getOrDefault(emptyList()).toMutableList()
+                list.removeAll { runCatching { it.pkg == pkg }.getOrDefault(false) }
+                store.saveMangaExt(list.toList())
+            }
+        }
     }
 
     /**
@@ -182,13 +244,15 @@ class AddonRepository(private val store: AddonStore) {
      * Add-on Manager's manual sync.
      */
     suspend fun syncAllRepos(): Int {
-        val repositories = store.repos.first()
+        val repositories = runCatching { store.repos.first() }.getOrDefault(emptyList()).toList()
         var synced = 0
         for (repo in repositories) {
-            val catalogue = when (repo.kind) {
-                AddonKind.CLOUDSTREAM -> fetchCloudStream(repo.url)
-                AddonKind.ANIYOMI -> fetchAniyomi(repo.url)
-                AddonKind.KEIYOUSHI -> fetchKeiyoushi(repo.url)
+            val kind = runCatching { repo.kind }.getOrNull() ?: continue
+            val url = runCatching { repo.url }.getOrNull()?.takeIf { it.isNotBlank() } ?: continue
+            val catalogue = when (kind) {
+                AddonKind.CLOUDSTREAM -> fetchCloudStream(url)
+                AddonKind.ANIYOMI -> fetchAniyomi(url)
+                AddonKind.KEIYOUSHI -> fetchKeiyoushi(url)
                 AddonKind.STREMIO -> emptyList()
             }
             if (catalogue.isNotEmpty()) synced++
@@ -198,7 +262,12 @@ class AddonRepository(private val store: AddonStore) {
 
     /** All enabled Stremio addons that declare a given resource. */
     suspend fun enabledWithResource(resource: String): List<Addon> =
-        store.addons.first().filter { it.enabled && (it.resources.isEmpty() || it.resources.contains(resource)) }
+        runCatching { store.addons.first() }.getOrDefault(emptyList()).filter {
+            runCatching { it.enabled && (it.resources.isEmpty() || it.resources.contains(resource)) }
+                .getOrDefault(false)
+        }.toList()
 
-    suspend fun enabledAddons(): List<Addon> = store.addons.first().filter { it.enabled }
+    suspend fun enabledAddons(): List<Addon> =
+        runCatching { store.addons.first() }.getOrDefault(emptyList())
+            .filter { runCatching { it.enabled }.getOrDefault(false) }.toList()
 }

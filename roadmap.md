@@ -1,7 +1,21 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-13 — **v1.6.1 released.** Bundles
+> resume exactly where it left off. Last updated: 2026-10-13 — **v1.6.2 released.** Bundles
+> Phase 34 (§2an: Stremio add-on fixes, hold-to-2X gesture, skip-intro/outro removal).
+> `versionCode` 13 / `versionName` 1.6.2; signed release built →
+> `dist/NexusStream.apk` (43,692,191 bytes, SHA-256 `EFBC369E…63B7`; `versionCode` 13 /
+> `versionName` 1.6.2 verified in `output-metadata.json`); committed and pushed (`main` + tag
+> `v1.6.2`). Website CTA/hero bumped to v1.6.2 (`next build` ✓, pushed with the release
+> commit; Vercel auto-redeploys). GitHub Release still needs manual publishing with the APK
+> attached so the in-app updater and site CTA serve v1.6.2.
+> Previous session, Last updated: 2026-10-13 — **Phase 34 implemented (§2an:
+> Stremio add-on fixes, hold-to-2X gesture, skip-intro/outro removal).** Verified
+> `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **199/199** (+10
+> `Phase34StremioTest`). Not pushed; no APK rebuilt this session. Device pass still needed
+> (Torrentio/CyberFlix stream resolution, add-on toggle stability, hold-to-2X feel, skip-UI
+> absence).
+> Previous session, Last updated: 2026-10-13 — **v1.6.1 released.** Bundles
 > Phase 32 (§2am: scraper race engine + Real 18+ speed optimization) on top of the v1.6.0
 > CloudStream runtime. `versionCode` 12 / `versionName` 1.6.1; signed release built →
 > `dist/NexusStream.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `versionCode` 12 /
@@ -267,8 +281,8 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~24,800 LOC across 118 Kotlin source files in a single `:app` module (+24 test files). Unit tests
-(189 cases):
+~24,800 LOC across 118 Kotlin source files in a single `:app` module (+25 test files). Unit tests
+(199 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -277,6 +291,7 @@ site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexu
 `HomeRowsTest.kt` (8, dashboard order/visibility — §2aj), `PlayerStartupTest.kt` (10, player
 launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id scheme + repo policy —
 §2al), `ScraperRaceTest.kt` (13, provider race policy / mirror quarantine / page cache — §2am),
+`Phase34StremioTest.kt` (10, V3 stream parsing + id routing — §2an),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
 
@@ -284,7 +299,17 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: v1.6.1 released** — bundles Phase 32 (§2am: parallel provider racing, Real 18+
+**Topic: v1.6.2 released** — bundles Phase 34 (§2an: Stremio add-on stream/toggle fixes,
+hold-for-2X gesture, Skip Intro/Outro removal). `versionCode` 13 / `versionName` 1.6.2,
+signed APK built, source tagged + pushed, website at v1.6.2. GitHub Release still needs
+manual publishing with the APK attached.
+
+Previous focus: Phase 34 implemented — Stremio add-on stream/toggle fixes (§2an), the player
+hold-for-2X gesture, and full Skip Intro/Outro removal. Verified `:app:compileDebugKotlin` ✓,
+`:app:testDebugUnitTest --rerun-tasks` ✓ **199/199** (+10). Not pushed; no APK rebuilt this
+session.
+
+Previous focus: v1.6.1 released — bundles Phase 32 (§2am: parallel provider racing, Real 18+
 acceleration, fail-fast fallbacks) on the v1.6.0 CloudStream runtime. `versionCode` 12 /
 `versionName` 1.6.1, signed APK built, source tagged + pushed, website at v1.6.1, and the
 **GitHub Release is published with `NexusStream.apk` + `app-release.apk` attached** (verified
@@ -628,6 +653,72 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
 
 ---
+
+## 2an. Phase 34 — Stremio Add-on Fixes, Hold-to-2X Speed Gesture & Skip Feature Removal (2026-10-13)
+
+**Topic:** resolve Stremio add-on playback/crash issues, add a modern press-and-hold 2X player
+gesture, and delete the broken skip-intro/outro machinery.
+
+Status: **implemented and verified (statically + unit).** No device/`adb` in this environment,
+so playback behaviour is reasoned from the protocol + composition structure; every touched path
+is unit-pinned where it is pure-JVM. Files and verification at the end.
+
+### 1. Stremio add-on stream fetching & Add-on Manager toggle crash
+- **`data/remote/StremioClient.kt`:** `enc()` is now path-safe — preserves literal `:` and emits
+  `%20` for spaces (was `URLEncoder`, which turned episode ids like `tt123:1:2` into
+  `tt123%3A1%3A2` and broke manifest-V3 stream URLs on Torrentio/CyberFlix). `fetchStreams()`
+  and `fetchMeta()` are total (malformed JSON → empty/`null` instead of throwing), and
+  `parseStream()` is hardened per-entry: safe primitive extraction (JsonNull no longer throws),
+  blank strings treated as absent, `sources`/`behaviorHints.proxyHeaders` read defensively, and
+  the whole parser wrapped in `runCatching` — one poisoned stream can no longer void the list,
+  so valid `url` (CyberFlix) and `infoHash` (Torrentio) entries yield playable streams with
+  their CDN headers (`Referer`/`User-Agent`/`Cookie`) and `filename` titles intact.
+- **`data/repo/AddonRepository.kt`:** every read-modify-write is serialized behind a `Mutex`
+  and guarded by `runCatching` with Gson-hole-safe predicates — rapid enable/disable toggles no
+  longer interleave `first()` + `saveAddons()` (the NPE / lost-write path). `updateAll()`
+  snapshots ids first instead of iterating the live list (the ConcurrentModificationException
+  path); `enabledAddons()`/`enabledWithResource()`/`syncAllRepos()` degrade to empty instead of
+  throwing on holey rows.
+- **`ui/vm/ViewModels.kt` (`AddonViewModel`):** `setEnabled()`/`remove()`/`updateAll()` are
+  `runCatching`-guarded so a store failure surfaces as a message (or silently) instead of
+  crashing the manager.
+
+### 2. Modern hold-for-2X player gesture (`ui/player/PlayerActivity.kt`)
+- `PlayerScreen` gains `isBoosting` + `boostRestoreSpeed` state and a `HOLD_TO_BOOST_MS = 400 ms`
+  `onPress` tap-gesture stage: a press held past the threshold (while playing, unlocked) sets
+  `player.setPlaybackSpeed(2f)` with a long-press haptic; release restores the user's saved
+  `speed` and clears the state. Short taps never boost, so single-tap (controls) and double-tap
+  (seek ±`doubleTapMs`) behaviour is unchanged, and the stage consumes nothing so the existing
+  pinch/drag/tap handlers still receive the press.
+- Clean top-center pill (`"2X Speed ▶▶"`, 65 % black capsule) fades in/out with the boost
+  (`AnimatedVisibility`, 200 ms fade).
+
+### 3. Skip Intro & Skip Outro removal
+- Deleted from `PlayerActivity`: `DEFAULT_INTRO_END_MS`/`DEFAULT_OUTRO_MS`, the
+  `introEndMs`/`outroStartMs` `PlayerScreen` params + call site, the skip-window computation,
+  the auto-skip `LaunchedEffect`, and the Skip Intro/Outro button row (no background interval
+  checking remains — the 250 ms ticker only drives playhead/buffer/stats now).
+- Deleted the dead `autoSkipIntro` plumbing end-to-end: `SettingsStore` key/flow/setter,
+  `SettingsViewModel` exposure/setter, the Settings search-filter mention, and the
+  `StreamSource.introStartMs/introEndMs/outroStartMs` marker fields (no other producer/consumer
+  existed).
+
+### Files
+`data/remote/StremioClient.kt` (path-safe `enc`, total fetches, hardened `parseStream`),
+`data/repo/AddonRepository.kt` (mutation `Mutex` + totalled reads), `ui/vm/ViewModels.kt`
+(guarded add-on toggle paths), `data/model/Models.kt` (marker fields removed),
+`data/local/SettingsStore.kt` + `ui/screens/settings/SettingsScreen.kt` (dead auto-skip
+setting removed), `ui/player/PlayerActivity.kt` (skip UI deleted, hold-to-2X added),
+`app/src/test/.../Phase34StremioTest.kt` (+10).
+
+### Verification (2026-10-13)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings).
+- `:app:testDebugUnitTest --rerun-tasks` → **199/199 tests, 0 failures, 0 errors** (+10 new;
+  url/infoHash acceptance, JsonNull/blank/non-object totality, proxy-header + filename
+  extraction, `candidateRequests` series/anilist forms, `chooseRequest` prefix/fallback).
+- Not pushed; no APK rebuilt this session. Device pass still needed: Torrentio/CyberFlix
+  movie + series-episode stream resolution, rapid add-on toggle stability, hold-to-2X boost
+  feel + pill, and skip-UI absence across episodes.
 
 ## 2am. Phase 32 — Stream Scraper Performance & Real 18+ Speed Optimization (2026-10-13)
 
