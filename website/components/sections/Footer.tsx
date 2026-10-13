@@ -25,9 +25,15 @@ export function Footer() {
               href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-2 text-sm text-muted transition hover:text-mist"
+              className="t-learn flex items-center gap-2 text-sm text-muted transition hover:text-mist"
             >
               <Github className="h-4 w-4" /> github.com/speckle-hub/nexusstream
+              <span className="t-learn-chevron">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path className="t-learn-arm t-learn-arm-top" d="M6 4L10 8" />
+                  <path className="t-learn-arm t-learn-arm-bot" d="M10 8L6 12" />
+                </svg>
+              </span>
             </a>
             <div className="text-xs text-muted/70">
               Components: Aceternity UI · HeroUI · ThreeUI · design refs via 21st.dev

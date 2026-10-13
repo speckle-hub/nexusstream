@@ -10,16 +10,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        void: "#050508",
-        ink: "#0A0A12",
-        elevated: "#14141C",
+        void: "#06060C",
+        ink: "#0B0B15",
+        elevated: "#151522",
         accent: {
           DEFAULT: "#7C5CFF",
-          soft: "#B9A8FF",
+          soft: "#BFAEFF",
           deep: "#5A3FDB",
         },
+        signal: "#3DDC97",
         mist: "#EDEDF2",
-        muted: "#8A8A9C",
+        muted: "#9A9AB0",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
