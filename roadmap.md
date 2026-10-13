@@ -11,6 +11,8 @@
 > `NexusStream.apk` + `app-release.apk` attached** (43,692,191 bytes each, matching the local
 > build; verified `release view v1.6.2` → both assets), so the in-app update dialog and the
 > site CTA now serve v1.6.2.
+> Next: **website full rebuild (§2ao, planned)** — scope approved, execution not started;
+> open question is whether to keep the dark-violet brand + section order or rethink them.
 > Previous session, Last updated: 2026-10-13 — **Phase 34 implemented (§2an:
 > Stremio add-on fixes, hold-to-2X gesture, skip-intro/outro removal).** Verified
 > `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **199/199** (+10
@@ -306,6 +308,8 @@ hold-for-2X gesture, Skip Intro/Outro removal). `versionCode` 13 / `versionName`
 signed APK built, source tagged + pushed, website at v1.6.2, and the **GitHub Release is
 published with `NexusStream.apk` + `app-release.apk` attached** (verified asset sizes match
 the local build), so the in-app updater and the site CTA serve v1.6.2.
+
+Next up: website full rebuild (§2ao, planned — scope approved, not started).
 
 Previous focus: Phase 34 implemented — Stremio add-on stream/toggle fixes (§2an), the player
 hold-for-2X gesture, and full Skip Intro/Outro removal. Verified `:app:compileDebugKotlin` ✓,
@@ -656,6 +660,38 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
 
 ---
+
+## 2ao. Website full rebuild — skill-backed motion system (planned, 2026-10-13)
+
+**Topic:** rebuild `website/` (Next.js 15 single page: Navbar → Hero → EcosystemMarquee →
+Features → Stats → FAQ → DownloadCta → Footer) on the four installed skills
+(`website/.agents/skills/`: `apple-design`, `transitions-dev`, `transitions-polish`,
+`transitions-ui-generation`) plus the Playwright CLI for screenshot verification.
+
+Status: **planned, scope approved (full rebuild), execution not started — no code touched.**
+Open question: keep the dark-violet brand + section order, or rethink branding/structure.
+
+### Phase 0 — motion tokens
+Install `transitions-dev/_root.css` once into `app/globals.css` (durations, easings,
+distances, scales, blur); everything below references the tokens.
+
+### Phase 1 — motion system (`apple-design`)
+Springs as the house default (critically damped `1.0` / response `0.3–0.4`, bounce only on
+flick-driven motion); Navbar as a true translucent material; size-specific type
+tracking/leading; reduced-motion audit.
+
+### Phase 2 — per-section transitions (`transitions-dev`)
+Hero `texts-reveal` + `card-tilt` on `PhoneMockup`; Stats `number-pop-in`/`spinning-counter`;
+FAQ `accordion`; Navbar `menu-dropdown` + `tabs-sliding`; DownloadCta `shimmer-text` +
+`learn-more-hover`. Optional hero moment: `transitions-ui-generation` skeleton reveal on the
+phone mockup when scrolled into view.
+
+### Phase 3 — polish (`transitions-polish`)
+Tokenize remaining hardcoded motion; open/close asymmetry (opens 250 ms, closes 150 ms);
+stagger totals under ~300 ms.
+
+### Phase 4 — verify
+`next build` ✓ + Playwright screenshot sweep per section (desktop + mobile), then commit.
 
 ## 2an. Phase 34 — Stremio Add-on Fixes, Hold-to-2X Speed Gesture & Skip Feature Removal (2026-10-13)
 
