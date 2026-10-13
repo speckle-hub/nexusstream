@@ -42,7 +42,8 @@ object HentaiRepository {
      */
     private const val SOURCE_TIMEOUT_MS = 5_000L
     private const val TOTAL_BUDGET_MS = 8_000L
-    private const val STREAM_TIMEOUT_MS = 12_000L
+    /** Phase 32 fail-fast: stream resolution gets the same 5 s ceiling as every other provider. */
+    private const val STREAM_TIMEOUT_MS = 5_000L
 
     private val lock = Any()
     private val episodeCache =
@@ -138,8 +139,11 @@ object HentaiRepository {
         val result = bounded(STREAM_TIMEOUT_MS) { source.streams(episode) }
         val raw = result.getOrElse { emptyList() }
         // Pre-flight the links exactly like Real 18+ does, so Play only lights up on live ones.
+        // Phase 32: bounded so verification never stalls the stream panel past the provider cap.
         val verified = if (raw.isEmpty()) raw
-        else runCatching { AdultHttp.verifyPlayable(raw) }.getOrDefault(raw)
+        else runCatching {
+            withTimeout(STREAM_TIMEOUT_MS) { AdultHttp.verifyPlayable(raw) }
+        }.getOrDefault(raw)
         val errors = result.exceptionOrNull()
             ?.let { listOf("${source.name}: ${it.message ?: "unavailable"}") }
             .orEmpty()

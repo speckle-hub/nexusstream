@@ -4,11 +4,18 @@ import com.novastream.app.data.model.CatalogRow
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
 import com.novastream.app.data.model.StreamSource
+import com.novastream.app.data.repo.MirrorHealth
+import com.novastream.app.data.repo.ScraperRace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
 
@@ -49,6 +56,17 @@ object AdultRepository {
     private const val SEARCH_TIMEOUT_MS = 8_000L
 
     /**
+     * Phase 32 fail-fast: home rows, detail pages and category listings each get a hard
+     * per-source ceiling so a hung mirror degrades to its own notice instead of gating the tab.
+     */
+    private const val HOME_TIMEOUT_MS = 5_000L
+    private const val DETAIL_TIMEOUT_MS = 5_000L
+    private const val CATEGORY_TIMEOUT_MS = 5_000L
+
+    /** Slow-mirror isolation: consecutive failures quarantine a source id for one TTL window. */
+    private val mirrorHealth = MirrorHealth()
+
+    /**
      * Cap the number of sources queried at once. Twelve simultaneous scrapes invite rate-limiting
      * on shared hosts, and the cap costs nothing now that results are emitted progressively.
      */
@@ -78,8 +96,10 @@ object AdultRepository {
         }
 
     /**
-     * Home rows, emitted **progressively**: [onUpdate] is invoked every time another source
-     * finishes, so the first rows paint immediately instead of waiting for the slowest site.
+     * Home rows, emitted **progressively in completion order**: [onUpdate] is invoked every time
+     * another source finishes, so the first rows paint immediately instead of waiting for the
+     * slowest site. Phase 32: each source races under [HOME_TIMEOUT_MS], quarantined mirrors are
+     * skipped, and completions publish as they land (no head-of-line blocking on a hung host).
      *
      * Each source is short-TTL cached **individually**, so re-entering the tab serves cached
      * sources instantly and only refetches the stale ones. Results are always emitted in the
@@ -90,12 +110,13 @@ object AdultRepository {
     ): Home = coroutineScope {
         val sources = AdultSources.all
         val results = LinkedHashMap<String, SourceResult>()
+        val mutex = Mutex()
 
         for (source in sources) {
             cachedSource(source.id)?.let { results[source.id] = it }
         }
 
-        val stale = sources.filter { results[it.id] == null }
+        val stale = sources.filter { results[it.id] == null && !mirrorHealth.isQuarantined(it.id) }
         if (stale.isEmpty()) {
             val home = snapshot(sources, results)
             onUpdate?.invoke(home.rows, home.errors)
@@ -108,18 +129,32 @@ object AdultRepository {
             onUpdate?.invoke(partial.rows, partial.errors)
         }
 
-        val jobs = stale.map { source -> source to async { runCatching { source.home() } } }
-        for ((source, job) in jobs) {
-            val result = job.await().fold(
-                onSuccess = { adultRows -> SourceResult(adultRows.map { it.toCatalogRow(source) }, null) },
-                onFailure = { SourceResult(emptyList(), "${source.name}: ${it.message ?: "unavailable"}") },
-            )
-            storeSource(source.id, result)
-            results[source.id] = result
-            val partial = snapshot(sources, results)
-            // Progressive paint: publish after *each* source, not only once all are done.
-            onUpdate?.invoke(partial.rows, partial.errors)
-        }
+        stale.map { source ->
+            launch {
+                val result = ScraperRace.raceResult(HOME_TIMEOUT_MS) { source.home() }
+                    .fold(
+                        onSuccess = { adultRows ->
+                            mirrorHealth.recordSuccess(source.id)
+                            SourceResult(adultRows.map { it.toCatalogRow(source) }, null)
+                        },
+                        onFailure = {
+                            // Cancellation of the caller (navigate-away) is rethrown by
+                            // raceResult and never lands here, so a failure is a genuine
+                            // source/timeout failure worth recording — never a cancelled load.
+                            mirrorHealth.recordFailure(source.id)
+                            SourceResult(emptyList(), "${source.name}: ${it.message ?: "unavailable"}")
+                        },
+                    )
+                storeSource(source.id, result)
+                val partial = mutex.withLock {
+                    results[source.id] = result
+                    snapshot(sources, results)
+                }
+                // Progressive paint: publish as *each* source lands, in completion order.
+                // Guarded so one bad UI consumer can't cancel the sibling providers.
+                runCatching { onUpdate?.invoke(partial.rows, partial.errors) }
+            }
+        }.joinAll()
 
         snapshot(sources, results)
     }
@@ -165,9 +200,10 @@ object AdultRepository {
     suspend fun searchDetailed(query: String): Search = searchDetailedProgressive(query) { _, _ -> }
 
     /**
-     * Progressive variant of [searchDetailed]: [onUpdate] fires after **each** source finishes, so
-     * a slow/hung site no longer holds the whole search hostage — the UI paints the first results
-     * immediately and fills in the rest as they land. The complete, ranked list is still returned.
+     * Progressive variant of [searchDetailed]: [onUpdate] fires after **each** source finishes
+     * **in completion order**, so a slow/hung site no longer holds the whole search hostage —
+     * the UI paints the first results immediately and fills in the rest as they land.
+     * The complete, ranked list is still returned. Phase 32: no head-of-line blocking.
      */
     suspend fun searchDetailedProgressive(
         query: String,
@@ -182,17 +218,27 @@ object AdultRepository {
         }
         val tokens = adultQueryTokens(clean)
 
-        val jobs = AdultSources.all.map { source -> source to async { searchOne(source, clean) } }
         val videos = ArrayList<MediaItem>()
         val errors = ArrayList<String>()
-        for ((source, job) in jobs) {
-            job.await()
-                .onSuccess { found -> videos += found.map { it.toMediaItem(source.name) } }
-                .onFailure { errors += "${source.name}: ${it.message ?: "unavailable"}" }
-            // Progressive paint: publish after *each* source, not only once all are done.
-            val partial = rankSearch(videos, errors, tokens)
-            onUpdate(partial.items, partial.errors)
-        }
+        val mutex = Mutex()
+        AdultSources.all.filterNot { mirrorHealth.isQuarantined(it.id) }.map { source ->
+            launch {
+                val result = searchOne(source, clean)
+                val partial = mutex.withLock {
+                    result
+                        .onSuccess { found -> videos += found.map { it.toMediaItem(source.name) } }
+                        .onFailure {
+                            mirrorHealth.recordFailure(source.id)
+                            errors += "${source.name}: ${it.message ?: "unavailable"}"
+                        }
+                    if (result.isSuccess) mirrorHealth.recordSuccess(source.id)
+                    rankSearch(videos.toList(), errors.toList(), tokens)
+                }
+                // Progressive paint as each source lands, in completion order. Guarded so a
+                // throwing consumer can't cancel the sibling providers.
+                runCatching { onUpdate(partial.items, partial.errors) }
+            }
+        }.joinAll()
 
         val out = rankSearch(videos, errors, tokens)
         if (out.items.isNotEmpty()) storeSearch(cacheKey, out)
@@ -215,16 +261,17 @@ object AdultRepository {
     /**
      * One source's search, bounded by a timeout and retried once on a *transient, non-timeout*
      * failure. A timeout is returned as-is: retrying a hung host just doubles the wait, and the
-     * progressive UI has already surfaced the other sources' results.
+     * progressive UI has already surfaced the other sources' results. Genuine caller
+     * cancellation is rethrown, never recorded as a mirror failure.
      */
     private suspend fun searchOne(source: AdultSource, query: String): Result<List<AdultVideo>> {
-        val first = runCatching {
-            searchSemaphore.withPermit { withTimeout(SEARCH_TIMEOUT_MS) { source.search(query) } }
+        val first = ScraperRace.raceResult(SEARCH_TIMEOUT_MS) {
+            searchSemaphore.withPermit { source.search(query) }
         }
         if (first.isSuccess || first.exceptionOrNull() is TimeoutCancellationException) return first
         delay(RETRY_DELAY_MS)
-        return runCatching {
-            searchSemaphore.withPermit { withTimeout(SEARCH_TIMEOUT_MS) { source.search(query) } }
+        return ScraperRace.raceResult(SEARCH_TIMEOUT_MS) {
+            searchSemaphore.withPermit { source.search(query) }
         }
     }
 
@@ -244,13 +291,19 @@ object AdultRepository {
 
     suspend fun categories(): List<Pair<AdultSource, AdultCategory>> = coroutineScope {
         AdultSources.all
-            .map { source -> source to async { runCatching { source.categories() }.getOrDefault(emptyList()) } }
+            .map { source ->
+                source to async {
+                    runCatching {
+                        withTimeout(CATEGORY_TIMEOUT_MS) { source.categories() }
+                    }.getOrDefault(emptyList())
+                }
+            }
             .flatMap { (source, job) -> job.await().map { source to it } }
     }
 
     suspend fun detail(url: String, source: AdultSource): AdultDetail {
         cachedDetail(url)?.let { return it }
-        val fresh = source.detail(url)
+        val fresh = withTimeout(DETAIL_TIMEOUT_MS) { source.detail(url) }
         synchronized(detailLock) {
             detailCache[url] = now() to fresh
         }
@@ -262,12 +315,23 @@ object AdultRepository {
      *
      * Reuses the cached detail (no second HTML download) and drops every stream the source site
      * rejects outright, so the UI can light up Play only when something real will play.
+     * Phase 32: the pre-flight race is bounded so verification never stalls startup.
      */
     suspend fun streams(url: String, source: AdultSource): List<StreamSource> {
-        val detail = runCatching { detail(url, source) }.getOrNull() ?: return emptyList()
+        val detail = try {
+            detail(url, source)
+        } catch (e: TimeoutCancellationException) {
+            return emptyList()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return emptyList()
+        }
         val streams = detail.streams
         if (streams.isEmpty()) return streams
-        return runCatching { AdultHttp.verifyPlayable(streams) }.getOrDefault(streams)
+        return ScraperRace.raceResult(ScraperRace.PROVIDER_TIMEOUT_MS) {
+            AdultHttp.verifyPlayable(streams)
+        }.getOrDefault(streams)
     }
 
     private fun cachedDetail(url: String): AdultDetail? = synchronized(detailLock) {
