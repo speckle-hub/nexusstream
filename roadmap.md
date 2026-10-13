@@ -7,8 +7,10 @@
 > `dist/NexusStream.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `versionCode` 12 /
 > `versionName` 1.6.1 verified in `output-metadata.json`); committed (`1258f17`) and pushed
 > (`main` + tag `v1.6.1`). Website CTA/hero bumped to v1.6.1 (`next build` ✓, pushed with the
-> release commit; Vercel auto-redeploys). GitHub Release creation still pending manual publish
-> in the browser (no `gh` CLI / token here) — attach `NexusStream.apk` + `app-release.apk`.
+> release commit; Vercel auto-redeploys). The **`v1.6.1` GitHub Release is published with
+> `NexusStream.apk` + `app-release.apk` attached** (43,675,807 bytes each, asset digest
+> `sha256:a64ec17f…51c3a` matching the local build; verified `releases/latest` → v1.6.1),
+> so the in-app update dialog and the site CTA now serve v1.6.1.
 > Previous session, Last updated: 2026-10-13 — **Phase 32: Stream Scraper
 > Performance & Real 18+ Speed Optimization (§2am).** Providers now race concurrently with a
 > 5 s fail-fast ceiling and completion-order progressive yield (first valid playable link
@@ -284,10 +286,10 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 **Topic: v1.6.1 released** — bundles Phase 32 (§2am: parallel provider racing, Real 18+
 acceleration, fail-fast fallbacks) on the v1.6.0 CloudStream runtime. `versionCode` 12 /
-`versionName` 1.6.1, signed APK built, source tagged `v1.6.1`, website at v1.6.1. GitHub
-Release publication still pending (no `gh` CLI here — attach `NexusStream.apk` **and**
-`app-release.apk`, same bytes, so the `latest/download/app-release.apk` updater chain keeps
-working).
+`versionName` 1.6.1, signed APK built, source tagged + pushed, website at v1.6.1, and the
+**GitHub Release is published with `NexusStream.apk` + `app-release.apk` attached** (verified
+`releases/latest` → v1.6.1, digest matches the local build), so the in-app updater and the
+site CTA serve v1.6.1.
 
 Previous focus: Phase 32 — Stream Scraper Performance & Real 18+ Speed Optimization (§2am);
 
@@ -3668,7 +3670,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-11 | **Phase 27 (Part B) — Updater UI Revamp (§2ag):** `downloadApkWithProgress()` streams APK in 8 KB `ensureActive()`-checked chunks with throttled `DownloadProgress` callbacks (fraction/percent null-safe, partial deleted on fail/cancel, `CancellationException` rethrown); `UpdateAvailableDialog` shows determinate `LinearProgressIndicator` + tabular `Downloading update… 45% (18.2 MB / 40.5 MB)` line, Update disabled, "Later"→"Cancel" mid-download (aborts job, parks dialog in idle), outside-tap/Back ignored while downloading. `downloadApk()` kept as delegate for Settings. Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **129/129 / 0 failures** ✅ (+5 `UpdateCheckerTest`). Not pushed, no APK. |
 | 2026-10-11 | **v1.4.2 released:** Phase 26 + 27A + 27B shipped as commit `2ce2156` (`versionCode` 8 / `versionName` 1.4.2; compile ✅, 129/129 tests ✅, signed `:app:assembleRelease` ✅ → `dist/NovaStream.apk`, 38,330,042 bytes, SHA-256 `5AB52C87…4C6E`); annotated tag `v1.4.2` pushed; **GitHub Release `NexusStream v1.4.2` published with `app-release.apk` attached** (38,330,042 bytes) so `releases/latest/download/app-release.apk` now serves v1.4.2 to the in-app updater and the site CTA; website hero badge + download CTA bumped to v1.4.2 (`next build` ✅, 216 kB first-load) and pushed as `8ced0ca` (Vercel auto-redeploys on push). |
 | 2026-10-12 | **v1.5.1 released:** P0 Play-crash hotfix (§2ak) shipped — `versionCode` 10 / `versionName` 1.5.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **171/171**, `:app:assembleRelease` ✅ (signed) → `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`; `PlayerStartup` verified in the release dex); tagged `v1.5.1` and pushed; **GitHub Release `NexusStream v1.5.1` published with `app-release.apk` attached** so `releases/latest/download/app-release.apk` now serves v1.5.1. Website CTA/hero bumped to v1.5.1 (`next build` ✅, pushed; Vercel auto-redeploys). |
-| 2026-10-13 | **v1.6.1 released:** bundles Phase 32 (§2am) on the v1.6.0 CloudStream runtime — `versionCode` 12 / `versionName` 1.6.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **189/189**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/NovaStream.apk` + `dist/app-release.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `output-metadata.json` verified); tagged `v1.6.1`; website CTA/hero → v1.6.1 (`next build` ✅, 216 kB first-load). GitHub Release publication pending (no `gh` CLI): attach `NexusStream.apk` **and** `app-release.apk` (identical bytes) so `releases/latest/download/app-release.apk` keeps serving the updater + site CTA. |
+| 2026-10-13 | **v1.6.1 released:** bundles Phase 32 (§2am) on the v1.6.0 CloudStream runtime — `versionCode` 12 / `versionName` 1.6.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **189/189**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/NovaStream.apk` + `dist/app-release.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `output-metadata.json` verified); tagged `v1.6.1`; website CTA/hero → v1.6.1 (`next build` ✅, 216 kB first-load). **GitHub Release `NexusStream v1.6.1` published with `NexusStream.apk` + `app-release.apk` attached** (43,675,807 bytes each, digest `sha256:a64ec17f…51c3a`; verified `releases/latest` → v1.6.1), so the in-app updater + site CTA serve v1.6.1. |
 | 2026-10-13 | **Phase 32 — Stream Scraper Performance & Real 18+ Speed Optimization (§2am):** new `ScraperRace.kt` policy (5 s provider/subtitle/detail ceilings, `isPlayableCandidate`, cancellation-safe `raceResult`, `MirrorHealth` quarantine, `PageCache`); `StreamRepository` 12 s → 5 s with completion-order progressive `onPartial` + concurrent MOVIE race; `DetailViewModel.loadStreams` paints the first partial; `AdultRepository` home/search fixed from registry-order awaits to completion-order `launch` + 5 s caps + quarantine; `AdultHttp.getList` page-cache + fast fetch, bounded `verifyPlayable`; `Http` pool/dispatcher tuning + `listClient`/`httpGetList`; `CatalogRepository` bounded `safeRow` + parallel rows/search phases (caps → 5 s); `HentaiRepository` stream cap → 5 s. Added `ScraperRaceTest` (13 cases → **189 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **189/189 / 0 failures** ✅. Not pushed, no APK. |
 
 ---
