@@ -5,9 +5,10 @@
 > Phase 32 (§2am: scraper race engine + Real 18+ speed optimization) on top of the v1.6.0
 > CloudStream runtime. `versionCode` 12 / `versionName` 1.6.1; signed release built →
 > `dist/NexusStream.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `versionCode` 12 /
-> `versionName` 1.6.1 verified in `output-metadata.json`); tagged `v1.6.1`. Website CTA/hero
-> bumped to v1.6.1 (`next build` ✓). GitHub Release publication (with `NexusStream.apk` +
-> `app-release.apk` assets) still pending — no `gh` CLI in this environment.
+> `versionName` 1.6.1 verified in `output-metadata.json`); committed (`1258f17`) and pushed
+> (`main` + tag `v1.6.1`). Website CTA/hero bumped to v1.6.1 (`next build` ✓, pushed with the
+> release commit; Vercel auto-redeploys). GitHub Release creation still pending manual publish
+> in the browser (no `gh` CLI / token here) — attach `NexusStream.apk` + `app-release.apk`.
 > Previous session, Last updated: 2026-10-13 — **Phase 32: Stream Scraper
 > Performance & Real 18+ Speed Optimization (§2am).** Providers now race concurrently with a
 > 5 s fail-fast ceiling and completion-order progressive yield (first valid playable link
