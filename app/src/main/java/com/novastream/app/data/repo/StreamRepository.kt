@@ -15,6 +15,10 @@ import com.novastream.app.data.remote.StremioClient
 import com.novastream.app.data.remote.TmdbClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 
 /** Streams plus per-add-on failure reasons, so the UI can say *why* a list came back empty. */
@@ -58,8 +62,15 @@ class StreamRepository(
 
     /**
      * Same as [streamsFor] but also returns per-add-on failure reasons for clearer UI feedback.
+     *
+     * Phase 32: [onPartial] fires progressively as each provider lands (completion order), so
+     * the UI can paint the first valid playable link instead of waiting on every slow hoster.
      */
-    suspend fun streamsForDetailed(item: MediaItem, videoId: String? = null): StreamsResult {
+    suspend fun streamsForDetailed(
+        item: MediaItem,
+        videoId: String? = null,
+        onPartial: (suspend (StreamsResult) -> Unit)? = null,
+    ): StreamsResult {
         // Built-in adult sources resolve their own direct streams from the video page.
         AdultSources.byId(item.addonId)?.let { source ->
             val direct = runCatching { AdultRepository.streams(item.id, source) }.getOrDefault(emptyList())
@@ -85,7 +96,7 @@ class StreamRepository(
                 }
                 val addons = async {
                     // Our own episode ids are page URLs — an add-on has nothing to do with them.
-                    if (direct != null) StreamsResult() else stremioStreamsDetailed(item, videoId)
+                    if (direct != null) StreamsResult() else stremioStreamsDetailed(item, videoId, onPartial)
                 }
                 val addonResult = addons.await()
                 StreamsResult(
@@ -95,20 +106,25 @@ class StreamRepository(
                 )
             }
         }
-        val base = stremioStreamsDetailed(item, videoId)
-        // CloudStream provider plugins contribute extra real links for movies: search the loaded
-        // providers by title and merge their extractor streams ahead of the add-on results.
-        if (item.type == MediaType.MOVIE && !item.title.isBlank()) {
-            val extra = runCatching { cloudStreamRepo.titleStreams(item.title, item.type) }
-                .getOrDefault(emptyList())
+        // Phase 32: race the Stremio fan-out against the CloudStream title match concurrently
+        // instead of awaiting one before starting the other.
+        return coroutineScope {
+            val baseDeferred = async { stremioStreamsDetailed(item, videoId, onPartial) }
+            val extraDeferred = async {
+                if (item.type == MediaType.MOVIE && !item.title.isBlank()) {
+                    runCatching { cloudStreamRepo.titleStreams(item.title, item.type) }
+                        .getOrDefault(emptyList())
+                } else emptyList()
+            }
+            val base = baseDeferred.await()
+            val extra = extraDeferred.await()
             if (extra.isNotEmpty()) {
-                return StreamsResult(
+                StreamsResult(
                     streams = (extra.ranked() + base.streams).distinctBy { streamKey(it) },
                     errors = base.errors,
                 )
-            }
+            } else base
         }
-        return base
     }
 
     /** Streams from the built-in hentai sources for [item] / [videoId]. */
@@ -146,8 +162,16 @@ class StreamRepository(
      * collection, a hard per-add-on timeout (one hung host can no longer stall the whole list) and
      * reliability-first ranking. Regular Movie/TV/Anime results are cached briefly so re-opening a
      * title or re-tapping an episode is instant.
+     *
+     * Phase 32: providers race concurrently under [STREAM_TIMEOUT_MS] and [onPartial] fires as
+     * each one lands (completion order), so the player/UI paints the first valid playable link
+     * instead of waiting on every slow or dead hoster.
      */
-    private suspend fun stremioStreamsDetailed(item: MediaItem, videoId: String?): StreamsResult = coroutineScope {
+    private suspend fun stremioStreamsDetailed(
+        item: MediaItem,
+        videoId: String?,
+        onPartial: (suspend (StreamsResult) -> Unit)? = null,
+    ): StreamsResult = coroutineScope {
         val cacheable = item.type == MediaType.MOVIE || item.type == MediaType.SERIES || item.type == MediaType.ANIME
         val key = "${item.addonId}|${item.id}|${videoId ?: ""}"
         if (cacheable) {
@@ -174,17 +198,33 @@ class StreamRepository(
             streamCapable.sortedByDescending { it.id == item.addonId }
         }
 
-        val outcomes = addons.map { addon ->
-            async {
+        val outcomes = ArrayList<StreamOutcome>()
+        val mutex = Mutex()
+        addons.map { addon ->
+            launch {
                 val (aType, aId) = StremioClient.chooseRequest(type to id, candidates, addon.idPrefixes)
-                runCatching {
-                    withTimeout(STREAM_TIMEOUT_MS) { StremioClient.fetchStreams(addon, aType, aId) }
+                val outcome = ScraperRace.raceResult(STREAM_TIMEOUT_MS) {
+                    StremioClient.fetchStreams(addon, aType, aId)
                 }.fold(
                     onSuccess = { StreamOutcome(addon.name, it, null) },
                     onFailure = { StreamOutcome(addon.name, emptyList(), it.message ?: "failed") },
                 )
+                val partial = mutex.withLock {
+                    outcomes += outcome
+                    val all = outcomes.flatMap { it.streams }.map { enrich(it) }
+                    val errors = outcomes.mapNotNull { o -> o.error?.let { "${o.addon}: $it" } }
+                    StreamsResult(
+                        streams = StreamRanking.rank(all, AddonStore.Defaults.preferredStreamHosts),
+                        errors = errors,
+                    )
+                }
+                // Progressive yield: emit as soon as the first valid playable link resolves.
+                // Guarded so a throwing consumer can't cancel the sibling providers.
+                if (partial.streams.isNotEmpty() || outcome.error != null) {
+                    runCatching { onPartial?.invoke(partial) }
+                }
             }
-        }.map { it.await() }
+        }.joinAll()
 
         val all = outcomes.flatMap { it.streams }.map { enrich(it) }
         val errors = outcomes.mapNotNull { outcome -> outcome.error?.let { "${outcome.addon}: $it" } }
@@ -214,7 +254,10 @@ class StreamRepository(
         val addons = addonRepo.enabledAddons().filter { it.resources.contains("subtitles") }
         val jobs = addons.map { addon ->
             val (aType, aId) = StremioClient.chooseRequest(type to id, candidates, addon.idPrefixes)
-            async { runCatching { StremioClient.fetchSubtitles(addon, aType, aId) }.getOrDefault(emptyList()) }
+            async {
+                ScraperRace.raceResult(SUBTITLE_TIMEOUT_MS) { StremioClient.fetchSubtitles(addon, aType, aId) }
+                    .getOrDefault(emptyList())
+            }
         }
         jobs.flatMap { it.await() }.distinctBy { it.url }
     }
@@ -238,8 +281,14 @@ class StreamRepository(
     private val cacheLock = Any()
 
     private companion object {
-        /** Hard cap per add-on so a hung host can't gate the whole stream list. */
-        const val STREAM_TIMEOUT_MS = 12_000L
+        /**
+         * Hard cap per add-on (Phase 32: 5 s fail-fast) so a hung host can't gate the stream list.
+         * Every provider races concurrently and the first valid playable link yields immediately.
+         */
+        const val STREAM_TIMEOUT_MS = 5_000L
+
+        /** Subtitle fan-out gets the same fail-fast ceiling. */
+        const val SUBTITLE_TIMEOUT_MS = 5_000L
 
         /** Re-opening or re-tapping the same episode within this window is served from memory. */
         const val STREAM_TTL_MS = 5L * 60 * 1000

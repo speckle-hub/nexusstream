@@ -1,7 +1,22 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-12 — **CloudStream provider runtime
+> resume exactly where it left off. Last updated: 2026-10-13 — **v1.6.1 released.** Bundles
+> Phase 32 (§2am: scraper race engine + Real 18+ speed optimization) on top of the v1.6.0
+> CloudStream runtime. `versionCode` 12 / `versionName` 1.6.1; signed release built →
+> `dist/NexusStream.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `versionCode` 12 /
+> `versionName` 1.6.1 verified in `output-metadata.json`); tagged `v1.6.1`. Website CTA/hero
+> bumped to v1.6.1 (`next build` ✓). GitHub Release publication (with `NexusStream.apk` +
+> `app-release.apk` assets) still pending — no `gh` CLI in this environment.
+> Previous session, Last updated: 2026-10-13 — **Phase 32: Stream Scraper
+> Performance & Real 18+ Speed Optimization (§2am).** Providers now race concurrently with a
+> 5 s fail-fast ceiling and completion-order progressive yield (first valid playable link
+> paints immediately); Real 18+ home/search publish as each source lands with slow-mirror
+> quarantine + list-HTML page cache; catalog/stream fan-outs parallelized and bounded.
+> Verified `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **189/189**
+> (+13 `ScraperRaceTest`). Not pushed; no APK rebuilt this session. Device pass still needed
+> (cold Real 18+ tab paint, stream-list first-paint, back-nav instant).
+> Previous session, Last updated: 2026-10-12 — **CloudStream provider runtime
 > (§2al): real `.cs3` extensions now load and run in-process.** Depends on the CloudStream
 > `library` (JitPack 4.7.0) + app-module shims; Add-on Manager install downloads + loads a
 > provider, Search/Detail/Streams surface its results, and the phisher98 / yuzono / Keiyoushi
@@ -249,8 +264,8 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~24,800 LOC across 117 Kotlin source files in a single `:app` module (+23 test files). Unit tests
-(176 cases):
+~24,800 LOC across 118 Kotlin source files in a single `:app` module (+24 test files). Unit tests
+(189 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -258,7 +273,7 @@ site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexu
 `SleepTimerTest.kt` (7, sleep-timer mapping — §2ai), `TrackerOAuthTest.kt` (10, OAuth/PKCE — §2aj),
 `HomeRowsTest.kt` (8, dashboard order/visibility — §2aj), `PlayerStartupTest.kt` (10, player
 launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id scheme + repo policy —
-§2al),
+§2al), `ScraperRaceTest.kt` (13, provider race policy / mirror quarantine / page cache — §2am),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
 
@@ -266,7 +281,16 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: v1.5.1 released** — the P0 Play-crash hotfix (§2ak) is tagged, pushed and
+**Topic: v1.6.1 released** — bundles Phase 32 (§2am: parallel provider racing, Real 18+
+acceleration, fail-fast fallbacks) on the v1.6.0 CloudStream runtime. `versionCode` 12 /
+`versionName` 1.6.1, signed APK built, source tagged `v1.6.1`, website at v1.6.1. GitHub
+Release publication still pending (no `gh` CLI here — attach `NexusStream.apk` **and**
+`app-release.apk`, same bytes, so the `latest/download/app-release.apk` updater chain keeps
+working).
+
+Previous focus: Phase 32 — Stream Scraper Performance & Real 18+ Speed Optimization (§2am);
+
+Previous focus: CloudStream provider runtime (§2al, v1.6.0); **v1.5.1 released** — the P0 Play-crash hotfix (§2ak) is tagged, pushed and
 published with the signed APK attached. Device pass still outstanding (logcat + Play on
 GMS/non-GMS hardware).
 
@@ -601,6 +625,81 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
 
 ---
+
+## 2am. Phase 32 — Stream Scraper Performance & Real 18+ Speed Optimization (2026-10-13)
+
+**Topic:** kill the noticeable delay when loading content and fetching video streams,
+especially in the Real 18+ hub — parallel provider racing, faster Real 18+ metadata, and
+fail-fast fallbacks so one hung server never stalls the UI or video startup.
+
+Status: **implemented and verified (statically + unit).** No device/`adb` in this environment,
+so wall-clock gains are reasoned from the fan-out structure + unit-pinned policy; every
+previously unbounded or order-blocked hop is now bounded and completion-ordered. Files and
+verification at the end.
+
+### 1. Asynchronous parallel provider racing
+- **New pure `data/repo/ScraperRace.kt`** (repo pattern: pure helper + unit test):
+  `PROVIDER_TIMEOUT_MS` / `SUBTITLE_TIMEOUT_MS` / `DETAIL_TIMEOUT_MS` = **5 s**,
+  `isPlayableCandidate()` pre-filter (blank/non-http/thumbnail/subtitle URLs never win),
+  `raceResult()` cancellation-safe bound (timeouts degrade to failure, genuine caller
+  cancellation rethrows — never recorded as a mirror failure), `MirrorHealth` (quarantine
+  after 2 consecutive failures, 5 min TTL, injectable clock) and `PageCache` (64-entry /
+  5-min TTL LRU for list HTML, injectable clock).
+- **`StreamRepository`:** `STREAM_TIMEOUT_MS` 12 s → **5 s** (+ `SUBTITLE_TIMEOUT_MS` 5 s);
+  `stremioStreamsDetailed()` rewritten from registry-order `async/await` to completion-order
+  `launch` + `Mutex` — each provider's partial result yields via new optional `onPartial`
+  as soon as the first valid playable link resolves; MOVIE path races the Stremio fan-out
+  against the CloudStream title match concurrently (was sequential `await` then `await`).
+- **`DetailViewModel.loadStreams`:** passes `onPartial` through `streamsForDetailed()` and
+  paints `streams.value` on the first non-empty partial (request-guarded), so the stream
+  sheet fills progressively instead of waiting on every hoster.
+
+### 2. Real 18+ content & metadata acceleration
+- **`AdultRepository.home/searchDetailedProgressive`:** fixed the head-of-line block — both
+  used `async` fan-out but `await`ed **in registry order**, so slow source 0 gated fast
+  source N. Both now `launch` per source under a `Mutex` and invoke `onUpdate` in
+  **completion order**; each source races under `HOME_TIMEOUT_MS` 5 s (home was unbounded)
+  and quarantined mirror ids are skipped (`MirrorHealth`).
+- **`AdultHttp`:** new `getList()` fast path for catalog/home rows — in-memory `PageCache`
+  first (back-navigation is instant, no network), else single-attempt `httpGetList`
+  (short timeouts, no 429 retry); `get()` itself now also reads/writes the `PageCache`, so
+  detail HTML benefits too. `verifyPlayable`
+  now pre-filters via `isPlayableCandidate`, caps concurrency with `Semaphore(8)` and bounds
+  each probe under 5 s.
+- **`Http`:** shared OkHttp `ConnectionPool(8, 5 min)` + `Dispatcher(32 total / 6 per host)`
+  so 12 concurrent scrapes reuse connections; new `listClient` (6 s connect / 8 s read,
+  redirects followed, no retry — the timeouts bound the chain) behind new `httpGetList()` — initial list loads skip
+  redirect chains and fail fast, detail/stream paths keep the full retrying client.
+- **Thumbnails:** Coil disk/memory image cache (256 MB, `NovaApp`) already covers posters —
+  verified, unchanged; the new `PageCache` covers the parsed-catalog side.
+
+### 3. Fail-fast & fallback mechanisms
+- Every fan-out now degrades per-provider instead of gating: `CatalogRepository.safeRow`
+  (was unbounded) + `rowsForSection`/`searchInternal`/`globalSearch` (were sequential
+  phases) + `cloudStreamSearch` + Stremio `ADDON/CATALOG` caps tightened 6–7 s → **5 s**;
+  `AdultRepository.detail/categories` wrapped in 5 s; `HentaiRepository.STREAM_TIMEOUT`
+  12 s → **5 s** (+ bounded verify). Timeouts surface as ordinary per-source notices —
+  the UI treatment dead sites already get — and caller cancellation is always rethrown.
+
+### Files
+`data/repo/ScraperRace.kt` (new policy + `MirrorHealth` + `PageCache`),
+`data/remote/Http.kt` (pool/dispatcher, `listClient`, `httpGetList`),
+`data/adult/AdultHttp.kt` (`getList` + page cache, bounded `verifyPlayable`),
+`data/adult/AdultRepository.kt` (completion-order home/search, 5 s caps, quarantine),
+`data/repo/StreamRepository.kt` (5 s caps, completion-order progressive `onPartial`,
+concurrent MOVIE race), `data/repo/CatalogRepository.kt` (bounded `safeRow`, parallel
+rows/search phases, 5 s caps), `data/hentai/HentaiRepository.kt` (5 s stream cap),
+`ui/vm/ViewModels.kt` (progressive `loadStreams` paint),
+`app/src/test/.../ScraperRaceTest.kt` (+13).
+
+### Verification (2026-10-13)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings).
+- `:app:testDebugUnitTest --rerun-tasks` → **189/189 tests, 0 failures, 0 errors** (+13 new;
+  policy ceiling pinned to the 3–5 s budget, `raceResult` timeout/cancellation/error paths,
+  quarantine TTL, page-cache expiry/eviction).
+- Not pushed; no APK rebuilt this session. Device pass still needed: cold Real 18+ tab
+  first-paint, stream-sheet first-link latency, back-nav instant (page cache), and no
+  regression on empty/error states.
 
 ## 2aj. Phase 30 — Cloud Sync, Anime Trackers & Customizable Dashboard (2026-10-11)
 
@@ -3568,6 +3667,8 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-11 | **Phase 27 (Part B) — Updater UI Revamp (§2ag):** `downloadApkWithProgress()` streams APK in 8 KB `ensureActive()`-checked chunks with throttled `DownloadProgress` callbacks (fraction/percent null-safe, partial deleted on fail/cancel, `CancellationException` rethrown); `UpdateAvailableDialog` shows determinate `LinearProgressIndicator` + tabular `Downloading update… 45% (18.2 MB / 40.5 MB)` line, Update disabled, "Later"→"Cancel" mid-download (aborts job, parks dialog in idle), outside-tap/Back ignored while downloading. `downloadApk()` kept as delegate for Settings. Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **129/129 / 0 failures** ✅ (+5 `UpdateCheckerTest`). Not pushed, no APK. |
 | 2026-10-11 | **v1.4.2 released:** Phase 26 + 27A + 27B shipped as commit `2ce2156` (`versionCode` 8 / `versionName` 1.4.2; compile ✅, 129/129 tests ✅, signed `:app:assembleRelease` ✅ → `dist/NovaStream.apk`, 38,330,042 bytes, SHA-256 `5AB52C87…4C6E`); annotated tag `v1.4.2` pushed; **GitHub Release `NexusStream v1.4.2` published with `app-release.apk` attached** (38,330,042 bytes) so `releases/latest/download/app-release.apk` now serves v1.4.2 to the in-app updater and the site CTA; website hero badge + download CTA bumped to v1.4.2 (`next build` ✅, 216 kB first-load) and pushed as `8ced0ca` (Vercel auto-redeploys on push). |
 | 2026-10-12 | **v1.5.1 released:** P0 Play-crash hotfix (§2ak) shipped — `versionCode` 10 / `versionName` 1.5.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **171/171**, `:app:assembleRelease` ✅ (signed) → `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`; `PlayerStartup` verified in the release dex); tagged `v1.5.1` and pushed; **GitHub Release `NexusStream v1.5.1` published with `app-release.apk` attached** so `releases/latest/download/app-release.apk` now serves v1.5.1. Website CTA/hero bumped to v1.5.1 (`next build` ✅, pushed; Vercel auto-redeploys). |
+| 2026-10-13 | **v1.6.1 released:** bundles Phase 32 (§2am) on the v1.6.0 CloudStream runtime — `versionCode` 12 / `versionName` 1.6.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **189/189**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/NovaStream.apk` + `dist/app-release.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `output-metadata.json` verified); tagged `v1.6.1`; website CTA/hero → v1.6.1 (`next build` ✅, 216 kB first-load). GitHub Release publication pending (no `gh` CLI): attach `NexusStream.apk` **and** `app-release.apk` (identical bytes) so `releases/latest/download/app-release.apk` keeps serving the updater + site CTA. |
+| 2026-10-13 | **Phase 32 — Stream Scraper Performance & Real 18+ Speed Optimization (§2am):** new `ScraperRace.kt` policy (5 s provider/subtitle/detail ceilings, `isPlayableCandidate`, cancellation-safe `raceResult`, `MirrorHealth` quarantine, `PageCache`); `StreamRepository` 12 s → 5 s with completion-order progressive `onPartial` + concurrent MOVIE race; `DetailViewModel.loadStreams` paints the first partial; `AdultRepository` home/search fixed from registry-order awaits to completion-order `launch` + 5 s caps + quarantine; `AdultHttp.getList` page-cache + fast fetch, bounded `verifyPlayable`; `Http` pool/dispatcher tuning + `listClient`/`httpGetList`; `CatalogRepository` bounded `safeRow` + parallel rows/search phases (caps → 5 s); `HentaiRepository` stream cap → 5 s. Added `ScraperRaceTest` (13 cases → **189 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **189/189 / 0 failures** ✅. Not pushed, no APK. |
 
 ---
 

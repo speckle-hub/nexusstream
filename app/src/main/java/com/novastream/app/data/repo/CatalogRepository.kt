@@ -30,12 +30,15 @@ class CatalogRepository(
     private suspend fun cloudStreamSearch(query: String): List<MediaItem> = coroutineScope {
         val providers = runCatching { cloudStreamRepo.providers() }.getOrDefault(emptyList()).take(15)
         providers.map { provider ->
-            async { runCatching { CloudStreamSources.search(provider, query) }.getOrDefault(emptyList()) }
+            async {
+                ScraperRace.raceResult(ADDON_TIMEOUT_MS) { CloudStreamSources.search(provider, query) }
+                    .getOrDefault(emptyList())
+            }
         }.flatMap { it.await() }
     }
 
     private suspend fun safeRow(title: String, type: MediaType, block: suspend () -> List<MediaItem>): CatalogRow? =
-        runCatching { block() }.getOrNull()?.distinctBy { it.key }?.takeIf { it.isNotEmpty() }?.let { CatalogRow(title, it, type = type) }
+        ScraperRace.raceResult(SAFE_ROW_TIMEOUT_MS) { block() }.getOrNull()?.distinctBy { it.key }?.takeIf { it.isNotEmpty() }?.let { CatalogRow(title, it, type = type) }
 
     // ---- Home ---------------------------------------------------------------
 
@@ -67,38 +70,51 @@ class CatalogRepository(
 
     // ---- Generic section ----------------------------------------------------
 
-    suspend fun rowsForSection(section: MediaType): List<CatalogRow> = when (section) {
-        MediaType.MOVIE -> listOfNotNull(
-            safeRow("Popular Movies", MediaType.MOVIE) { TmdbClient.popularMovies() },
-            safeRow("Top Rated", MediaType.MOVIE) { TmdbClient.topRatedMovies() },
-            safeRow("Upcoming", MediaType.MOVIE) { TmdbClient.upcoming() },
-            safeRow("Action", MediaType.MOVIE) { TmdbClient.discoverMovies("28") },
-            safeRow("Comedy", MediaType.MOVIE) { TmdbClient.discoverMovies("35") },
-        ) + stremioRowsFor(setOf(MediaType.MOVIE))
+    suspend fun rowsForSection(section: MediaType): List<CatalogRow> = coroutineScope {
+        when (section) {
+            MediaType.MOVIE -> {
+                // Phase 32: race the five TMDB rows concurrently (each already fail-fast via
+                // safeRow) instead of awaiting them one after another.
+                val rows = listOf(
+                    async { safeRow("Popular Movies", MediaType.MOVIE) { TmdbClient.popularMovies() } },
+                    async { safeRow("Top Rated", MediaType.MOVIE) { TmdbClient.topRatedMovies() } },
+                    async { safeRow("Upcoming", MediaType.MOVIE) { TmdbClient.upcoming() } },
+                    async { safeRow("Action", MediaType.MOVIE) { TmdbClient.discoverMovies("28") } },
+                    async { safeRow("Comedy", MediaType.MOVIE) { TmdbClient.discoverMovies("35") } },
+                ).mapNotNull { it.await() }
+                rows + stremioRowsFor(setOf(MediaType.MOVIE))
+            }
 
-        MediaType.SERIES -> listOfNotNull(
-            safeRow("Popular TV", MediaType.SERIES) { TmdbClient.popularTv() },
-            safeRow("Top Rated", MediaType.SERIES) { TmdbClient.topRatedTv() },
-            safeRow("Airing Today", MediaType.SERIES) { TmdbClient.airingToday() },
-            safeRow("Drama", MediaType.SERIES) { TmdbClient.discoverTv("18") },
-        ) + stremioRowsFor(setOf(MediaType.SERIES))
+            MediaType.SERIES -> {
+                val rows = listOf(
+                    async { safeRow("Popular TV", MediaType.SERIES) { TmdbClient.popularTv() } },
+                    async { safeRow("Top Rated", MediaType.SERIES) { TmdbClient.topRatedTv() } },
+                    async { safeRow("Airing Today", MediaType.SERIES) { TmdbClient.airingToday() } },
+                    async { safeRow("Drama", MediaType.SERIES) { TmdbClient.discoverTv("18") } },
+                ).mapNotNull { it.await() }
+                rows + stremioRowsFor(setOf(MediaType.SERIES))
+            }
 
-        MediaType.ANIME -> listOfNotNull(
-            safeRow("Trending Anime", MediaType.ANIME) { AniListClient.trendingAnime() },
-            safeRow("Popular Anime", MediaType.ANIME) { AniListClient.popularAnime() },
-            safeRow("Action", MediaType.ANIME) { AniListClient.byGenre("Action") },
-            safeRow("Romance", MediaType.ANIME) { AniListClient.byGenre("Romance") },
-            safeRow("Fantasy", MediaType.ANIME) { AniListClient.byGenre("Fantasy") },
-        ) + stremioRowsFor(setOf(MediaType.ANIME))
+            MediaType.ANIME -> {
+                val rows = listOf(
+                    async { safeRow("Trending Anime", MediaType.ANIME) { AniListClient.trendingAnime() } },
+                    async { safeRow("Popular Anime", MediaType.ANIME) { AniListClient.popularAnime() } },
+                    async { safeRow("Action", MediaType.ANIME) { AniListClient.byGenre("Action") } },
+                    async { safeRow("Romance", MediaType.ANIME) { AniListClient.byGenre("Romance") } },
+                    async { safeRow("Fantasy", MediaType.ANIME) { AniListClient.byGenre("Fantasy") } },
+                ).mapNotNull { it.await() }
+                rows + stremioRowsFor(setOf(MediaType.ANIME))
+            }
 
-        MediaType.MANGA -> listOfNotNull(
-            safeRow("Popular Manga", MediaType.MANGA) { MangaDexClient.popular() },
-            safeRow("Latest Updates", MediaType.MANGA) { MangaDexClient.latest() },
-            safeRow("Action", MediaType.MANGA) { MangaDexClient.byGenre("391b0423-d847-456f-aff0-8b0cfc03066b") },
-            safeRow("Romance", MediaType.MANGA) { MangaDexClient.byGenre("423e2eae-a7a2-4a8b-ac03-a8351462d71d") },
-        )
+            MediaType.MANGA -> listOf(
+                async { safeRow("Popular Manga", MediaType.MANGA) { MangaDexClient.popular() } },
+                async { safeRow("Latest Updates", MediaType.MANGA) { MangaDexClient.latest() } },
+                async { safeRow("Action", MediaType.MANGA) { MangaDexClient.byGenre("391b0423-d847-456f-aff0-8b0cfc03066b") } },
+                async { safeRow("Romance", MediaType.MANGA) { MangaDexClient.byGenre("423e2eae-a7a2-4a8b-ac03-a8351462d71d") } },
+            ).mapNotNull { it.await() }
 
-        else -> emptyList()
+            else -> emptyList()
+        }
     }
 
     // ---- NSFW ---------------------------------------------------------------
@@ -133,7 +149,7 @@ class CatalogRepository(
 
     /** One built-in NSFW-anime row under [ROW_TIMEOUT_MS]; a slow or failing source just drops its row. */
     private suspend fun nsfwRow(title: String, block: suspend () -> List<MediaItem>): CatalogRow? =
-        runCatching { withTimeout(ROW_TIMEOUT_MS) { block() } }.getOrNull()
+        ScraperRace.raceResult(ROW_TIMEOUT_MS) { block() }.getOrNull()
             ?.distinctBy { it.key }
             ?.takeIf { it.isNotEmpty() }
             ?.let { CatalogRow(title, it, type = MediaType.NSFW_ANIME) }
@@ -190,15 +206,11 @@ class CatalogRepository(
         val jobs = nsfwAddons.flatMap { addon ->
             StremioClient.catalogsFor(addon, section).map { cat ->
                 async {
-                    runCatching {
-                        // Mirrors stremioRowsFor: NSFW add-on catalogs get the same hard cap, so a
-                        // hung add-on degrades its own row instead of gating the whole NSFW tab.
-                        val items = withTimeout(CATALOG_TIMEOUT_MS) {
-                            StremioClient.fetchCatalog(addon, cat.type, cat.id)
-                        }.distinctBy { it.key }
-                        if (items.isEmpty()) null
-                        else CatalogRow("${addon.name} \u00b7 ${cat.name}", items, addon.id, cat.id, section)
-                    }.getOrNull()
+                    ScraperRace.raceResult(CATALOG_TIMEOUT_MS) {
+                        StremioClient.fetchCatalog(addon, cat.type, cat.id)
+                    }.getOrNull()?.distinctBy { it.key }?.takeIf { it.isNotEmpty() }?.let {
+                        CatalogRow("${addon.name} \u00b7 ${cat.name}", it, addon.id, cat.id, section)
+                    }
                 }
             }
         }
@@ -258,19 +270,16 @@ class CatalogRepository(
      */
     private suspend fun searchNsfwAnime(query: String): List<MediaItem> = coroutineScope {
         val aniList = async {
-            runCatching {
-                withTimeout(ANILIST_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
-            }.getOrDefault(emptyList())
+            ScraperRace.raceResult(ANILIST_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
+                .getOrDefault(emptyList())
         }
         val jikan = async {
-            runCatching {
-                withTimeout(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }
-            }.getOrDefault(emptyList())
+            ScraperRace.raceResult(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }
+                .getOrDefault(emptyList())
         }
         val addons = async {
-            runCatching {
-                withTimeout(ADDON_TIMEOUT_MS) { addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true) }
-            }.getOrDefault(emptyList())
+            ScraperRace.raceResult(ADDON_TIMEOUT_MS) { addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true) }
+                .getOrDefault(emptyList())
         }
         (aniList.await() + jikan.await() + addons.await())
             .filter { it.type == MediaType.NSFW_ANIME }
@@ -302,8 +311,8 @@ class CatalogRepository(
                 .filter { cat -> cat.extra.any { it.name == "search" } }
                 .map { cat ->
                     async {
-                        runCatching {
-                            withTimeout(ADDON_TIMEOUT_MS) { StremioClient.search(addon, cat.type, cat.id, query) }
+                        ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
+                            StremioClient.search(addon, cat.type, cat.id, query)
                         }.getOrDefault(emptyList())
                     }
                 }
@@ -315,27 +324,42 @@ class CatalogRepository(
             section == MediaType.NSFW_MANGA ||
             section == MediaType.REAL
 
-        val results = mutableListOf<MediaItem>()
-        when (section) {
-            MediaType.MOVIE -> results += runCatching { TmdbClient.searchMovies(query) }.getOrDefault(emptyList())
-            MediaType.SERIES -> results += runCatching { TmdbClient.searchTv(query) }.getOrDefault(emptyList())
-            MediaType.ANIME -> results += runCatching { AniListClient.searchAnime(query) }.getOrDefault(emptyList())
-            MediaType.MANGA -> results += runCatching { MangaDexClient.search(query) }.getOrDefault(emptyList())
-            MediaType.NSFW_ANIME -> {
-                // Routed through searchNsfwAnime() before this method is reached; kept as a strict
-                // adult-only pair here for any future caller.
-                results += runCatching { AniListClient.nsfwSearch(query) }.getOrDefault(emptyList())
-                results += runCatching { JikanClient.nsfwSearch(query) }.getOrDefault(emptyList())
+        // Phase 32: race the built-in search against the add-on fan-out concurrently instead of
+        // running one after the other — the total costs the slowest, not the sum.
+        val builtInDeferred = async {
+            when (section) {
+                MediaType.MOVIE -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchMovies(query) }
+                    .getOrDefault(emptyList())
+                MediaType.SERIES -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchTv(query) }
+                    .getOrDefault(emptyList())
+                MediaType.ANIME -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }
+                    .getOrDefault(emptyList())
+                MediaType.MANGA -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }
+                    .getOrDefault(emptyList())
+                MediaType.NSFW_ANIME -> {
+                    // Routed through searchNsfwAnime() before this method is reached; kept as a strict
+                    // adult-only pair here for any future caller.
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
+                        .getOrDefault(emptyList()) + ScraperRace.raceResult(JIKAN_TIMEOUT_MS) {
+                        JikanClient.nsfwSearch(query)
+                    }.getOrDefault(emptyList())
+                }
+                // limit = 100 (MangaDex's maximum) so an adult search isn't cut short at the old 30.
+                MediaType.NSFW_MANGA -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
+                    MangaDexClient.search(query, nsfw = true, limit = 100)
+                }.getOrDefault(emptyList())
+                MediaType.REAL -> emptyList() // Never reached: search() routes REAL through searchReal().
             }
-            // limit = 100 (MangaDex's maximum) so an adult search isn't cut short at the old 30.
-            MediaType.NSFW_MANGA -> results += runCatching { MangaDexClient.search(query, nsfw = true, limit = 100) }.getOrDefault(emptyList())
-            MediaType.REAL -> Unit // Never reached: search() routes REAL through searchReal().
         }
 
         // Stremio addon search. For NSFW sections ONLY NSFW-flagged add-ons are queried; for SFW
         // sections NSFW-flagged add-ons are excluded unless the user opted in from the NSFW Hub.
         val allowNsfwAddons = settings.nsfwGlobalSearch.first()
-        results += addonSearch(query, section, nsfwOnly = isNsfwSection, includeNsfw = allowNsfwAddons)
+        val addonsDeferred = async {
+            addonSearch(query, section, nsfwOnly = isNsfwSection, includeNsfw = allowNsfwAddons)
+        }
+
+        val results = builtInDeferred.await() + addonsDeferred.await()
 
         // Final safety net: NSFW sections must never surface non-adult built-in items.
         val filtered = if (isNsfwSection) {
@@ -360,28 +384,45 @@ class CatalogRepository(
         const val JIKAN_TIMEOUT_MS = 6_000L
 
 /** Caps every Stremio add-on search so one slow host can't stall the whole list. */
-        const val ADDON_TIMEOUT_MS = 6_000L
+        const val ADDON_TIMEOUT_MS = 5_000L
 
         /** Caps a Stremio catalog-row fetch; a hung add-on is dropped rather than blocking Home. */
-        const val CATALOG_TIMEOUT_MS = 7_000L
+        const val CATALOG_TIMEOUT_MS = 5_000L
 
         /**
          * Caps one built-in home row (NSFW anime). Every row fetch used to be unbounded, so the
          * flakiest source (Jikan's documented 504s, 429 backoff) gated the whole tab's spinner.
          */
-        const val ROW_TIMEOUT_MS = 10_000L
+        const val ROW_TIMEOUT_MS = 5_000L
+
+        /**
+         * Phase 32 fail-fast for generic home/section rows: previously unbounded, so one hung
+         * metadata call gated the whole feed. Now every safeRow degrades to "no row".
+         */
+        const val SAFE_ROW_TIMEOUT_MS = 5_000L
     }
 
     suspend fun globalSearch(query: String): List<MediaItem> = coroutineScope {
-        val results = mutableListOf<MediaItem>()
-        val jobs = listOf(
-            async { runCatching { TmdbClient.search(query) }.getOrDefault(emptyList()) },
-            async { runCatching { AniListClient.searchAnime(query) }.getOrDefault(emptyList()) },
-            async { runCatching { MangaDexClient.search(query) }.getOrDefault(emptyList()) },
-        )
-        jobs.forEach { results += it.await() }
+        // Phase 32: race all three phases concurrently — built-ins, CloudStream providers and
+        // add-ons start together instead of summing three sequential waits.
+        val builtIns = async {
+            listOf(
+                async {
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.search(query) }
+                        .getOrDefault(emptyList())
+                },
+                async {
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }
+                        .getOrDefault(emptyList())
+                },
+                async {
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }
+                        .getOrDefault(emptyList())
+                },
+            ).flatMap { it.await() }
+        }
         // CloudStream provider plugins (installed .cs3) also serve the search screen.
-        results += cloudStreamSearch(query)
+        val cloud = async { cloudStreamSearch(query) }
         // NSFW-flagged add-ons are only consulted when the user explicitly opted in from the
         // isolated NSFW Hub; otherwise the general Search screen stays adult-free.
         val includeNsfw = settings.nsfwGlobalSearch.first()
@@ -390,13 +431,13 @@ class CatalogRepository(
             .flatMap { addon ->
                 addon.catalogs.filter { c -> c.extra.any { it.name == "search" } }.map { cat ->
                     async {
-                        runCatching {
-                            withTimeout(ADDON_TIMEOUT_MS) { StremioClient.search(addon, cat.type, cat.id, query) }
+                        ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
+                            StremioClient.search(addon, cat.type, cat.id, query)
                         }.getOrDefault(emptyList())
                     }
                 }
             }
-        addonJobs.forEach { results += it.await() }
+        val results = builtIns.await() + cloud.await() + addonJobs.flatMap { it.await() }
         // Phase 28 isolation: unless the user explicitly opted in from inside the NSFW Hub,
         // the general Search screen stays adult-free at the *item* level too (the add-on filter
         // above is not enough — a mis-tagged catalog on an SFW add-on could still leak one in).
@@ -413,13 +454,11 @@ class CatalogRepository(
                 .filter { cat -> types.any { StremioClient.mapType(cat.type, addon) == it } }
                 .map { cat ->
                     async {
-                        runCatching {
-                            val items = withTimeout(CATALOG_TIMEOUT_MS) {
-                                StremioClient.fetchCatalog(addon, cat.type, cat.id)
-                            }.distinctBy { it.key }
-                            if (items.isEmpty()) null
-                            else CatalogRow("${addon.name} · ${cat.name}", items, addon.id, cat.id, StremioClient.mapType(cat.type, addon))
-                        }.getOrNull()
+                        ScraperRace.raceResult(CATALOG_TIMEOUT_MS) {
+                            StremioClient.fetchCatalog(addon, cat.type, cat.id)
+                        }.getOrNull()?.distinctBy { it.key }?.takeIf { it.isNotEmpty() }?.let { items ->
+                            CatalogRow("${addon.name} · ${cat.name}", items, addon.id, cat.id, StremioClient.mapType(cat.type, addon))
+                        }
                     }
                 }
         }
@@ -427,7 +466,7 @@ class CatalogRepository(
     }
 
     suspend fun loadCatalog(addon: Addon, catalog: CatalogDef, extra: Map<String, String> = emptyMap()): List<MediaItem> =
-        runCatching {
-            withTimeout(CATALOG_TIMEOUT_MS) { StremioClient.fetchCatalog(addon, catalog.type, catalog.id, extra) }
+        ScraperRace.raceResult(CATALOG_TIMEOUT_MS) {
+            StremioClient.fetchCatalog(addon, catalog.type, catalog.id, extra)
         }.getOrDefault(emptyList()).distinctBy { it.key }
 }
