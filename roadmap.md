@@ -7,8 +7,10 @@
 > `dist/NexusStream.apk` (43,692,191 bytes, SHA-256 `EFBC369E…63B7`; `versionCode` 13 /
 > `versionName` 1.6.2 verified in `output-metadata.json`); committed and pushed (`main` + tag
 > `v1.6.2`). Website CTA/hero bumped to v1.6.2 (`next build` ✓, pushed with the release
-> commit; Vercel auto-redeploys). GitHub Release still needs manual publishing with the APK
-> attached so the in-app updater and site CTA serve v1.6.2.
+> commit; Vercel auto-redeploys). The **`v1.6.2` GitHub Release is published with
+> `NexusStream.apk` + `app-release.apk` attached** (43,692,191 bytes each, matching the local
+> build; verified `release view v1.6.2` → both assets), so the in-app update dialog and the
+> site CTA now serve v1.6.2.
 > Previous session, Last updated: 2026-10-13 — **Phase 34 implemented (§2an:
 > Stremio add-on fixes, hold-to-2X gesture, skip-intro/outro removal).** Verified
 > `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **199/199** (+10
@@ -301,8 +303,9 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 **Topic: v1.6.2 released** — bundles Phase 34 (§2an: Stremio add-on stream/toggle fixes,
 hold-for-2X gesture, Skip Intro/Outro removal). `versionCode` 13 / `versionName` 1.6.2,
-signed APK built, source tagged + pushed, website at v1.6.2. GitHub Release still needs
-manual publishing with the APK attached.
+signed APK built, source tagged + pushed, website at v1.6.2, and the **GitHub Release is
+published with `NexusStream.apk` + `app-release.apk` attached** (verified asset sizes match
+the local build), so the in-app updater and the site CTA serve v1.6.2.
 
 Previous focus: Phase 34 implemented — Stremio add-on stream/toggle fixes (§2an), the player
 hold-for-2X gesture, and full Skip Intro/Outro removal. Verified `:app:compileDebugKotlin` ✓,
