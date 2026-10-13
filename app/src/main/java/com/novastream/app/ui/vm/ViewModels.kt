@@ -885,7 +885,15 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
         val request = ++streamsRequest
         viewModelScope.launch {
             streamsLoading.value = true
-            val result = runCatching { container.streamRepository.streamsForDetailed(item, video?.id) }
+            // Phase 32: paint the first valid playable link as soon as the first provider lands
+            // (completion order) instead of waiting on every slow hoster.
+            val result = runCatching {
+                container.streamRepository.streamsForDetailed(item, video?.id) { partial ->
+                    if (request == streamsRequest && partial.streams.isNotEmpty()) {
+                        streams.value = partial.streams
+                    }
+                }
+            }
                 .getOrDefault(StreamsResult())
             val tracks = runCatching { container.streamRepository.subtitlesFor(item, video?.id) }
                 .getOrDefault(emptyList())
