@@ -1,7 +1,8 @@
 "use client";
 
-import { Accordion, AccordionItem } from "@heroui/react";
-import { TextGenerateEffect } from "../ui/text-generate-effect";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { Stagger } from "../ui/reveal";
 
 const faqs = [
   {
@@ -30,36 +31,65 @@ const faqs = [
   },
 ];
 
+function Chevron() {
+  return (
+    <span className="t-acc-chevron shrink-0 text-muted">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 6.5L8 10.5L12 6.5" />
+      </svg>
+    </span>
+  );
+}
+
 export function Faq() {
+  const [open, setOpen] = useState<number | null>(0);
+
   return (
     <section id="faq" className="mx-auto max-w-3xl px-6 py-24 md:py-32">
-      <div className="mb-12 text-center">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-accent-soft">FAQ</p>
-        <h2 className="font-display text-3xl font-bold tracking-tight text-mist md:text-5xl">
-          Good questions
-        </h2>
-        <TextGenerateEffect
-          className="mx-auto mt-4 max-w-xl text-sm text-muted md:text-base"
-          words="The honest answers, including the legal ones."
-        />
-      </div>
+      <Stagger
+        className="mb-12 text-center"
+        items={[
+          <span key="eyebrow" className="mb-3 block text-xs font-semibold uppercase tracking-[0.28em] text-accent-soft">
+            FAQ
+          </span>,
+          <span key="h2" className="display-tight block font-display text-3xl font-bold text-mist md:text-5xl">
+            Good questions
+          </span>,
+          <span key="sub" className="mx-auto mt-4 block max-w-xl text-sm text-muted md:text-base">
+            The honest answers, including the legal ones.
+          </span>,
+        ]}
+      />
 
-      <Accordion
-        variant="splitted"
-        className="gap-3"
-        itemClasses={{
-          base: "glass !bg-ink/60 !rounded-2xl !border-white/[0.07]",
-          title: "font-display font-semibold text-mist text-[15px]",
-          content: "text-muted text-sm leading-relaxed pb-5",
-          trigger: "py-4 px-5",
-        }}
-      >
-        {faqs.map((f) => (
-          <AccordionItem key={f.q} title={f.q} aria-label={f.q}>
-            {f.a}
-          </AccordionItem>
-        ))}
-      </Accordion>
+      <div className="space-y-3">
+        {faqs.map((f, i) => {
+          const isOpen = open === i;
+          return (
+            <div
+              key={f.q}
+              data-open={isOpen ? "true" : "false"}
+              className={cn(
+                "t-acc glass !rounded-2xl",
+                isOpen && "border-accent/25",
+              )}
+            >
+              <button
+                onClick={() => setOpen(isOpen ? null : i)}
+                aria-expanded={isOpen}
+                className="t-acc-head flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+              >
+                <span className="font-display text-[15px] font-semibold text-mist">{f.q}</span>
+                <Chevron />
+              </button>
+              <div className="t-acc-panel">
+                <div className="t-acc-panel-inner">
+                  <p className="px-5 pb-5 text-sm leading-relaxed text-muted">{f.a}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

@@ -1,7 +1,7 @@
 import { Gauge, Palette, Play, ShieldCheck, Volume2 } from "lucide-react";
 import { BentoGrid, BentoGridItem } from "../ui/bento-grid";
 import { GlowingCard } from "../ui/glowing-card";
-import { TextGenerateEffect } from "../ui/text-generate-effect";
+import { Stagger } from "../ui/reveal";
 
 function PlayerVisual() {
   return (
@@ -118,7 +118,7 @@ const features = [
   {
     className: "md:col-span-4",
     title: "A player that fights above its weight",
-    description: "Gesture brightness, volume and seek with haptic HUDs. Subtitle styling and sync offset, speed control, skip intro/outro, stats for nerds, PiP, mirror failover and external-player hand-off.",
+    description: "Gesture brightness, volume and seek with haptic HUDs. Hold-for-2X speed, subtitle styling and sync offset, stats for nerds, PiP, mirror failover and external-player hand-off.",
     header: <PlayerVisual />,
   },
   {
@@ -156,18 +156,21 @@ const features = [
 export function Features() {
   return (
     <section id="features" className="relative mx-auto max-w-7xl px-6 py-24 md:py-32">
-      <div className="mb-14 text-center">
-        <p className="mb-3 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-accent-soft">
-          <Gauge className="h-4 w-4" /> Features
-        </p>
-        <h2 className="font-display text-3xl font-bold tracking-tight text-mist md:text-5xl">
-          Built like a flagship, <span className="text-gradient">not a wrapper</span>
-        </h2>
-        <TextGenerateEffect
-          className="mx-auto mt-4 max-w-2xl text-sm text-muted md:text-base"
-          words="Every screen, sheet and gesture was designed and re-designed over twenty-one documented phases — the polish shows."
-        />
-      </div>
+      <Stagger
+        className="mb-14 text-center"
+        items={[
+          <span key="eyebrow" className="mb-3 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-accent-soft">
+            <Gauge className="h-4 w-4" /> Features
+          </span>,
+          <span key="h2" className="display-tight block font-display text-3xl font-bold text-mist md:text-5xl">
+            Built like a flagship, <span className="text-gradient">not a wrapper</span>
+          </span>,
+          <span key="sub" className="mx-auto mt-4 block max-w-2xl text-sm text-muted md:text-base">
+            Every screen, sheet and gesture was designed and re-designed across dozens of
+            documented build phases — the polish shows.
+          </span>,
+        ]}
+      />
 
       <BentoGrid>
         {features.map((f) => (

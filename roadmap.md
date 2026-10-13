@@ -11,8 +11,8 @@
 > `NexusStream.apk` + `app-release.apk` attached** (43,692,191 bytes each, matching the local
 > build; verified `release view v1.6.2` → both assets), so the in-app update dialog and the
 > site CTA now serve v1.6.2.
-> Next: **website full rebuild (§2ao, planned)** — scope approved, execution not started;
-> open question is whether to keep the dark-violet brand + section order or rethink them.
+> Next: **website full rebuild (§2ao)** — implemented and verified this session (see §2ao);
+> site pushed to `main` (Vercel auto-redeploys).
 > Previous session, Last updated: 2026-10-13 — **Phase 34 implemented (§2an:
 > Stremio add-on fixes, hold-to-2X gesture, skip-intro/outro removal).** Verified
 > `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **199/199** (+10
@@ -309,7 +309,8 @@ signed APK built, source tagged + pushed, website at v1.6.2, and the **GitHub Re
 published with `NexusStream.apk` + `app-release.apk` attached** (verified asset sizes match
 the local build), so the in-app updater and the site CTA serve v1.6.2.
 
-Next up: website full rebuild (§2ao, planned — scope approved, not started).
+Next up: none — website rebuild (§2ao) shipped this session; roadmap is the working doc
+for whatever comes next.
 
 Previous focus: Phase 34 implemented — Stremio add-on stream/toggle fixes (§2an), the player
 hold-for-2X gesture, and full Skip Intro/Outro removal. Verified `:app:compileDebugKotlin` ✓,
@@ -661,7 +662,18 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
 
 ---
 
-## 2ao. Website full rebuild — skill-backed motion system (planned, 2026-10-13)
+## 2ao. Website full rebuild — skill-backed motion system (2026-10-13)
+
+**Topic:** rebuild `website/` (Next.js 15 single page) on the four installed skills
+(`website/.agents/skills/`: `apple-design`, `transitions-dev`, `transitions-polish`,
+`transitions-ui-generation`) plus the Playwright CLI for screenshot verification.
+Brand rethought (not just re-skinned): deeper void `#06060C`, signal-mint `#3DDC97`
+secondary, tighter display type, reordered page (Stats band up after Ecosystem).
+
+Status: **implemented and verified.** `next build` ✓ (first-load JS 216 → **174 kB**),
+Playwright screenshot sweep ✓ (desktop hero + full page, mobile hero, Features/FAQ/CTA
+sections — stagger entrances, accordion, tilt, pop-in digits, dropdown menu all confirmed
+on-screen). Committed + pushed to `main` (Vercel auto-redeploys).
 
 **Topic:** rebuild `website/` (Next.js 15 single page: Navbar → Hero → EcosystemMarquee →
 Features → Stats → FAQ → DownloadCta → Footer) on the four installed skills
@@ -670,6 +682,33 @@ Features → Stats → FAQ → DownloadCta → Footer) on the four installed ski
 
 Status: **planned, scope approved (full rebuild), execution not started — no code touched.**
 Open question: keep the dark-violet brand + section order, or rethink branding/structure.
+
+### What shipped (execution log)
+
+**Phase 0 — motion tokens.** Full `transitions-dev/_root.css` token scale pasted once into
+`app/globals.css` (`--duration-*`, `--ease-*`, `--distance-*`, `--scale-*`, `--blur-*` +
+per-transition tunables); `.glass` upgraded to a real material (saturate + top-edge
+highlight); new `.display-tight` type utility (apple-design tracking discipline).
+
+**Phase 1 — motion system (`apple-design`).** All framer-motion entrances converted to the
+critically damped house spring (`bounce: 0, duration: 0.4`); Navbar is a true translucent
+material on scroll; dead `TextGenerateEffect` deleted.
+
+**Phase 2 — per-section transitions (`transitions-dev`, verbatim snippets + hooks).**
+New `components/ui/`: `reveal.tsx` (`Stagger` = `texts-reveal`), `tilt.tsx` (`card-tilt`
+orchestration, touch-scroll-safe), `stat-number.tsx` (`number-pop-in`), `gen-reveal.tsx` +
+copied `tgen/ui-generation.{js,css}` runtime. Hero: stagger copy, `t-shimmer` version pill,
+`Tilt` + `data-t-generate="skeleton"` phone reveal. Stats: pop-in digits
+(199 / 4 / 25k / 2X). FAQ: custom `t-acc` accordion (HeroUI Accordion removed — part of the
+JS diet). Navbar: mobile `t-dropdown` menu (origin top-right, close-asymmetry 150 ms).
+DownloadCta + Footer: `learn-more-hover` chevron links, shimmer pills. Copy refreshed to
+v1.6.2 truth (199 tests, hold-for-2X, ≈42 MB). Page reordered: Stats band after Ecosystem.
+
+**Phase 3 — polish (`transitions-polish`).** Remaining hardcoded motion mapped to tokens
+(nav transitions, link hovers); ambient loops left alone (no matching token usage, per the
+usage-first doctrine).
+
+**Phase 4 — verify.** `next build` ✓, Playwright sweep ✓, then commit.
 
 ### Phase 0 — motion tokens
 Install `transitions-dev/_root.css` once into `app/globals.css` (durations, easings,

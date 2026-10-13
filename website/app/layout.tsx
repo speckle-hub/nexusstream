@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
+import "../components/ui/tgen/ui-generation.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-display" });
