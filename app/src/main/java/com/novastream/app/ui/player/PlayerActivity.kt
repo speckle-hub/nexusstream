@@ -112,6 +112,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -121,7 +122,7 @@ import kotlin.math.roundToInt
  *
  * Supports quality/track selection, subtitle + audio track selection, PiP, orientation locking,
  * swipe gestures (brightness left / volume right / seek), an episode side-sheet, a sleep timer,
- * and a 5-second autoplay-next countdown.
+ * a 5-second autoplay-next countdown and a press-and-hold 2X speed boost (Phase 34).
  */
 @UnstableApi
 class PlayerActivity : ComponentActivity() {
@@ -342,8 +343,6 @@ class PlayerActivity : ComponentActivity() {
                     initialSpeed = playbackSpeed,
                     audioBoostOn = audioBoost,
                     audioNormalizeOn = audioNormalize,
-                    introEndMs = source.introEndMs ?: source.introStartMs,
-                    outroStartMs = source.outroStartMs,
                     onSpeedChange = { setPlaybackSpeed(it) },
                     onAudioBoost = { setAudioBoost(it) },
                     onAudioNormalize = { setAudioNormalize(it) },
@@ -1101,10 +1100,6 @@ class PlayerActivity : ComponentActivity() {
  * cannot see private companion members). */
 private const val PLAYER_TAG = "PlayerActivity"
 
-/** Heuristic intro/outro windows used when a stream supplies no chapter markers. */
-private const val DEFAULT_INTRO_END_MS = 90_000L
-private const val DEFAULT_OUTRO_MS = 90_000L
-
 /**
  * Drag distance in px before a swipe locks to its dominant axis (brightness/volume vs seek),
  * so finger jitter on touch-down never flashes the wrong HUD. File-level (not companion)
@@ -1114,6 +1109,9 @@ private const val GESTURE_SLOP_PX = 24f
 
 /** Cap on buffered caption events kept for the subtitle-sync overlay (~a few minutes of cues). */
 private const val CUE_HISTORY_LIMIT = 200
+
+/** Phase 34: press-and-hold duration before the player boosts to 2X speed. */
+private const val HOLD_TO_BOOST_MS = 400L
 
 private enum class GestureMode { BRIGHTNESS, VOLUME, SEEK }
 
@@ -1195,8 +1193,6 @@ private fun PlayerScreen(
     initialSpeed: Float,
     audioBoostOn: Boolean,
     audioNormalizeOn: Boolean,
-    introEndMs: Long?,
-    outroStartMs: Long?,
     onSpeedChange: (Float) -> Unit,
     onAudioBoost: (Boolean) -> Unit,
     onAudioNormalize: (Boolean) -> Unit,
@@ -1223,6 +1219,12 @@ private fun PlayerScreen(
     // Ripple shown on a double-tap seek: direction (-1 back / +1 forward) and a pulse counter.
     var rippleDir by remember { mutableStateOf(0) }
     var ripplePulse by remember { mutableIntStateOf(0) }
+
+    // ---- Phase 34: hold-for-2X --------------------------------------------
+    // Temporary speed boost while the finger is held down. `speed` stays the user's saved
+    // default; only the ExoPlayer rate changes, restored on release.
+    var isBoosting by remember { mutableStateOf(false) }
+    var boostRestoreSpeed by remember { mutableStateOf(initialSpeed) }
 
     // ---- Phase 15: haptics, stats overlay & subtitle-sync buffer -----------
     val haptic = LocalHapticFeedback.current
@@ -1429,6 +1431,35 @@ private fun PlayerScreen(
                         },
                         onTap = { controlsVisible = !controlsVisible },
                     )
+                }
+                // Phase 34: hold-for-2X — press and hold to temporarily boost to 2.0x, release
+                // to restore the user's saved speed. Short taps (< HOLD_TO_BOOST_MS) never boost,
+                // so single/double-tap behaviour is unchanged. Does not consume the press, so the
+                // drag and tap handlers above still receive it.
+                .pointerInput(locked, speed) {
+                    if (locked) return@pointerInput
+                    detectTapGestures(
+                        onPress = {
+                            // Wait for a quick release; a timeout means the finger is still down.
+                            val releasedQuickly = withTimeoutOrNull(HOLD_TO_BOOST_MS) {
+                                tryAwaitRelease()
+                            }
+                            if (releasedQuickly == null) {
+                                if (player.isPlaying && !isBoosting) {
+                                    boostRestoreSpeed = speed.coerceIn(0.5f, 2f)
+                                    runCatching { player.setPlaybackSpeed(2f) }
+                                    isBoosting = true
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                                // Park here until the finger lifts, then restore.
+                                runCatching { tryAwaitRelease() }
+                                if (isBoosting) {
+                                    runCatching { player.setPlaybackSpeed(boostRestoreSpeed.coerceIn(0.5f, 2f)) }
+                                    isBoosting = false
+                                }
+                            }
+                        },
+                    )
                 },
         )
 
@@ -1618,6 +1649,27 @@ private fun PlayerScreen(
             }
         }
 
+        // Phase 34: hold-for-2X indicator — clean top-center pill while boosted.
+        AnimatedVisibility(
+            visible = isBoosting,
+            enter = fadeIn(),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp),
+        ) {
+            Surface(
+                color = Color.Black.copy(alpha = 0.65f),
+                shape = RoundedCornerShape(50),
+            ) {
+                Text(
+                    "2X Speed ▶▶",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                )
+            }
+        }
+
         // Autoplay-next overlay
         countdown?.let { seconds ->
             Surface(
@@ -1637,38 +1689,6 @@ private fun PlayerScreen(
                     TextButton(onClick = onCancelCountdown) {
                         Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                }
-            }
-        }
-
-        // ---- Skip Intro / Outro (chapter/timestamp markers) ------------------
-        // Uses real markers when the stream provides them, otherwise a conservative window.
-        val introEnd = introEndMs ?: DEFAULT_INTRO_END_MS
-        val outroStart = outroStartMs
-            ?: if (duration > 0) (duration - DEFAULT_OUTRO_MS).coerceAtLeast(0) else Long.MAX_VALUE
-        val skipIntro = position in 5_000 until introEnd
-        val skipOutro = duration > 0 && position >= outroStart
-
-        // Auto-skip intro: jump straight past it when the setting is on. keyed on skipIntro so it
-        // fires once per intro window and not on every recomposition.
-        val autoSkipIntro by LocalContainer.current.settings.autoSkipIntro.collectAsStateWithLifecycle()
-        LaunchedEffect(autoSkipIntro, skipIntro, introEnd) {
-            if (autoSkipIntro && skipIntro) {
-                player.seekTo(introEnd)
-                position = introEnd
-            }
-        }
-
-        if (!locked && (skipIntro || skipOutro)) {
-            Row(
-                Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 96.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (skipIntro) {
-                    Button(onClick = { player.seekTo(introEnd); position = introEnd }) { Text("Skip Intro") }
-                }
-                if (skipOutro) {
-                    Button(onClick = { player.seekTo(duration); position = duration }) { Text("Skip Outro") }
                 }
             }
         }

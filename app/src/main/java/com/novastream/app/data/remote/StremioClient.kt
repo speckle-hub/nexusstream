@@ -24,7 +24,15 @@ object StremioClient {
     private fun base(transportUrl: String): String =
         transportUrl.trimEnd('/').let { if (it.endsWith("manifest.json")) it.removeSuffix("/manifest.json") else it }
 
+    /**
+     * Phase 34: path-safe encoding for Stremio ids. `URLEncoder` encodes `:` as `%3A` and space
+     * as `+`, which breaks manifest-V3 stream URLs for episode ids (`tt123:1:2`) on Torrentio /
+     * CyberFlix (they expect literal colons). Preserve `:` and emit `%20` for spaces.
+     */
     private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
+        .replace("+", "%20")
+        .replace("%3A", ":")
+        .replace("%3a", ":")
 
     // ---- manifest -----------------------------------------------------------
 
@@ -171,9 +179,9 @@ object StremioClient {
 
     suspend fun fetchMeta(addon: Addon, type: String, id: String): MetaDetail? {
         val url = "${base(addon.transportUrl)}/meta/$type/${enc(id)}.json"
-        val root = parseJson(httpGet(url)).asJsonObject
-        val meta = root.getAsJsonObject("meta") ?: return null
-        return parseMeta(meta, addon)
+        val root = runCatching { parseJson(httpGet(url)).asJsonObject }.getOrNull() ?: return null
+        val meta = root.get("meta")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        return runCatching { parseMeta(meta, addon) }.getOrNull()
     }
 
     fun parseMeta(o: JsonObject, addon: Addon?): MetaDetail {
@@ -217,53 +225,66 @@ object StremioClient {
 
     // ---- streams ------------------------------------------------------------
 
+    /**
+     * Phase 34: total — never throws. A single malformed entry no longer voids the whole list;
+     * valid `url` streams (CyberFlix) and `infoHash` streams (Torrentio) both yield playable
+     * entries instead of an empty list.
+     */
     suspend fun fetchStreams(addon: Addon, type: String, id: String): List<StreamSource> {
         val url = "${base(addon.transportUrl)}/stream/$type/${enc(id)}.json"
-        val root = parseJson(httpGet(url)).asJsonObject
-        val streams = root.getAsJsonArray("streams") ?: return emptyList()
-        return streams.mapNotNull { parseStream(it, addon) }
+        val root = runCatching { parseJson(httpGet(url)).asJsonObject }.getOrNull() ?: return emptyList()
+        val streams = root.get("streams")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        return streams.mapNotNull { runCatching { parseStream(it, addon) }.getOrNull() }
     }
 
-    fun parseStream(el: JsonElement, addon: Addon?): StreamSource? {
+    /**
+     * Phase 34: hardened V3 parsing — safe primitive extraction (JsonNull no longer throws),
+     * blank strings treated as absent, per-entry total so one poisoned stream can't void the list.
+     */
+    fun parseStream(el: JsonElement, addon: Addon?): StreamSource? = runCatching {
         if (!el.isJsonObject) return null
         val o = el.asJsonObject
-        val url = o.get("url")?.asString
-        val infoHash = o.get("infoHash")?.asString
-        val ytId = o.get("ytId")?.asString
-        val externalUrl = o.get("externalUrl")?.asString
+        fun str(key: String): String? =
+            o.get(key)?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
+        val url = str("url")
+        val infoHash = str("infoHash")
+        val ytId = str("ytId")
+        val externalUrl = str("externalUrl")
         if (url == null && infoHash == null && ytId == null && externalUrl == null) return null
-        val name = o.get("name")?.asString
-        val sources = o.getAsJsonArray("sources")?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString } ?: emptyList()
+        val name = str("name")
+        val sources = o.get("sources")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString?.takeIf { s -> s.isNotBlank() } }
+            ?: emptyList()
         // behaviorHints (Stremio protocol): proxyHeaders.request carries headers the CDN needs
         // (Referer/Cookie/User-Agent) — without them a hotlink-protected stream silently fails —
         // and filename is a better display title than the add-on's generic label. `notWebReady` is
         // intentionally ignored: it only warns *web* players, and this is a native ExoPlayer app.
-        val hints = o.getAsJsonObject("behaviorHints")
-        val proxyHeaders = hints?.getAsJsonObject("proxyHeaders")
-            ?.getAsJsonObject("request")
+        val hints = o.get("behaviorHints")?.takeIf { it.isJsonObject }?.asJsonObject
+        val proxyHeaders = hints?.get("proxyHeaders")?.takeIf { it.isJsonObject }?.asJsonObject
+            ?.get("request")?.takeIf { it.isJsonObject }?.asJsonObject
             ?.entrySet()
             ?.mapNotNull { (k, v) -> if (v.isJsonPrimitive) k to v.asString else null }
             ?.toMap()
             .orEmpty()
-        val filename = hints?.get("filename")?.takeIf { it.isJsonPrimitive }?.asString
-        val title = o.get("title")?.asString ?: filename
+        val filename = hints?.get("filename")?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
+        val title = str("title") ?: filename
         return StreamSource(
             url = url,
             ytId = ytId,
             infoHash = infoHash,
-            fileIdx = o.get("fileIdx")?.takeIf { it.isJsonPrimitive }?.asInt,
+            fileIdx = runCatching { o.get("fileIdx")?.takeIf { it.isJsonPrimitive }?.asInt }.getOrNull(),
             externalUrl = externalUrl,
             title = title,
             name = name,
-            description = o.get("description")?.asString,
-            quality = detectQuality(title, name, o.get("description")?.asString),
+            description = str("description"),
+            quality = detectQuality(title, name, str("description")),
             addonId = addon?.id,
             addonName = addon?.name,
             isTorrent = infoHash != null,
             sources = sources,
             headers = proxyHeaders,
         )
-    }
+    }.getOrNull()
 
     private fun detectQuality(vararg texts: String?): String? {
         val hay = texts.filterNotNull().joinToString(" ").lowercase()
