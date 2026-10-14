@@ -215,7 +215,8 @@ class AdultSourcesExtraTest {
         listOf(
             "pornhub", "xvideos", "xnxx", "hqporner", "spankbang",
             "xhamster", "youporn", "redtube",
-            "missav", "jable",
+            "eporner", "beeg",
+            "missav", "jable", "javguru", "supjav", "vjav",
         ).forEach { id ->
             assertTrue("missing source: $id", AdultSources.byId(id) != null)
         }

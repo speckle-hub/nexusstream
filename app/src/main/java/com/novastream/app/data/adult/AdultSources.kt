@@ -15,9 +15,14 @@ object AdultSources {
         XhamsterSource,
         YouPornSource,
         RedTubeSource,
+        EpornerSource,
+        BeegSource,
         // JAV / Japanese adult video sources.
         MissavSource,
         JableSource,
+        JavGuruSource,
+        SupJavSource,
+        VjavSource,
         // NOTE: HpjavSource and AvgleSource are intentionally unregistered — hpjav.tv no longer
         // resolves (DNS) and api.avgle.com is down (520), so they only produced per-source error
         // notices. Their objects/tests remain should either site come back.

@@ -207,6 +207,7 @@ class HentaiSourcesExtraTest {
             "hentaimama", "hentaiplay",
             "hentaihaven", "hstream",
             "muchohentai", "hentaicity", "haho",
+            "rule34video", "animeidhentai",
         ).forEach { id -> assertTrue("missing source: $id", HentaiSources.byId(id) != null) }
         assertTrue(HentaiSources.isBuiltIn("haho"))
         // Retired hosts (§3): the Hanime search API is DNS-dead and hentaigasm.com times out, so

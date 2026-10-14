@@ -53,7 +53,7 @@ export function DownloadCta() {
         >
           <MovingBorderButton href={APK_URL} containerClassName="shadow-glow-accent rounded-full">
             <FileDown className="h-4 w-4" />
-            Download v1.6.2 APK
+            Download v1.7.0 APK
           </MovingBorderButton>
           <a
             href={RELEASES_URL}

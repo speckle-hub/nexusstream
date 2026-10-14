@@ -14,7 +14,7 @@ import { Tilt } from "../ui/tilt";
 /** Critically damped house spring (apple-design): graceful, no overshoot. */
 const SPRING = { type: "spring", bounce: 0, duration: 0.4 } as const;
 
-const heroStats = ["4 add-on ecosystems", "199 unit tests", "Android 7.0+", "100% free"];
+const heroStats = ["4 add-on ecosystems", "209 unit tests", "Android 7.0+", "100% free"];
 
 export function Hero() {
   return (
@@ -35,8 +35,8 @@ export function Hero() {
               className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-sm text-accent-soft"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-signal" />
-              <span className="t-shimmer" data-text="v1.6.2 · Free & open source">
-                v1.6.2 · Free & open source
+              <span className="t-shimmer" data-text="v1.7.0 · Free & open source">
+                v1.7.0 · Free & open source
               </span>
             </span>,
             <span key="h1" className="display-tight font-display text-5xl font-bold text-mist md:text-7xl">

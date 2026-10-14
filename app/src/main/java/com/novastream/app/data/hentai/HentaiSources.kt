@@ -17,6 +17,9 @@ object HentaiSources {
         MuchoHentaiSource,
         HentaiCitySource,
         HahoSource,
+        // Expansion (§2aq): tube + index sources for broader NSFW-anime coverage.
+        Rule34VideoSource,
+        AnimeIdHentaiSource,
         // NOTE: HanimeSource and HentaigasmSource are intentionally unregistered — Hanime's
         // search API (search.htv-services.com) is DNS-dead and its HTML page is a JS shell, and
         // hentaigasm.com times out, so both only produced per-source error notices. Their
