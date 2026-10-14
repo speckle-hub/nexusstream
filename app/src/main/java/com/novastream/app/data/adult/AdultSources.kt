@@ -17,12 +17,23 @@ object AdultSources {
         RedTubeSource,
         EpornerSource,
         BeegSource,
+        // Expansion (§2as): KVS + aggregator + full-length + Aylo-family general tubes.
+        PornTrexSource,
+        SxyPrnSource,
+        FullPornerSource,
+        TxxxSource,
         // JAV / Japanese adult video sources.
         MissavSource,
         JableSource,
         JavGuruSource,
         SupJavSource,
         VjavSource,
+        // Expansion (§2as): KVS + catalogue + WP-style + mirror-fallback JAV tubes.
+        JavMostSource,
+        KissJavSource,
+        JavtifulSource,
+        OpJavSource,
+        SevenMmtvSource,
         // NOTE: HpjavSource and AvgleSource are intentionally unregistered — hpjav.tv no longer
         // resolves (DNS) and api.avgle.com is down (520), so they only produced per-source error
         // notices. Their objects/tests remain should either site come back.

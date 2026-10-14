@@ -150,6 +150,12 @@ class PlayerActivity : ComponentActivity() {
     private var countdownJob: Job? = null
     private var progressJob: Job? = null
     private var autoTriggered = false
+    /**
+     * Phase 36 pre-fetch: the episode index whose successor's streams were already
+     * background-resolved (-1 = none). Reset on every episode switch so each episode
+     * pre-fetches its own next exactly once.
+     */
+    private var prefetchedIndex = -1
     /** Phase 30: completion scrobble fires once per title (reset on every source switch). */
     private var scrobbled = false
     /**
@@ -229,6 +235,7 @@ class PlayerActivity : ComponentActivity() {
             colorKey = settings.subtitleColor.value,
             bgOpacity = settings.subtitleBg.value,
             bottomOffset = settings.subtitleOffset.value,
+            outlineKey = settings.subtitleOutline.value,
         )
         val preferredQuality = settings.preferredQuality.value
 
@@ -507,6 +514,7 @@ class PlayerActivity : ComponentActivity() {
     private fun playEpisode(target: Int) {
         if (target !in episodes.indices) return
         cancelCountdown()
+        prefetchedIndex = -1
         recordProgress()
         val ep = episodes[target]
         lifecycleScope.launch {
@@ -608,6 +616,22 @@ class PlayerActivity : ComponentActivity() {
         Toast.makeText(this, "Sleep timer ended", Toast.LENGTH_SHORT).show()
     }
 
+    /**
+     * Phase 36 pre-fetch: background-resolve the next episode's streams while the
+     * current one is still playing. The result is deliberately discarded — the
+     * resolve warms `StreamRepository`'s short-lived ranked cache (regular
+     * Movie/Series/Anime lookups), so the autoplay countdown finds warm links.
+     * Best-effort and silent: failures just mean the countdown resolves on demand.
+     */
+    private fun prefetchNextEpisode() {
+        val next = episodes.getOrNull(index + 1) ?: return
+        lifecycleScope.launch {
+            runCatching {
+                (application as NovaApp).container.streamRepository.streamsFor(item, next.id)
+            }
+        }
+    }
+
     /** Start the autoplay-next countdown (from [AUTOPLAY_COUNTDOWN_SECONDS]) when a next episode exists. */
     private fun maybeAutoplay() {
         if (!autoplay) return
@@ -684,6 +708,13 @@ class PlayerActivity : ComponentActivity() {
                 // Sleep-at-episode-end: the playhead reached the natural end — pause there.
                 if (sleepOptionState.value == SleepTimerOption.END_OF_EPISODE && dur > 0 && remaining <= 0) {
                     fireSleepTimer()
+                }
+                // Phase 36 pre-fetch: inside the final two minutes, background-resolve the
+                // next episode's streams once (warming StreamRepository's short cache), so
+                // the 15 s autoplay countdown below transitions with zero resolve delay.
+                if (shouldPrefetchNextEpisode(remaining, dur, index + 1 in episodes.indices, prefetchedIndex == index)) {
+                    prefetchedIndex = index
+                    prefetchNextEpisode()
                 }
                 // Persist roughly every 5 s while playing, so closing the app never loses more
                 // than a few seconds and Continue Watching stays current.
@@ -945,6 +976,7 @@ class PlayerActivity : ComponentActivity() {
             settings.setSubtitleColor(clamped.colorKey)
             settings.setSubtitleBg(clamped.bgOpacity)
             settings.setSubtitleOffset(clamped.bottomOffset)
+            settings.setSubtitleOutline(clamped.outlineKey)
         }
     }
 
@@ -1126,12 +1158,15 @@ private data class SubtitleStyle(
     val colorKey: String = "white",
     val bgOpacity: Float = 0.4f,
     val bottomOffset: Float = 0.05f,
+    /** Caption edge/outline color key (same palette as [colorKey] plus `"black"`). */
+    val outlineKey: String = "black",
 )
 
 private fun subtitleColor(key: String): Int = when (key) {
     "yellow" -> 0xFFFFEB3B.toInt()
     "cyan" -> 0xFF35D6E0.toInt()
     "green" -> 0xFF7CFF7C.toInt()
+    "black" -> 0xFF000000.toInt()
     else -> 0xFFFFFFFF.toInt()
 }
 
@@ -1158,7 +1193,7 @@ private fun applySubtitleStyle(view: PlayerView, style: SubtitleStyle) {
         bg,
         android.graphics.Color.TRANSPARENT,
         CaptionStyleCompat.EDGE_TYPE_OUTLINE,
-        android.graphics.Color.BLACK,
+        subtitleColor(style.outlineKey),
         null,
     )
     sv.setStyle(captionStyle)
@@ -2074,7 +2109,7 @@ private fun TrackSheet(
                         }
                     }
 
-                    // Phase 15: caption timing correction (±10 s in 0.5 s steps).
+                    // Phase 15: caption timing correction (±10 s in 100 ms steps, Phase 36).
                     item {
                         Spacer(Modifier.height(10.dp))
                         Text(
@@ -2090,9 +2125,9 @@ private fun TrackSheet(
                         )
                         Slider(
                             value = subtitleSyncMs.toFloat(),
-                            onValueChange = { onSubtitleSync((it / 500f).roundToInt() * 500) },
+                            onValueChange = { onSubtitleSync((it / 100f).roundToInt() * 100) },
                             valueRange = -SUBTITLE_SYNC_MAX_MS.toFloat()..SUBTITLE_SYNC_MAX_MS.toFloat(),
-                            steps = 39,
+                            steps = 199,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         if (subtitleSyncMs != 0) {
@@ -2105,7 +2140,7 @@ private fun TrackSheet(
                     // Phase 29: in-player subtitle styling — the same keys as Settings >
                     // Subtitles, applied live to the PlayerView and the sync overlay via
                     // `onSubtitleStyle` (which also persists them, so Settings stays in sync).
-                    // Captions always render with a black outline (see `applySubtitleStyle`).
+                    // Captions render with the chosen outline color (see `applySubtitleStyle`).
                     item {
                         Spacer(Modifier.height(10.dp))
                         Text(
@@ -2150,6 +2185,27 @@ private fun TrackSheet(
                                             RoundedCornerShape(50),
                                         )
                                         .clickable { onSubtitleStyle(subtitleStyle.copy(colorKey = key)) },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        // Phase 36: outline color — same palette plus black (the default).
+                        Text("Outline color", color = nova.textSecondary, fontSize = 13.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            listOf("black", "white", "yellow", "cyan", "green").forEach { key ->
+                                val selected = subtitleStyle.outlineKey == key
+                                Box(
+                                    Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(Color(subtitleColor(key)))
+                                        .border(
+                                            if (selected) 3.dp else 1.dp,
+                                            if (selected) nova.accent else nova.textTertiary,
+                                            RoundedCornerShape(50),
+                                        )
+                                        .clickable { onSubtitleStyle(subtitleStyle.copy(outlineKey = key)) },
                                 )
                             }
                         }

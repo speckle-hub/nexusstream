@@ -34,6 +34,22 @@ fun activeCueIndex(times: List<Long>, targetMs: Long): Int {
     return result
 }
 
+/** Pre-fetch horizon: resolve the next episode's streams while this much remains. */
+const val NEXT_EPISODE_PREFETCH_MS = 120_000L
+
+/**
+ * True when the player should background-resolve the next episode's streams now:
+ * a next episode exists, it hasn't been pre-fetched for this episode yet, and
+ * playback is inside the final two minutes (but hasn't ended).
+ */
+fun shouldPrefetchNextEpisode(
+    remainingMs: Long,
+    durationMs: Long,
+    hasNext: Boolean,
+    alreadyPrefetched: Boolean,
+): Boolean =
+    hasNext && !alreadyPrefetched && durationMs > 0 && remainingMs in 1..NEXT_EPISODE_PREFETCH_MS
+
 /** Compact bitrate readout for the Stats overlay: "N/A", "850 kbps" or "4.2 Mbps". */
 fun formatBitrate(bps: Long): String = when {
     bps <= 0 -> "N/A"

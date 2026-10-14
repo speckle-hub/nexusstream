@@ -20,6 +20,11 @@ object HentaiSources {
         // Expansion (§2aq): tube + index sources for broader NSFW-anime coverage.
         Rule34VideoSource,
         AnimeIdHentaiSource,
+        // Expansion (§2as): series tube + classic PHP tube + JSON-API tube + Rule34 tube.
+        HenVidsSource,
+        OhentaiSource,
+        HentaiTvSource,
+        XAnimuSource,
         // NOTE: HanimeSource and HentaigasmSource are intentionally unregistered — Hanime's
         // search API (search.htv-services.com) is DNS-dead and its HTML page is a JS shell, and
         // hentaigasm.com times out, so both only produced per-source error notices. Their

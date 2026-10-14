@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -74,6 +76,8 @@ fun FloatingPillNavBar(
 ) {
     if (items.isEmpty()) return
     val nova = LocalNovaColors.current
+    // Phase 36: one tactile tick per tab switch (skipped for the already-active tab).
+    val haptic = LocalHapticFeedback.current
     val shape = RoundedCornerShape(50)
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
@@ -116,7 +120,12 @@ fun FloatingPillNavBar(
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(50))
-                            .clickable { onSelect(index) },
+                            .clickable {
+                                if (index != selectedIndex) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                onSelect(index)
+                            },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {

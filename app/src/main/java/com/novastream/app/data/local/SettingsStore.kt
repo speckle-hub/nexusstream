@@ -57,6 +57,8 @@ class SettingsStore(private val context: Context) {
         // Subtitle rendering (applied to the Media3 PlayerView's SubtitleView).
         val SUB_SCALE = floatPreferencesKey("sub_scale")            // 0.6 .. 2.0
         val SUB_COLOR = stringPreferencesKey("sub_color")           // white | yellow | cyan | green
+        // Caption outline/edge color (Phase 36). Same palette keys as SUB_COLOR.
+        val SUB_OUTLINE = stringPreferencesKey("sub_outline")       // white | yellow | cyan | green | black
         val SUB_BG = floatPreferencesKey("sub_bg")                  // 0 .. 1 background opacity
         val SUB_OFFSET = floatPreferencesKey("sub_offset")          // 0 .. 0.3 bottom padding fraction
         // Caption timing correction in ms (-10000 .. 10000). Phase 15.
@@ -144,6 +146,7 @@ class SettingsStore(private val context: Context) {
     val amoledBlack: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AMOLED_BLACK] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val subtitleScale: StateFlow<Float> = context.dataStore.data.map { it[Keys.SUB_SCALE] ?: 1f }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 1f)
     val subtitleColor: StateFlow<String> = context.dataStore.data.map { it[Keys.SUB_COLOR] ?: "white" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "white")
+    val subtitleOutline: StateFlow<String> = context.dataStore.data.map { it[Keys.SUB_OUTLINE] ?: "black" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "black")
     val subtitleBg: StateFlow<Float> = context.dataStore.data.map { it[Keys.SUB_BG] ?: 0.4f }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 0.4f)
     val subtitleOffset: StateFlow<Float> = context.dataStore.data.map { it[Keys.SUB_OFFSET] ?: 0.05f }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 0.05f)
     val subtitleSyncMs: StateFlow<Int> = context.dataStore.data.map { it[Keys.SUB_SYNC_MS] ?: 0 }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 0)
@@ -228,6 +231,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setAmoledBlack(v: Boolean) = context.dataStore.edit { it[Keys.AMOLED_BLACK] = v }
     suspend fun setSubtitleScale(v: Float) = context.dataStore.edit { it[Keys.SUB_SCALE] = v.coerceIn(0.6f, 2f) }
     suspend fun setSubtitleColor(v: String) = context.dataStore.edit { it[Keys.SUB_COLOR] = v }
+    suspend fun setSubtitleOutline(v: String) = context.dataStore.edit { it[Keys.SUB_OUTLINE] = v }
     suspend fun setSubtitleBg(v: Float) = context.dataStore.edit { it[Keys.SUB_BG] = v.coerceIn(0f, 1f) }
     suspend fun setSubtitleOffset(v: Float) = context.dataStore.edit { it[Keys.SUB_OFFSET] = v.coerceIn(0f, 0.3f) }
     suspend fun setSubtitleSyncMs(v: Int) = context.dataStore.edit { it[Keys.SUB_SYNC_MS] = v.coerceIn(-10_000, 10_000) }
