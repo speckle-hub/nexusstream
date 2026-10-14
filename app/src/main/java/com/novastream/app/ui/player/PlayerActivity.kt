@@ -18,6 +18,7 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -330,6 +331,7 @@ class PlayerActivity : ComponentActivity() {
                     onCancelCountdown = { cancelCountdown() },
                     onNext = { playEpisode(index + 1) },
                     onSelectEpisode = { playEpisode(it) },
+                    qualityLabel = source.quality,
                     subtitleStyle = subtitleStyleState.value,
                     subtitleSyncMs = subtitleSyncMs,
                     onSubtitleSync = {
@@ -1113,9 +1115,6 @@ private const val CUE_HISTORY_LIMIT = 200
 /** Phase 34: press-and-hold duration before the player boosts to 2X speed. */
 private const val HOLD_TO_BOOST_MS = 400L
 
-/** Controls overlay auto-hide: hide after 3 s of inactivity during active playback. */
-private const val CONTROLS_HIDE_MS = 3000L
-
 private enum class GestureMode { BRIGHTNESS, VOLUME, SEEK }
 
 /**
@@ -1184,6 +1183,7 @@ private fun PlayerScreen(
     onCancelCountdown: () -> Unit,
     onNext: () -> Unit,
     onSelectEpisode: (Int) -> Unit,
+    qualityLabel: String?,
     onGestures: (GestureMode, Float) -> Float,
     onGestureEnd: () -> Unit,
     subtitleStyle: SubtitleStyle,
@@ -1204,7 +1204,6 @@ private fun PlayerScreen(
     onOpenOther: () -> Unit,
     onCastSettings: () -> Unit,
 ) {
-    var controlsVisible by remember { mutableStateOf(true) }
     var showTracks by remember { mutableStateOf(false) }
     var showEpisodes by remember { mutableStateOf(false) }
     var tracks by remember { mutableStateOf<Tracks?>(null) }
@@ -1258,16 +1257,42 @@ private fun PlayerScreen(
     val scope = rememberCoroutineScope()
     var hudHideJob by remember { mutableStateOf<Job?>(null) }
 
-    // ---- Controls auto-hide (3 s of inactivity while playing) -----------------
-    // Regression fix: the overlay stayed on screen forever. While playing (and
-    // ready, unlocked, no sheet open, not scrubbing) the controls fade out after
-    // CONTROLS_HIDE_MS. Paused / buffering / sheet-open forces them visible.
+    // ---- Controls auto-hide: Phase 35 state-driven engine ----------------
+    // Strict machine (VISIBLE / HIDING / HIDDEN) owned by PlayerControls.kt.
+    // A single autoHideJob is the only timer: resetAutoHideTimer() cancels any
+    // pending job and starts a fresh 3,000 ms countdown; a tap when visible
+    // hides immediately and cancels the timer instead.
+    var controlsState by remember { mutableStateOf(PlayerControlsState.VISIBLE) }
+    val controlsVisible = controlsState == PlayerControlsState.VISIBLE
     var isBuffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
-    var controlsPoke by remember { mutableIntStateOf(0) }
-    fun pokeControls() {
-        if (!locked) controlsVisible = true
-        controlsPoke++
+    var hasPlaybackError by remember { mutableStateOf(false) }
+    var autoHideJob by remember { mutableStateOf<Job?>(null) }
+    fun cancelAutoHideTimer() {
+        autoHideJob?.cancel()
+        autoHideJob = null
     }
+    fun resetAutoHideTimer() {
+        if (locked) return
+        controlsState = PlayerControlsState.VISIBLE
+        cancelAutoHideTimer()
+        autoHideJob = scope.launch {
+            delay(PLAYER_CONTROLS_HIDE_MS)
+            controlsState = PlayerControlsState.HIDDEN
+        }
+    }
+    fun hideControlsNow() {
+        cancelAutoHideTimer()
+        if (!locked) controlsState = PlayerControlsState.HIDDEN
+    }
+    fun onSingleTap() {
+        when (playerTapAction(controlsState, locked)) {
+            PlayerTapAction.HIDE_NOW -> hideControlsNow()
+            PlayerTapAction.REVEAL_AND_RESTART_TIMER -> resetAutoHideTimer()
+            PlayerTapAction.IGNORED_LOCKED -> Unit
+        }
+    }
+    // Back-compat alias: every interaction funnels into the single timer.
+    fun pokeControls() = resetAutoHideTimer()
 
     fun showHud(mode: GestureMode, level: Float) {
         hudHideJob?.cancel()
@@ -1343,22 +1368,19 @@ private fun PlayerScreen(
     }
 
     val sheetOpen = showTracks || showEpisodes || showSpeedAudio || showExternal || showSleep
-    // Auto-hide: while playing + ready + unlocked + no sheet + not scrubbing, fade the
-    // controls out after CONTROLS_HIDE_MS. Any poke (tap/gesture/slider/speed change)
-    // restarts this effect via controlsPoke/controlsVisible. Paused/buffering/sheet
-    // forces visible; locked forces hidden.
-    LaunchedEffect(isPlaying, isBuffering, sheetOpen, locked, scrubbing, controlsVisible, controlsPoke) {
-        if (locked) {
-            controlsVisible = false
+    // Phase 35 auto-hide engine: forced states win (locked → hidden; paused /
+    // buffering / error / sheet / scrubbing → visible). Otherwise the single
+    // autoHideJob owns the 3 s countdown — this effect only (re)arms it when
+    // the eligibility changes, while every user interaction funnels through
+    // resetAutoHideTimer().
+    LaunchedEffect(isPlaying, isBuffering, sheetOpen, locked, scrubbing, hasPlaybackError) {
+        val forced = forcedControlsState(locked, isPlaying, isBuffering, sheetOpen, scrubbing, hasPlaybackError)
+        if (forced != null) {
+            cancelAutoHideTimer()
+            controlsState = forced
             return@LaunchedEffect
         }
-        if (sheetOpen || scrubbing || !isPlaying || isBuffering) {
-            controlsVisible = true
-            return@LaunchedEffect
-        }
-        if (!controlsVisible) return@LaunchedEffect
-        delay(CONTROLS_HIDE_MS)
-        controlsVisible = false
+        if (controlsState == PlayerControlsState.VISIBLE) resetAutoHideTimer()
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -1454,8 +1476,14 @@ private fun PlayerScreen(
                         onDragCancel = { onGestureEnd(); scheduleHudHide(); pokeControls() },
                     )
                 }
-                // Double-tap left/right = rewind/forward by the configured interval, single tap toggles UI.
-                .pointerInput(locked) {
+                // Phase 35 unified tap interceptor: single-tap, double-tap seek and
+                // hold-for-2X share ONE detectTapGestures so they arbitrate the same
+                // down event deterministically. (Two separate detectors raced for
+                // the press, which is why taps intermittently failed to toggle.)
+                // Single-tap: visible → hide now + cancel timer; hidden → reveal
+                // + fresh 3 s countdown (see onSingleTap). Double-tap L/R seeks
+                // ∓doubleTapMs with ripple. Hold ≥ HOLD_TO_BOOST_MS boosts to 2X.
+                .pointerInput(locked, speed, doubleTapMs) {
                     if (locked) return@pointerInput
                     detectTapGestures(
                         onDoubleTap = { offset ->
@@ -1469,21 +1497,9 @@ private fun PlayerScreen(
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             pokeControls()
                         },
-                        onTap = {
-                            if (controlsVisible) controlsVisible = false
-                            else pokeControls()
-                        },
-                    )
-                }
-                // Phase 34: hold-for-2X — press and hold to temporarily boost to 2.0x, release
-                // to restore the user's saved speed. Short taps (< HOLD_TO_BOOST_MS) never boost,
-                // so single/double-tap behaviour is unchanged. Does not consume the press, so the
-                // drag and tap handlers above still receive it.
-                .pointerInput(locked, speed) {
-                    if (locked) return@pointerInput
-                    detectTapGestures(
+                        onTap = { onSingleTap() },
                         onPress = {
-                            // Wait for a quick release; a timeout means the finger is still down.
+                            // Wait for a quick release; a timeout means the finger is held.
                             val releasedQuickly = withTimeoutOrNull(HOLD_TO_BOOST_MS) {
                                 tryAwaitRelease()
                             }
@@ -1525,8 +1541,8 @@ private fun PlayerScreen(
 
         AnimatedVisibility(
             visible = controlsVisible && !locked,
-            enter = fadeIn(tween(300)),
-            exit = fadeOut(tween(300)),
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(250)),
         ) {
             Box(
                 Modifier.fillMaxSize().background(
@@ -1578,6 +1594,8 @@ private fun PlayerScreen(
                     }
                     IconButton(onClick = onPip) { Icon(Icons.Filled.PictureInPictureAlt, "PiP", tint = Color.White) }
                     IconButton(onClick = onRotate) { Icon(Icons.Filled.ScreenRotation, "Rotate", tint = Color.White) }
+                    IconButton(onClick = { showTracks = true; pokeControls() }) { Icon(Icons.Filled.Subtitles, "Subtitle and audio tracks", tint = Color.White) }
+                    IconButton(onClick = { showSpeedAudio = true; pokeControls() }) { Icon(Icons.Filled.Speed, "Playback speed", tint = Color.White) }
                     // Sleep timer: armed state reads amber so it is visible at a glance over video.
                     IconButton(onClick = { showSleep = true }) {
                         Icon(
@@ -1586,7 +1604,7 @@ private fun PlayerScreen(
                             tint = if (sleepOption == SleepTimerOption.OFF) Color.White else Color(0xFFFFD54F),
                         )
                     }
-                    IconButton(onClick = { locked = true; controlsVisible = false }) { Icon(Icons.Filled.LockOpen, "Lock controls", tint = Color.White) }
+                    IconButton(onClick = { locked = true; hideControlsNow() }) { Icon(Icons.Filled.LockOpen, "Lock controls", tint = Color.White) }
                 }
 
                 // Center controls
@@ -1604,10 +1622,12 @@ private fun PlayerScreen(
                         Icon(Icons.Filled.Replay10, "Back 10", tint = Color.White, modifier = Modifier.size(40.dp))
                     }
                     IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); pokeControls() }, modifier = Modifier.size(72.dp)) {
-                        Icon(
-                            if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            "Play/Pause", tint = Color.White, modifier = Modifier.size(64.dp),
-                        )
+                        AnimatedContent(targetState = isPlaying, label = "playPauseMorph") { playing ->
+                            Icon(
+                                if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                "Play/Pause", tint = Color.White, modifier = Modifier.size(64.dp),
+                            )
+                        }
                     }
                     IconButton(onClick = {
                         val target = player.currentPosition + 10_000
@@ -1626,6 +1646,22 @@ private fun PlayerScreen(
                     val pos = if (scrubbing) (scrubValue * dur).toLong() else position
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(fmt(pos), color = Color.White, fontSize = 12.sp)
+                        if (!qualityLabel.isNullOrBlank()) {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                color = Color.White.copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(6.dp),
+                            ) {
+                                Text(
+                                    qualityLabel,
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
                         // Haptic ticks once per whole second of content scrubbed, not per pixel.
                         var lastScrubHapticSec by remember { mutableIntStateOf(-1) }
                         Slider(
@@ -1750,7 +1786,7 @@ private fun PlayerScreen(
             Box(
                 Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).size(48.dp)
                     .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
-                    .clickable { locked = false; controlsVisible = true },
+                    .clickable { locked = false; resetAutoHideTimer() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Filled.Lock, "Unlock controls", tint = Color.White)

@@ -1,7 +1,14 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-14 — **v1.7.0 released.** Bundles
+> resume exactly where it left off. Last updated: 2026-10-14 — **Phase 35: Video Player UI
+> Overhaul & Touch Controller Re-architecture (§2ar).** Unified tap/double-tap/hold into one
+> `detectTapGestures` interceptor, state-driven auto-hide engine (`PlayerControlsState` +
+> `resetAutoHideTimer()`), 200/250 ms fades, top-bar track/speed actions, morphing play/pause,
+> bottom quality badge. Verified `:app:compileDebugKotlin` ✓,
+> `:app:testDebugUnitTest --rerun-tasks` ✓ **216/216** (+7 `Phase35PlayerControlsTest`).
+> Not pushed; no APK rebuilt this session.
+> Previous session, Last updated: 2026-10-14 — **v1.7.0 released.** Bundles
 > the source expansion (§2aq: Rule34Video, AnimeIdHentai, Eporner, Beeg, JavGuru, SupJav, VJAV)
 > and the player controls auto-hide fix (§2ap). `versionCode` 15 / `versionName` 1.7.0; signed
 > release built → `dist/NexusStream.apk` (43,708,575 bytes, SHA-256 `16A7DB34…05F063`;
@@ -305,8 +312,8 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~24,800 LOC across 125 Kotlin source files in a single `:app` module (+26 test files). Unit tests
-(209 cases):
+~24,900 LOC across 126 Kotlin source files in a single `:app` module (+27 test files). Unit tests
+(216 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -316,6 +323,7 @@ site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexu
 launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id scheme + repo policy —
 §2al), `ScraperRaceTest.kt` (13, provider race policy / mirror quarantine / page cache — §2am),
 `Phase34StremioTest.kt` (10, V3 stream parsing + id routing — §2an),
+`Phase35PlayerControlsTest.kt` (7, touch-controller policy — §2ar),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
 
@@ -323,13 +331,26 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: v1.7.0 released** — bundles the source expansion (§2aq: 7 new built-in sources)
-and the player controls auto-hide fix (§2ap). `versionCode` 15 / `versionName` 1.7.0, signed
-APK built (`dist/NexusStream.apk`, 43,708,575 bytes), source tagged + pushed, website at
-v1.7.0 / 209 tests, and the **GitHub Release is published with `NexusStream.apk` +
-`app-release.apk` attached**, so the in-app updater and the site CTA serve v1.7.0.
+**Topic: Phase 35 — Video Player UI Overhaul & Touch Controller Re-architecture (§2ar).**
+The control overlay's taps intermittently failed to reveal/hide (two competing
+`detectTapGestures` detectors raced for the same down event). Single-tap, double-tap seek
+and hold-for-2X now share **one** unified interceptor; visibility is a strict
+`PlayerControlsState` machine (VISIBLE / HIDING / HIDDEN) with a single
+`resetAutoHideTimer()` job (cancel + fresh 3,000 ms); overlay fades are 200/250 ms;
+top bar gains track + speed actions, the center play/pause morphs, and the bottom bar
+shows a quality badge. Verified `:app:compileDebugKotlin` ✓,
+`:app:testDebugUnitTest --rerun-tasks` ✓ **216/216** (+7 `Phase35PlayerControlsTest`).
+Not pushed; no APK rebuilt this session. Device pass still needed (tap toggle feel,
+hold-to-2X, auto-hide timing on hardware).
 
 Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **v1.7.0 released** — bundles the source expansion (§2aq: 7 new built-in
+sources) and the player controls auto-hide fix (§2ap). `versionCode` 15 / `versionName`
+1.7.0, signed APK built (`dist/NexusStream.apk`, 43,708,575 bytes), source tagged +
+pushed, website at v1.7.0 / 209 tests, and the **GitHub Release is published with
+`NexusStream.apk` + `app-release.apk` attached**, so the in-app updater and the site
+CTA serve v1.7.0.
 
 Previous focus: **Source expansion (§2aq)** — 7 new built-in sources (Rule34Video, AnimeIdHentai,
 Eporner, Beeg, JavGuru, SupJav, VJAV) following the existing `data/hentai/` + `data/adult/`
@@ -702,6 +723,69 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
 
 ---
+
+## 2ar. Phase 35 — Video Player UI Overhaul & Touch Controller Re-architecture (2026-10-14)
+
+**Topic:** the player control overlay's taps intermittently failed to reveal/hide the
+controls (state sync issue between fragmented touch listeners). Clean top-to-bottom
+overhaul of `PlayerActivity.kt`'s UI controller and gesture architecture.
+
+Status: **implemented and verified (statically + unit).** No device/`adb` in this environment,
+so tap feel, hold-to-2X timing and the 3 s fade are reasoned from composition structure;
+every touched path compiles + all unit tests pass. Files and verification at the end.
+
+### 1. Unified touch & gesture architecture
+- **Root cause:** single-tap/double-tap lived in one `detectTapGestures` detector while
+  hold-for-2X lived in a *second* `detectTapGestures(onPress)` detector on the same
+  surface — both raced for the same down event, so taps intermittently never toggled.
+- **Fix:** all three share **one** `detectTapGestures(onTap + onDoubleTap + onPress)`
+  interceptor (Phase 35 unified tap interceptor), so arbitration is deterministic.
+- **Deterministic single-tap** via the pure `playerTapAction()` policy: visible → hide
+  now + cancel the timer; hidden → reveal + fresh 3,000 ms countdown; locked → ignored
+  (only the lock toggle acts).
+- **Preserved:** double-tap L/R seek ∓`doubleTapMs` with ripple + haptic; hold ≥
+  `HOLD_TO_BOOST_MS` boosts to 2.0x with the top-center `"2X Speed ▶▶"` pill, restoring
+  the saved speed on release; drag scrubbing shows HUD tooltips and pauses auto-hide
+  while `scrubbing` (pinch-to-zoom and the drag zones are untouched).
+
+### 2. State-driven auto-hide engine
+- **New pure `ui/player/PlayerControls.kt`** (repo pattern: pure helper + unit test):
+  `PlayerControlsState` (VISIBLE / HIDING / HIDDEN), `PLAYER_CONTROLS_HIDE_MS` 3000L,
+  `shouldAutoHideControls()` (playing + ready + no sheet + unlocked + not scrubbing +
+  no error), `playerTapAction()` and `forcedControlsState()` (locked → HIDDEN;
+  paused / buffering / error / sheet / scrubbing → VISIBLE; active playback → null,
+  timer owns it).
+- **Single timer:** `autoHideJob` is the only countdown — `resetAutoHideTimer()`
+  cancels any pending job and launches a new 3,000 ms delay; `hideControlsNow()`
+  cancels and hides. Every interaction (tap, seek, slider, speed/boost/normalize,
+  track selection, 2X release, unlock) funnels through it (`pokeControls()` is kept
+  as an alias so existing call sites behave identically).
+- The `LaunchedEffect` now only enforces forced states and (re)arms the timer when
+  eligibility changes — it no longer owns its own `delay()`.
+
+### 3. Modernized overlay & animations
+- Fades `fadeIn(tween(300))/fadeOut(tween(300))` → **`fadeIn(tween(200))` /
+  `fadeOut(tween(250))`** — no abrupt pops.
+- **Top bar:** adds Subtitle/Audio track + Speed actions next to Back / title /
+  external / Cast / PiP / rotate / sleep / lock.
+- **Center:** play/pause icon morphs through `AnimatedContent` (`playPauseMorph`);
+  ±10 s buttons + double-tap ripple unchanged.
+- **Bottom bar:** position / duration + scrubber now carry a **quality badge**
+  (`StreamSource.quality`, new `qualityLabel` param, hidden when blank).
+
+### Files
+`ui/player/PlayerControls.kt` (new state machine + policy),
+`ui/player/PlayerActivity.kt` (unified interceptor, engine, overlay),
+`app/src/test/.../Phase35PlayerControlsTest.kt` (+7).
+
+### Verification (2026-10-14)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings;
+  two in-session fixes: duplicate `qualityLabel` param, local `val … get()` → plain derived val).
+- `:app:testDebugUnitTest --rerun-tasks` → **216/216 tests, 0 failures, 0 errors** (+7 new;
+  hide ceiling, auto-hide eligibility, tap determinism, locked ignore, forced states).
+- Not pushed; no APK rebuilt this session. Device pass still needed: tap show/hide feel,
+  double-tap seek + ripple, hold-to-2X boost + pill, 3 s fade during playback, timer reset
+  on scrub/speed change, stay-visible when paused/buffering/sheet, lock toggle isolation.
 
 ## 2aq. Source expansion — 7 new built-in sources (2026-10-14)
 
@@ -3982,6 +4066,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-14 | **Player controls auto-hide fix (§2ap):** `CONTROLS_HIDE_MS` 3 s auto-hide while playing, tap-to-toggle, `pokeControls()` reset on gesture/slider/speed/boost, keep-visible when paused/buffering/sheet-open, 300 ms alpha fade (`fadeIn(tween(300))/fadeOut(tween(300))`). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **199/199 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-14 | **Source expansion (§2aq):** 7 new built-in sources — NSFW Anime `Rule34VideoSource` (`/search/` → `/video/` cards) + `AnimeIdHentaiSource` (`/?s=` → `/search/` → www-mirror); general `EpornerSource` (public JSON API v2 + `/cats/`/static categories + `TubeMedia` streams) + `BeegSource` (v6 API index/search/file-map streams + HTML fallback); JAV `JavGuruSource` (jav.guru WP), `SupJavSource` (maker/tag-aware), `VjavSource` (confirmed `/videos/` + `/search/1/?s=` layout). Registries 10 → 15 adult / 7 → 9 hentai; isolation/progressive loading inherited. Added `ExpandedSourcesTest` (10 cases → **209 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **209/209 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-14 | **v1.7.0 released:** bundles §2aq (7 new built-in sources) + §2ap (player controls auto-hide) — `versionCode` 15 / `versionName` 1.7.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **209/209**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/app-release.apk` (43,708,575 bytes, SHA-256 `16A7DB34…05F063`; `output-metadata.json` verified); tagged `v1.7.0`; website CTA/hero → v1.7.0, stats → 209 (`next build` ✅, 174 kB first-load). **GitHub Release `NexusStream v1.7.0` published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.7.0. |
+| 2026-10-14 | **Phase 35 — Video Player UI Overhaul & Touch Controller Re-architecture (§2ar):** unified tap/double-tap/hold into one `detectTapGestures` interceptor (two detectors raced for the same down event, breaking tap toggles); new pure `ui/player/PlayerControls.kt` state machine (`PlayerControlsState` VISIBLE/HIDING/HIDDEN, `PLAYER_CONTROLS_HIDE_MS` 3000L, `shouldAutoHideControls`/`playerTapAction`/`forcedControlsState`); single `autoHideJob` via `resetAutoHideTimer()` (cancel + fresh countdown, `pokeControls()` kept as alias); fades → 200/250 ms; top-bar track + speed actions; `AnimatedContent` play/pause morph; bottom quality badge (`StreamSource.quality` → `qualityLabel`). Added `Phase35PlayerControlsTest` (7 cases → **216 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **216/216 / 0 failures** ✅. Not pushed, no APK. |
 
 ---
 
@@ -4290,6 +4375,16 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
     order** right below it must keep working. If it *does* still crash, capture the logcat stack
     (`adb logcat -b crash`) — the fix is data-level, so a remaining crash would be a different
     exception and the stack is the fastest way to identify it.
+
+32. **Re-test Phase 35 on a device** (see §2ar) — static + unit-verified only, so
+    hardware is the confirmation: **Single-tap** toggles deterministically (visible →
+    hides immediately, hidden → reveals + fresh 3 s countdown); **double-tap** L/R
+    seeks ∓ interval with ripple; **hold** boosts to 2X with the pill and restores on
+    release (short taps never boost); controls **fade** (200/250 ms) after 3 s of
+    playing, stay visible when paused/buffering/sheet-open/scrubbing, and hide to the
+    lock toggle only when locked; top-bar track/speed icons open their sheets; the
+    bottom **quality badge** shows the stream quality (hidden when the source reports
+    none); every interaction (seek, slider, speed, boost) restarts the countdown.
 
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.

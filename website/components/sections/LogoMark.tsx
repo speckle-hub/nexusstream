@@ -1,22 +1,30 @@
-export function LogoMark({ className }: { className?: string }) {
+/**
+ * Wordmark: a single flat block, no gradient and no glow. The page stays
+ * monochrome so the product carries all the colour.
+ *
+ * `variant="onInk"` flips the plate for dark surfaces.
+ */
+export function LogoMark({
+  className,
+  variant = "onPaper",
+}: {
+  className?: string;
+  variant?: "onPaper" | "onInk";
+}) {
+  const plate = variant === "onPaper" ? "#0C0C0E" : "#F2F1EC";
+  const glyph = variant === "onPaper" ? "#F2F1EC" : "#0C0C0E";
+
   return (
     <svg viewBox="0 0 48 48" fill="none" className={className} aria-hidden>
-      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#lg-bg)" />
+      <rect x="0" y="0" width="48" height="48" rx="12" fill={plate} />
       <path
-        d="M16 33V15l9 10.5L34 15v18"
-        stroke="white"
-        strokeWidth="3.4"
+        d="M15 34V14l9.5 11.5L34 14v20"
+        stroke={glyph}
+        strokeWidth="3.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="34" cy="33" r="2.6" fill="white" opacity="0.9" />
-      <defs>
-        <linearGradient id="lg-bg" x1="2" y1="2" x2="46" y2="46">
-          <stop stopColor="#8F74FF" />
-          <stop offset="0.55" stopColor="#7C5CFF" />
-          <stop offset="1" stopColor="#4F8DFF" />
-        </linearGradient>
-      </defs>
+      <circle cx="34" cy="34" r="2.8" fill="#D8452A" />
     </svg>
   );
 }
