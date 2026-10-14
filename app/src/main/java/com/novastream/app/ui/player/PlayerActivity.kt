@@ -1113,6 +1113,9 @@ private const val CUE_HISTORY_LIMIT = 200
 /** Phase 34: press-and-hold duration before the player boosts to 2X speed. */
 private const val HOLD_TO_BOOST_MS = 400L
 
+/** Controls overlay auto-hide: hide after 3 s of inactivity during active playback. */
+private const val CONTROLS_HIDE_MS = 3000L
+
 private enum class GestureMode { BRIGHTNESS, VOLUME, SEEK }
 
 /**
@@ -1255,6 +1258,17 @@ private fun PlayerScreen(
     val scope = rememberCoroutineScope()
     var hudHideJob by remember { mutableStateOf<Job?>(null) }
 
+    // ---- Controls auto-hide (3 s of inactivity while playing) -----------------
+    // Regression fix: the overlay stayed on screen forever. While playing (and
+    // ready, unlocked, no sheet open, not scrubbing) the controls fade out after
+    // CONTROLS_HIDE_MS. Paused / buffering / sheet-open forces them visible.
+    var isBuffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
+    var controlsPoke by remember { mutableIntStateOf(0) }
+    fun pokeControls() {
+        if (!locked) controlsVisible = true
+        controlsPoke++
+    }
+
     fun showHud(mode: GestureMode, level: Float) {
         hudHideJob?.cancel()
         hudMode = mode
@@ -1276,6 +1290,7 @@ private fun PlayerScreen(
                 duration = player.duration.coerceAtLeast(0)
             }
             isPlaying = player.isPlaying
+            isBuffering = player.playbackState == Player.STATE_BUFFERING
             // Buffer state for the Stats overlay.
             bufferMs = player.totalBufferedDuration.coerceAtLeast(0)
             bufferedPct = player.bufferedPercentage
@@ -1293,6 +1308,9 @@ private fun PlayerScreen(
                     position = player.currentPosition.coerceAtLeast(0)
                     duration = player.duration.coerceAtLeast(0)
                 }
+            }
+            override fun onPlaybackStateChanged(state: Int) {
+                isBuffering = state == Player.STATE_BUFFERING
             }
             // Record the caption timeline so the sync overlay can shift it in time.
             override fun onCues(cueGroup: CueGroup) {
@@ -1322,6 +1340,25 @@ private fun PlayerScreen(
         }
         player.addAnalyticsListener(analytics)
         onDispose { player.removeAnalyticsListener(analytics) }
+    }
+
+    val sheetOpen = showTracks || showEpisodes || showSpeedAudio || showExternal || showSleep
+    // Auto-hide: while playing + ready + unlocked + no sheet + not scrubbing, fade the
+    // controls out after CONTROLS_HIDE_MS. Any poke (tap/gesture/slider/speed change)
+    // restarts this effect via controlsPoke/controlsVisible. Paused/buffering/sheet
+    // forces visible; locked forces hidden.
+    LaunchedEffect(isPlaying, isBuffering, sheetOpen, locked, scrubbing, controlsVisible, controlsPoke) {
+        if (locked) {
+            controlsVisible = false
+            return@LaunchedEffect
+        }
+        if (sheetOpen || scrubbing || !isPlaying || isBuffering) {
+            controlsVisible = true
+            return@LaunchedEffect
+        }
+        if (!controlsVisible) return@LaunchedEffect
+        delay(CONTROLS_HIDE_MS)
+        controlsVisible = false
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -1401,6 +1438,7 @@ private fun PlayerScreen(
                                 }
                                 // Seed the HUD with the current level (a zero-delta call is a read).
                                 showHud(mode, onGestures(mode, 0f))
+                                pokeControls()
                                 return@detectDragGestures
                             }
                             val level = when (mode) {
@@ -1410,9 +1448,10 @@ private fun PlayerScreen(
                                 GestureMode.SEEK -> onGestures(GestureMode.SEEK, drag.x)
                             }
                             showHud(mode, level)
+                            pokeControls()
                         },
-                        onDragEnd = { onGestureEnd(); scheduleHudHide() },
-                        onDragCancel = { onGestureEnd(); scheduleHudHide() },
+                        onDragEnd = { onGestureEnd(); scheduleHudHide(); pokeControls() },
+                        onDragCancel = { onGestureEnd(); scheduleHudHide(); pokeControls() },
                     )
                 }
                 // Double-tap left/right = rewind/forward by the configured interval, single tap toggles UI.
@@ -1428,8 +1467,12 @@ private fun PlayerScreen(
                             rippleDir = if (forward) 1 else -1
                             ripplePulse++
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            pokeControls()
                         },
-                        onTap = { controlsVisible = !controlsVisible },
+                        onTap = {
+                            if (controlsVisible) controlsVisible = false
+                            else pokeControls()
+                        },
                     )
                 }
                 // Phase 34: hold-for-2X — press and hold to temporarily boost to 2.0x, release
@@ -1456,6 +1499,7 @@ private fun PlayerScreen(
                                 if (isBoosting) {
                                     runCatching { player.setPlaybackSpeed(boostRestoreSpeed.coerceIn(0.5f, 2f)) }
                                     isBoosting = false
+                                    pokeControls()
                                 }
                             }
                         },
@@ -1479,7 +1523,11 @@ private fun PlayerScreen(
             playerView?.let { applySubtitleStyle(it, subtitleStyle) }
         }
 
-        AnimatedVisibility(visible = controlsVisible && !locked, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(
+            visible = controlsVisible && !locked,
+            enter = fadeIn(tween(300)),
+            exit = fadeOut(tween(300)),
+        ) {
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
@@ -1551,10 +1599,11 @@ private fun PlayerScreen(
                         val target = (player.currentPosition - 10_000).coerceAtLeast(0)
                         player.seekTo(target); position = target
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        pokeControls()
                     }) {
                         Icon(Icons.Filled.Replay10, "Back 10", tint = Color.White, modifier = Modifier.size(40.dp))
                     }
-                    IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }, modifier = Modifier.size(72.dp)) {
+                    IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); pokeControls() }, modifier = Modifier.size(72.dp)) {
                         Icon(
                             if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             "Play/Pause", tint = Color.White, modifier = Modifier.size(64.dp),
@@ -1564,6 +1613,7 @@ private fun PlayerScreen(
                         val target = player.currentPosition + 10_000
                         player.seekTo(target); position = target
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        pokeControls()
                     }) {
                         Icon(Icons.Filled.Forward10, "Forward 10", tint = Color.White, modifier = Modifier.size(40.dp))
                     }
@@ -1583,6 +1633,7 @@ private fun PlayerScreen(
                             // Dragging only moves the thumb — no seek spam per pixel moved.
                             onValueChange = {
                                 scrubValue = it; scrubbing = true
+                                pokeControls()
                                 if (dur > 0) {
                                     val sec = (it * dur / 1000L).toInt()
                                     if (sec != lastScrubHapticSec) {
@@ -1597,6 +1648,7 @@ private fun PlayerScreen(
                                 position = if (dur > 0) (scrubValue * dur).toLong() else 0
                                 scrubbing = false
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                pokeControls()
                             },
                             modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                         )
@@ -1766,10 +1818,10 @@ private fun PlayerScreen(
                 speed = speed,
                 boost = boost,
                 normalize = normalize,
-                onSpeed = { speed = it; onSpeedChange(it) },
-                onBoost = { boost = it; onAudioBoost(it) },
-                onNormalize = { normalize = it; onAudioNormalize(it) },
-                onDismiss = { showSpeedAudio = false },
+                onSpeed = { speed = it; onSpeedChange(it); pokeControls() },
+                onBoost = { boost = it; onAudioBoost(it); pokeControls() },
+                onNormalize = { normalize = it; onAudioNormalize(it); pokeControls() },
+                onDismiss = { showSpeedAudio = false; pokeControls() },
             )
         }
         if (showExternal) {

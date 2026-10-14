@@ -24,8 +24,8 @@ android {
         applicationId = "com.novastream.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 13
-        versionName = "1.6.2"
+        versionCode = 15
+        versionName = "1.7.0"
         vectorDrawables { useSupportLibrary = true }
         // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
         val localProps = Properties().apply {

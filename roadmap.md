@@ -1,7 +1,27 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-13 — **v1.6.2 released.** Bundles
+> resume exactly where it left off. Last updated: 2026-10-14 — **v1.7.0 released.** Bundles
+> the source expansion (§2aq: Rule34Video, AnimeIdHentai, Eporner, Beeg, JavGuru, SupJav, VJAV)
+> and the player controls auto-hide fix (§2ap). `versionCode` 15 / `versionName` 1.7.0; signed
+> release built → `dist/NexusStream.apk` (43,708,575 bytes, SHA-256 `16A7DB34…05F063`;
+> `versionCode` 15 / `versionName` 1.7.0 verified in `output-metadata.json`); committed and
+> pushed (`main` + tag `v1.7.0`). Website CTA/hero/stats bumped to v1.7.0 / 209 tests
+> (`next build` ✓, pushed with the release commit; Vercel auto-redeploys). The **`v1.7.0`
+> GitHub Release is published with `NexusStream.apk` + `app-release.apk` attached**, so the
+> in-app update dialog and the site CTA now serve v1.7.0.
+> Previous session, Last updated: 2026-10-14 — **Source expansion (§2aq):
+> 7 new built-in sources** — NSFW Anime: Rule34Video + AnimeIdHentai; Real 18+ general:
+> Eporner (public API) + Beeg (v6 API + HTML fallback); JAV: JavGuru (jav.guru) + SupJav +
+> VJAV (confirmed layout). Verified `:app:compileDebugKotlin` ✓,
+> `:app:testDebugUnitTest --rerun-tasks` ✓ **209/209** (+10 `ExpandedSourcesTest`). Not
+> pushed; no APK rebuilt this session.
+> Previous session, Last updated: 2026-10-14 — **Player controls auto-hide
+> fix (§2ap).** `PlayerActivity.kt`: 3 s auto-hide during playing, tap-to-toggle, poke-reset
+> on gesture/slider/speed/boost, keep-visible when paused/buffering/sheet-open, 300 ms
+> alpha fade. Verified `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓
+> **199/199**. Not pushed; no APK rebuilt this session.
+> Previous session, Last updated: 2026-10-13 — **v1.6.2 released.** Bundles
 > Phase 34 (§2an: Stremio add-on fixes, hold-to-2X gesture, skip-intro/outro removal).
 > `versionCode` 13 / `versionName` 1.6.2; signed release built →
 > `dist/NexusStream.apk` (43,692,191 bytes, SHA-256 `EFBC369E…63B7`; `versionCode` 13 /
@@ -285,10 +305,10 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~24,800 LOC across 118 Kotlin source files in a single `:app` module (+25 test files). Unit tests
-(199 cases):
+~24,800 LOC across 125 Kotlin source files in a single `:app` module (+26 test files). Unit tests
+(209 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
-`HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
+`HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
 `TitleMatchTest.kt` (7, NSFW title matching — §2s), `NsfwIsolationTest.kt` (7, adult isolation — §2ah),
 `SleepTimerTest.kt` (7, sleep-timer mapping — §2ai), `TrackerOAuthTest.kt` (10, OAuth/PKCE — §2aj),
@@ -303,7 +323,28 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: v1.6.2 released** — bundles Phase 34 (§2an: Stremio add-on stream/toggle fixes,
+**Topic: v1.7.0 released** — bundles the source expansion (§2aq: 7 new built-in sources)
+and the player controls auto-hide fix (§2ap). `versionCode` 15 / `versionName` 1.7.0, signed
+APK built (`dist/NexusStream.apk`, 43,708,575 bytes), source tagged + pushed, website at
+v1.7.0 / 209 tests, and the **GitHub Release is published with `NexusStream.apk` +
+`app-release.apk` attached**, so the in-app updater and the site CTA serve v1.7.0.
+
+Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **Source expansion (§2aq)** — 7 new built-in sources (Rule34Video, AnimeIdHentai,
+Eporner, Beeg, JavGuru, SupJav, VJAV) following the existing `data/hentai/` + `data/adult/`
+modular pattern. Verified `:app:compileDebugKotlin` ✓,
+`:app:testDebugUnitTest --rerun-tasks` ✓ **209/209** (+10 `ExpandedSourcesTest`). Not pushed;
+no APK rebuilt. Device pass still needed (reachability + playback per new site).
+
+Previous focus: **Player controls auto-hide fix (§2ap)** — regression where the player overlay stayed
+visible during playback. `PlayerActivity.kt`: `CONTROLS_HIDE_MS` 3 s auto-hide while
+`isPlaying`, tap-to-toggle, `pokeControls()` reset on drag/double-tap/slider/seek/speed/boost,
+keep-visible when paused/buffering/sheet-open, locked forces hidden, 300 ms alpha fade.
+Verified `:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **199/199**.
+Not pushed; no APK rebuilt.
+
+Previous focus: **v1.6.2 released** — bundles Phase 34 (§2an: Stremio add-on stream/toggle fixes,
 hold-for-2X gesture, Skip Intro/Outro removal). `versionCode` 13 / `versionName` 1.6.2,
 signed APK built, source tagged + pushed, website at v1.6.2, and the **GitHub Release is
 published with `NexusStream.apk` + `app-release.apk` attached** (verified asset sizes match
@@ -661,6 +702,103 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
 
 ---
+
+## 2aq. Source expansion — 7 new built-in sources (2026-10-14)
+
+**Topic:** broaden built-in NSFW Anime + Real 18+ coverage with high-priority sites, following
+the established modular pattern (`HentaiSource` / `AdultSource` + registry + per-source error
+isolation, so one dead site never breaks its tab).
+
+Status: **implemented and verified (statically + unit).** No device/`adb` in this environment,
+so live reachability + ExoPlayer playback per new site still need the device pass below. Every
+parser is pinned by fixture tests (no network). Files and verification at the end.
+
+### 1. NSFW Anime (+2 — search + streams; AniList/Jikan metadata untouched)
+- **Rule34Video** (`rule34video`, `Rule34VideoSource.kt`) — tube archive of rule34/parody
+  animation: search `/search/{query}/` (confirmed pattern), video pages `/video/{id}/{slug}/`;
+  shared `HentaiTubes.parseCards` (`/video/` filter) + `resolvedStreams` (page → iframe →
+  nested frame).
+- **AnimeIdHentai** (`animeidhentai`, `AnimeIdHentaiSource.kt`) — WordPress-style index:
+  search `/?s=` → `/search/{query}/` → `www.` mirror fallback; generic `parseCards` with the
+  site-chrome filter; `resolvedStreams` for playback.
+
+### 2. Real 18+ general (+2 — full `AdultSource`: home/search/categories/detail)
+- **Eporner** (`eporner`, `EpornerSource.kt`) — public JSON API v2 for listings/search
+  (`order` = latest / top-week / top-month; entries carry page URL + thumb + duration);
+  `/cats/` parse with a curated 12-category fallback; streams from the video page via
+  `TubeMedia`.
+- **Beeg** (`beeg`, `BeegSource.kt`) — v6 JSON API for index/search (`videos[]` + `file`
+  quality→URL map, highest-first, page-`Referer` headers) with HTML cards as fallback;
+  per-video endpoint for streams, `TubeMedia` on the page as fallback.
+
+### 3. Real 18+ JAV (+3 — full `AdultSource`)
+- **JavGuru** (`javguru`, `JavGuruSource.kt`, base `jav.guru`) — WordPress tube: front page +
+  `/category/english-subbed/` + `/category/decensored/` rows, `/?s=` search, taxonomy-aware
+  `parseList`, live-or-static categories, `TubeMedia` streams.
+- **SupJav** (`supjav`, `SupJavSource.kt`) — catalogue with `/search/` + `/?s=` fallbacks and
+  maker/tag/category-aware `parseList` (maker/director/tag/category/page excluded).
+- **VJAV** (`vjav`, `VjavSource.kt`, confirmed layout) — `/videos/latest-updates/1/` +
+  `/videos/most-popular/1/` + `/videos/top-rated/1/` rows, `/search/1/?s=` search,
+  `/video…` card parser with listing-chrome exclusion.
+
+### Kept guarantees
+- Progressive loading + per-source error isolation unchanged: the repositories iterate the
+  registries, so new sources inherit timeouts, quarantine, caches and notices automatically.
+- NSFW Anime discovery stays AniList-led (built-ins resolve episodes/streams only).
+
+### Files
+`data/hentai/Rule34VideoSource.kt`, `data/hentai/AnimeIdHentaiSource.kt`,
+`data/hentai/HentaiSources.kt` (registry 7 → 9), `data/adult/EpornerSource.kt`,
+`data/adult/BeegSource.kt`, `data/adult/JavGuruSource.kt`, `data/adult/SupJavSource.kt`,
+`data/adult/VjavSource.kt`, `data/adult/AdultSources.kt` (registry 10 → 15),
+`app/src/test/.../ExpandedSourcesTest.kt` (+10),
+`AdultSourcesExtraTest.kt` + `HentaiSourcesExtraTest.kt` (registry guards extended).
+
+### Verification (2026-10-14)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings;
+  one in-session fix: a shadowing local `id` in `BeegSource.detail` renamed to `videoId`).
+- `:app:testDebugUnitTest --rerun-tasks` → **209/209 tests, 0 failures, 0 errors** (+10 new;
+  listing/API/stream-shape fixtures per source + expanded registry uniqueness guards).
+- Not pushed; no APK rebuilt this session. Device pass still needed: per-site home rows,
+  search relevance, detail + real playback (especially Beeg file-map URLs, Eporner API
+  reachability, VJAV/supjav markup drift, and the javguru.com webcam-clone vs jav.guru
+  distinction).
+
+## 2ap. Player controls auto-hide & fade timeout (2026-10-14)
+
+**Topic:** regression — video player controls overlay stayed permanently visible during
+playback instead of auto-hiding.
+
+Status: **implemented and verified (statically + unit).** No device/`adb` in this environment,
+so the 3 s fade is reasoned from composition structure; every touched path compiles + all
+unit tests pass. Files and verification at the end.
+
+### 1. Auto-hide timer (`ui/player/PlayerActivity.kt`)
+- New `CONTROLS_HIDE_MS = 3000L` + `isBuffering` (ticker + `onPlaybackStateChanged`) +
+  `controlsPoke` counter + `pokeControls()` (show + bump poke to restart the timer).
+- New `LaunchedEffect(isPlaying, isBuffering, sheetOpen, locked, scrubbing,
+  controlsVisible, controlsPoke)`: locked forces hidden; sheet-open / scrubbing /
+  paused / buffering forces visible; otherwise while playing + ready it `delay(3 s)` then
+  hides. Hidden stays hidden until tap (no auto-show).
+- **Tap-to-toggle:** single tap hides immediately when visible, `pokeControls()` when hidden.
+- **Reset on interaction:** drag (brightness/volume/seek) + drag-end/cancel, double-tap seek,
+  ±10 s buttons, play/pause, slider drag + release, speed/boost/normalize change, 2X-boost
+  release all call `pokeControls()`.
+- **Keep-visible guards:** `sheetOpen = showTracks || showEpisodes || showSpeedAudio ||
+  showExternal || showSleep` — any open sheet pins controls visible.
+
+### 2. Smooth fade
+- Controls `AnimatedVisibility` `fadeIn()/fadeOut()` → `fadeIn(tween(300))` /
+  `fadeOut(tween(300))` — 300 ms alpha instead of a snap.
+
+### Files
+`ui/player/PlayerActivity.kt` (auto-hide effect, poke wiring, fade durations).
+
+### Verification (2026-10-14)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings).
+- `:app:testDebugUnitTest --rerun-tasks` → **199/199 tests, 0 failures, 0 errors**.
+- Not pushed; no APK rebuilt this session. Device pass still needed: 3 s fade during playback,
+  tap show/hide, timer reset on scrub/speed change, stay-visible when paused/buffering/sheet.
 
 ## 2ao. Website full rebuild — skill-backed motion system (2026-10-13)
 
@@ -3841,6 +3979,9 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-12 | **v1.5.1 released:** P0 Play-crash hotfix (§2ak) shipped — `versionCode` 10 / `versionName` 1.5.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **171/171**, `:app:assembleRelease` ✅ (signed) → `dist/NovaStream.apk` (40,140,687 bytes, SHA-256 `A58E3D2B…7E1151`; `PlayerStartup` verified in the release dex); tagged `v1.5.1` and pushed; **GitHub Release `NexusStream v1.5.1` published with `app-release.apk` attached** so `releases/latest/download/app-release.apk` now serves v1.5.1. Website CTA/hero bumped to v1.5.1 (`next build` ✅, pushed; Vercel auto-redeploys). |
 | 2026-10-13 | **v1.6.1 released:** bundles Phase 32 (§2am) on the v1.6.0 CloudStream runtime — `versionCode` 12 / `versionName` 1.6.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **189/189**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/NovaStream.apk` + `dist/app-release.apk` (43,675,807 bytes, SHA-256 `A64EC17F…51C3A`; `output-metadata.json` verified); tagged `v1.6.1`; website CTA/hero → v1.6.1 (`next build` ✅, 216 kB first-load). **GitHub Release `NexusStream v1.6.1` published with `NexusStream.apk` + `app-release.apk` attached** (43,675,807 bytes each, digest `sha256:a64ec17f…51c3a`; verified `releases/latest` → v1.6.1), so the in-app updater + site CTA serve v1.6.1. |
 | 2026-10-13 | **Phase 32 — Stream Scraper Performance & Real 18+ Speed Optimization (§2am):** new `ScraperRace.kt` policy (5 s provider/subtitle/detail ceilings, `isPlayableCandidate`, cancellation-safe `raceResult`, `MirrorHealth` quarantine, `PageCache`); `StreamRepository` 12 s → 5 s with completion-order progressive `onPartial` + concurrent MOVIE race; `DetailViewModel.loadStreams` paints the first partial; `AdultRepository` home/search fixed from registry-order awaits to completion-order `launch` + 5 s caps + quarantine; `AdultHttp.getList` page-cache + fast fetch, bounded `verifyPlayable`; `Http` pool/dispatcher tuning + `listClient`/`httpGetList`; `CatalogRepository` bounded `safeRow` + parallel rows/search phases (caps → 5 s); `HentaiRepository` stream cap → 5 s. Added `ScraperRaceTest` (13 cases → **189 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **189/189 / 0 failures** ✅. Not pushed, no APK. |
+| 2026-10-14 | **Player controls auto-hide fix (§2ap):** `CONTROLS_HIDE_MS` 3 s auto-hide while playing, tap-to-toggle, `pokeControls()` reset on gesture/slider/speed/boost, keep-visible when paused/buffering/sheet-open, 300 ms alpha fade (`fadeIn(tween(300))/fadeOut(tween(300))`). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **199/199 / 0 failures** ✅. Not pushed, no APK. |
+| 2026-10-14 | **Source expansion (§2aq):** 7 new built-in sources — NSFW Anime `Rule34VideoSource` (`/search/` → `/video/` cards) + `AnimeIdHentaiSource` (`/?s=` → `/search/` → www-mirror); general `EpornerSource` (public JSON API v2 + `/cats/`/static categories + `TubeMedia` streams) + `BeegSource` (v6 API index/search/file-map streams + HTML fallback); JAV `JavGuruSource` (jav.guru WP), `SupJavSource` (maker/tag-aware), `VjavSource` (confirmed `/videos/` + `/search/1/?s=` layout). Registries 10 → 15 adult / 7 → 9 hentai; isolation/progressive loading inherited. Added `ExpandedSourcesTest` (10 cases → **209 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **209/209 / 0 failures** ✅. Not pushed, no APK. |
+| 2026-10-14 | **v1.7.0 released:** bundles §2aq (7 new built-in sources) + §2ap (player controls auto-hide) — `versionCode` 15 / `versionName` 1.7.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **209/209**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/app-release.apk` (43,708,575 bytes, SHA-256 `16A7DB34…05F063`; `output-metadata.json` verified); tagged `v1.7.0`; website CTA/hero → v1.7.0, stats → 209 (`next build` ✅, 174 kB first-load). **GitHub Release `NexusStream v1.7.0` published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.7.0. |
 
 ---
 
@@ -4201,7 +4342,8 @@ data/adult/
   AdultModels.kt      AdultVideo / AdultRow / AdultCategory / AdultDetail / AdultSourceException
   AdultSource.kt      interface + adultRows()/adultCategoryRows()/adultHome() + parse helpers
                       (adultAbsoluteUrl, adultPlayHeaders, ogContent, adultCollapse)
-  AdultSources.kt     registry: 10 sources (5 original + xHamster/YouPorn/RedTube + 2 JAV; HPJAV/Avgle retired — §2w)
+  AdultSources.kt     registry: 15 sources (8 general + 7 JAV; HPJAV/Avgle retired — §2w;
+                      + Eporner/Beeg + JavGuru/SupJav/VJAV — §2aq)
   AdultHttp.kt        browser-like headers; 403/503/challenge -> typed AdultSourceException;
                       probe()/verifyPlayable() pre-flight media URLs with the player's headers
   TubeMedia.kt        shared media extractor: absolute/protocol-relative/escaped MP4+HLS, quality
@@ -4216,6 +4358,15 @@ data/adult/
   RedTubeSource.kt    /best, /newest, search; media_definitions API + page fallback
   MissavSource.kt     JAV: /en/new|release|trending|today, search, genres; surrit .m3u8
   JableSource.kt      JAV: /latest-updates, /hot, /new, search, tags; var hlsUrl / <source>
+  EpornerSource.kt    general tube via public JSON API v2 (latest/top-week/top-month, search,
+                      /cats/ + static fallback); streams via TubeMedia (§2aq)
+  BeegSource.kt       general tube via v6 JSON API (index/search/video file-map) + HTML
+                      fallback (§2aq)
+  JavGuruSource.kt    JAV WordPress tube (jav.guru: front page, english-subbed/decensored
+                      archives, ?s= search) (§2aq)
+  SupJavSource.kt     JAV catalogue (/search + ?s= fallbacks, maker/tag-aware list) (§2aq)
+  VjavSource.kt       JAV tube (vjav.com: /videos/latest-updates|most-popular|top-rated,
+                      /search/1/?s=) (§2aq)
   HpjavSource.kt      JAV WordPress: /lastest-updates, /popular, ?s= search; JW Player file: (retired — §2w, hpjav.tv DNS-dead)
   AvgleSource.kt      JAV JSON API: /videos, /search, /categories, /video/{vid} -> video_url (retired — §2w, api down 520)
   AdultRepository.kt  aggregates all sources in parallel; collects per-source errors
@@ -4248,6 +4399,11 @@ data/adult/
 | RedTube | ⚠️ not probed live | ⚠️ | ⚠️ `media_definitions` API + page fallback |
 | MissAV | ⚠️ not probed live | ⚠️ | ⚠️ `surrit.com` `.m3u8`; packer may hide it |
 | Jable | ⚠️ not probed live | ⚠️ | ⚠️ `var hlsUrl` / `<source>` |
+| Eporner | ⚠️ not probed live (§2aq) | ⚠️ JSON API v2 | ⚠️ video page via `TubeMedia` |
+| Beeg | ⚠️ not probed live (§2aq) | ⚠️ v6 API + HTML fallback | ⚠️ `file`-map streams + `TubeMedia` fallback |
+| JavGuru | ⚠️ not probed live (§2aq) | ⚠️ `/?s=` + `/search/` | ⚠️ post page via `TubeMedia` |
+| SupJav | ⚠️ not probed live (§2aq) | ⚠️ `/search/` + `/?s=` | ⚠️ post page via `TubeMedia` |
+| VJAV | ⚠️ not probed live (§2aq) | ⚠️ `/search/1/?s=` | ⚠️ video page via `TubeMedia` |
 | HPJAV | **retired** (§2w — hpjav.tv DNS-dead) | — | — |
 | Avgle | **retired** (§2w — api.avgle.com 520) | — | — |
 
@@ -4262,6 +4418,10 @@ list ×2 + embed/iframe, `adultAbsoluteUrl`, duration/quality helpers).
 
 `app/src/test/java/com/novastream/app/AdultSourcesExtraTest.kt` (new, 11 tests) — parser coverage
 for the seven added sources plus `TubeMedia` and the registry (§2k).
+
+`app/src/test/java/com/novastream/app/ExpandedSourcesTest.kt` (new, 10 tests — §2aq) —
+fixture coverage for Eporner (API + listing), Beeg (API + file-map streams), JavGuru, SupJav,
+VJAV, Rule34Video and AnimeIdHentai, plus the expanded registry uniqueness guards.
 
 ### Known caveats / next
 - These sites are intermittently rate-limited / bot-blocked; some paths returned 000/404 from this
@@ -4293,7 +4453,8 @@ data/hentai/
   HentaiModels.kt       HentaiEpisode (series/title/url/episode/poster, toVideo(), videoId),
                         HentaiEpisodes / HentaiStreams (results + per-source errors)
   HentaiSource.kt       interface: search(query) -> episode-level entries, streams(episode)
-  HentaiSources.kt      registry: 7 sources (HentaiMama/HentaiPlay + 5 added in §2m; Hanime/Hentaigasm retired — §2w) + byId()/isBuiltIn()
+  HentaiSources.kt      registry: 9 sources (HentaiMama/HentaiPlay + 5 added in §2m + Rule34Video/
+                        AnimeIdHentai — §2aq; Hanime/Hentaigasm retired — §2w) + byId()/isBuiltIn()
   HentaiTubes.kt        shared helpers: media-URL extractor, qualityOf, page-referer stream builder,
                         WordPress card parser, isContentLink, one/two-hop embed resolver (§2m)
   HentaiMamaSource.kt   dooplay series pages + admin-ajax mirror resolution (see chain below)
@@ -4305,6 +4466,8 @@ data/hentai/
   MuchoHentaiSource.kt  WordPress ?s= search
   HentaiCitySource.kt   WordPress ?s= search
   HahoSource.kt         GET /anime?q= series search -> per-series /anime/{slug}/{n} episode expansion
+  Rule34VideoSource.kt  tube archive: /search/{q}/ -> /video/{id} cards (§2aq)
+  AnimeIdHentaiSource.kt WordPress index: /?s= -> /search/ -> www-mirror fallback (§2aq)
   HentaiRepository.kt   parallel search + query variants + series grouping + relevance ranking,
                         episode picking, per-source errors, 10-min TTL caches (48 entries), and
                         AdultHttp.verifyPlayable() pre-flight of every stream it returns
@@ -4334,6 +4497,8 @@ data/hentai/
 | Source | Search | Episodes | Streams |
 |---|---|---|---|
 | HentaiMama | ✅ `hentaimama.io`, mirror `www.hentaimama.com` | ✅ `dt-se-item` + `Watch Ep n` fallback | ✅ full chain → `206 video/mp4`, valid `ftyp` (Referer: site root) |
+| Rule34Video | ⚠️ not probed live (§2aq) | ⚠️ `/video/` cards | ⚠️ page/embed via `resolvedStreams` |
+| AnimeIdHentai | ⚠️ not probed live (§2aq) | ⚠️ WP post cards | ⚠️ page/embed via `resolvedStreams` |
 | HentaiPlay | ✅ (needs the punctuation-stripped query variant) | ✅ one episode per page | ✅ `206 video/mp4`, no Referer required |
 | Hanime | **retired** (§2w — search host DNS-dead) | — | — |
 | HentaiHaven | ⚠️ not probed live | ⚠️ post cards | ⚠️ page `<source>` / embed (≤2 hops) |
