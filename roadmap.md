@@ -1,7 +1,16 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-14 — **Phase 36: Premium UI/UX
+> resume exactly where it left off. Last updated: 2026-10-14 — **v1.8.0 released.** Bundles
+> Phase 36 (§2at: premium overhaul) on top of the §2as source expansion (13 new built-in
+> sources). `versionCode` 17 / `versionName` 1.8.0; signed release built →
+> `dist/NexusStream.apk` (43,741,343 bytes, SHA-256 `F98D6590…008C00`;
+> `versionCode` 17 / `versionName` 1.8.0 verified in `output-metadata.json`);
+> committed and pushed (`main` + tag `v1.8.0`). Website hero/footer bumped to v1.8.0,
+> stats to 237 (`next build` ✓, pushed; Vercel auto-redeploys). The **`v1.8.0` GitHub
+> Release is published with `NexusStream.apk` + `app-release.apk` attached**, so the
+> in-app update dialog and the site CTA now serve v1.8.0.
+> Previous session, Last updated: 2026-10-14 — **Phase 36: Premium UI/UX
 > Overhaul (§2at).** Hero Watchlist quick action, pill-nav haptics, Real 18+ source-filter
 > chips, subtitle outline color + 100 ms sync steps, next-episode pre-fetch at 2 min.
 > Verified `:app:compileDebugKotlin` ✓,
@@ -353,7 +362,16 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: Phase 36 — Premium UI/UX Overhaul (§2at).** Audit-first: the hero carousel,
+**Topic: v1.8.0 released** — bundles Phase 36 (§2at: premium overhaul) on top of the
+§2as source expansion (13 new built-in sources). `versionCode` 17 / `versionName`
+1.8.0, signed APK built (`dist/NexusStream.apk`, 43,741,343 bytes, SHA-256
+`F98D6590…008C00`), source tagged + pushed, website at v1.8.0 / 237 tests, and the
+**GitHub Release is published with `NexusStream.apk` + `app-release.apk` attached**,
+so the in-app updater and the site CTA serve v1.8.0.
+
+Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **Phase 36 — Premium UI/UX Overhaul (§2at).** Audit-first: the hero carousel,
 poster palette, floating pill nav, NSFW PIN/biometric vault, subtitle sheet + sync,
 PiP, stream ranking + badges all already existed — the genuine deltas are a hero
 Watchlist toggle, tab-switch haptics, Real 18+ source-filter chips, subtitle outline
@@ -4278,6 +4296,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-14 | **v1.7.1 released:** bundles Phase 35 (§2ar) — `versionCode` 16 / `versionName` 1.7.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **216/216**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/app-release.apk` (43,708,575 bytes, SHA-256 `CEE1669A…74027D`; `output-metadata.json` verified); tagged `v1.7.1`; website hero/footer → v1.7.1, stats → 216 (`next build` ✅, 153 kB first-load). **GitHub Release `NexusStream v1.7.1` published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.7.1. |
 | 2026-10-14 | **Source expansion (§2as):** 13 new built-in sources — NSFW Anime `HenVidsSource` (`/hentai/` cards) + `OhentaiSource` (`detail.php?vid=` + `tagsearch.php` search) + `HentaiTvSource` (`/api/search?q=` JSON, episode-level, nhplayer embeds) + `XAnimuSource` (confirmed `/?s=` + numeric-permalink filter); general `PornTrexSource` (KVS) + `SxyPrnSource` (aggregator, best-effort file-host streams) + `FullPornerSource` (`/watch/` hash) + `TxxxSource` (Aylo `media_definitions` mirror of YouPorn); JAV `JavMostSource` (WP) + `KissJavSource` (KVS `kissjav.li`) + `JavtifulSource` (`/video/{id}` codes) + `OpJavSource` (WP) + `SevenMmtvSource` (sx + tv-mirror fallback). Registries 15 → 24 adult / 9 → 13 hentai; isolation/progressive loading inherited. Added `MoreSourcesTest` (14 cases → **230 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **230/230 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-14 | **Phase 36 — Premium UI/UX Overhaul (§2at):** audit-first — hero carousel, poster palette, pill nav, NSFW vault, subtitle sheet + sync, PiP and stream ranking/badges verified existing. New: hero **Watchlist** pill (`HomeViewModel.favorites` + `toggleFavorite`, haptic), pill-nav **tab haptics**, Real 18+ **source-filter chips** (new pure `NsfwFilters.applySourceFilter`, `NsfwSection` options, source-aware empty state), subtitle **outline color** (`SubtitleStyle.outlineKey` + `SUB_OUTLINE` key, Settings + in-player sheet) and **100 ms sync steps** (`steps = 199`), next-episode **pre-fetch** inside 2 min (`shouldPrefetchNextEpisode`, `prefetchedIndex`, cache-warming resolve). Audio delay deliberately not built (no Media3 API — would be fake UI). Added `Phase36PremiumTest` (7 cases → **237 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **237/237 / 0 failures** ✅. Not pushed, no APK. |
+| 2026-10-14 | **v1.8.0 released:** bundles Phase 36 (§2at) + §2as source expansion (13 new built-in sources) — `versionCode` 17 / `versionName` 1.8.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **237/237**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/app-release.apk` (43,741,343 bytes, SHA-256 `F98D6590…008C00`; `output-metadata.json` verified); tagged `v1.8.0`; website hero/footer → v1.8.0, stats → 237 (`next build` ✅, 103 kB shared). **GitHub Release `NexusStream v1.8.0` published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.8.0. |
 
 ---
 
