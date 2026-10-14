@@ -2,59 +2,115 @@ import { Github, Scale } from "lucide-react";
 import { GITHUB_URL } from "@/lib/utils";
 import { LogoMark } from "./LogoMark";
 
+const colophon = [
+  {
+    head: "Project",
+    links: [
+      { label: "Repository", href: GITHUB_URL },
+      { label: "Releases", href: `${GITHUB_URL}/releases` },
+      { label: "Issues", href: `${GITHUB_URL}/issues` },
+      { label: "Build logs", href: `${GITHUB_URL}/actions` },
+    ],
+  },
+  {
+    head: "Ecosystems",
+    links: [
+      { label: "Stremio add-ons", href: "#ecosystem" },
+      { label: "CloudStream providers", href: "#ecosystem" },
+      { label: "Aniyomi extensions", href: "#ecosystem" },
+      { label: "Mihon extensions", href: "#ecosystem" },
+    ],
+  },
+  {
+    head: "On this page",
+    links: [
+      { label: "Showcase", href: "#showcase" },
+      { label: "Features", href: "#features" },
+      { label: "FAQ", href: "#faq" },
+      { label: "Download", href: "#download" },
+    ],
+  },
+];
+
 export function Footer() {
   return (
-    <footer className="border-t border-white/[0.06] bg-ink/60">
-      <div className="mx-auto max-w-6xl px-6 py-14">
-        <div className="flex flex-col items-start justify-between gap-10 md:flex-row md:items-center">
+    <footer className="border-t border-white/12 bg-ink text-paper">
+      <div className="mx-auto max-w-editorial px-5 py-16 sm:px-8 md:py-20">
+        <div className="grid gap-12 md:grid-cols-[1.3fr_2fr] md:gap-16">
           <div>
             <div className="flex items-center gap-2.5">
-              <LogoMark className="h-9 w-9" />
-              <span className="font-display text-xl font-bold tracking-tight text-mist">
-                Nexus<span className="text-gradient">Stream</span>
+              <LogoMark className="h-8 w-8" variant="onInk" />
+              <span className="font-display text-lg font-semibold tracking-tight text-paper">
+                NexusStream
               </span>
             </div>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted">
-              One beautiful Android app for movies, TV, anime and manga.
-              Free, open source and source-neutral by design.
+            <p className="mt-5 max-w-sm text-[14.5px] leading-relaxed text-white/50">
+              One Android app for movies, TV, anime and manga. Free, open
+              source, and source-neutral by design.
             </p>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="t-learn flex items-center gap-2 text-sm text-muted transition hover:text-mist"
-            >
-              <Github className="h-4 w-4" /> github.com/speckle-hub/nexusstream
-              <span className="t-learn-chevron">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path className="t-learn-arm t-learn-arm-top" d="M6 4L10 8" />
-                  <path className="t-learn-arm t-learn-arm-bot" d="M10 8L6 12" />
-                </svg>
+            <div className="mt-6 flex items-center gap-3">
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="GitHub repository"
+                className="press inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/70 hover:border-white hover:text-paper"
+              >
+                <Github className="h-4 w-4" />
+              </a>
+              <span className="eyebrow flex items-center gap-2 text-[10px] text-white/35">
+                <span className="h-1.5 w-1.5 rounded-full bg-vermilion animate-pulse-soft" />
+                v1.7.0
               </span>
-            </a>
-            <div className="text-xs text-muted/70">
-              Components: Aceternity UI · HeroUI · ThreeUI · design refs via 21st.dev
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3">
+            {colophon.map((c) => (
+              <nav key={c.head} aria-label={c.head}>
+                <h3 className="eyebrow border-b border-white/12 pb-3 text-[10px] text-white/40">
+                  {c.head}
+                </h3>
+                <ul className="mt-4 space-y-2.5">
+                  {c.links.map((l) => (
+                    <li key={l.label}>
+                      <a
+                        href={l.href}
+                        target={l.href.startsWith("http") ? "_blank" : undefined}
+                        rel={l.href.startsWith("http") ? "noreferrer" : undefined}
+                        className="press t-learn inline-flex items-center gap-1.5 text-[14px] text-white/55 transition-colors hover:text-paper"
+                      >
+                        {l.label}
+                        <span className="t-learn-chevron">
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path className="t-learn-arm t-learn-arm-top" d="M6 4L10 8" />
+                            <path className="t-learn-arm t-learn-arm-bot" d="M10 8L6 12" />
+                          </svg>
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ))}
+          </div>
         </div>
 
-        <div className="mt-12 flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-          <Scale className="mt-0.5 h-4 w-4 shrink-0 text-accent-soft" />
-          <p className="text-xs leading-relaxed text-muted">
-            <span className="font-semibold text-mist">Content neutrality.</span>{" "}
-            NexusStream is a player and organizer, not a content source. It ships with no stream
-            providers, no provider repositories and no catalogs of its own. Metadata comes from free
-            public APIs; any streaming capability comes exclusively from third-party add-ons that
-            the user chooses to install. Respect the licenses of content in your region.
+        <div className="mt-14 flex flex-col gap-4 border-t border-white/12 pt-6 text-[12.5px] text-white/35 md:flex-row md:items-center md:justify-between">
+          <p>© 2026 NexusStream contributors. GPL-3.0.</p>
+          <p className="flex items-center gap-2">
+            <Scale className="h-3.5 w-3.5" />
+            Not affiliated with Stremio, CloudStream, Aniyomi or Mihon.
           </p>
-        </div>
-
-        <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/[0.05] pt-6 text-xs text-muted/70 md:flex-row">
-          <span>© {new Date().getFullYear()} NexusStream contributors. All rights reserved.</span>
-          <span>Not affiliated with Stremio, CloudStream, Aniyomi, Mihon or MangaDex.</span>
         </div>
       </div>
     </footer>

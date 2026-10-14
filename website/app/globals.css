@@ -2,46 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #06060c;
-  --accent: #7c5cff;
-  --signal: #3ddc97;
+/* ══════════════════════════════════════════════════════════════
+   EDITORIAL GALLERY — design system
+   Warm paper, near-black ink, hairline rules. Colour comes from
+   the product, not the chrome. One accent: vermilion, used rarely.
+   ══════════════════════════════════════════════════════════════ */
 
-  /* ── Motion tokens — shared scale ──────────────────────────────
-     Reference these with var(--…) anywhere in your project. The
-     transitions below ship literal values so each snippet works on
-     its own; `transitions refine` maps hardcoded values back to
-     these tokens. */
+:root {
+  --paper: #f2f1ec;
+  --paper-raised: #ffffff;
+  --paper-deep: #e7e6e0;
+  --ink: #0c0c0e;
+  --ink-raised: #17171a;
+  --graphite: #3a3a40;
+  --ash: #6e6e76;
+  --vermilion: #d8452a;
+  --rule: rgba(12, 12, 14, 0.16);
+  --rule-soft: rgba(12, 12, 14, 0.08);
+
+  /* ── Motion tokens — shared scale (transitions.dev) ─────────
+     Reference these with var(--…) anywhere in your project. */
   /* Durations */
-  --duration-stagger: 40ms;  /* per-item stagger offset */
-  --duration-micro: 80ms;  /* tooltip/path delay, shake segment, large stagger */
-  --duration-quick: 150ms;  /* modal/dropdown close, text swap, tooltip appear */
-  --duration-fast: 250ms;  /* icon swap, dropdown/modal open, tabs sliding, page slide */
-  --duration-medium: 350ms;  /* panel close, toast close */
-  --duration-slow: 400ms;  /* panel open, skeleton content reveal, input clear */
-  --duration-very-slow: 500ms;  /* emphasis moments, badge appear, text reveal, success check */
+  --duration-stagger: 40ms;
+  --duration-micro: 80ms;
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --duration-medium: 350ms;
+  --duration-slow: 400ms;
+  --duration-very-slow: 500ms;
   /* Easings */
-  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);  /* modal/dropdown/panel open + close, page slide, resize, position change */
-  --ease-in-out: ease-in-out;  /* icon swap, text swap, text reveal, skeleton reveal */
-  --ease-out: ease-out;  /* tooltip open / close */
-  --ease-linear: linear;  /* shimmer, skeleton pulse, spinner */
-  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);  /* badge pop open */
-  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);  /* bouncy hover-out (avatar return) */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: ease-in-out;
+  --ease-out: ease-out;
+  --ease-linear: linear;
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
   /* Distances */
-  --distance-micro: 4px;  /* text swap */
-  --distance-small: 6px;  /* error shake (small segment) */
-  --distance-base: 8px;  /* badge diagonal reveal, page slide, error shake (large segment) */
-  --distance-medium: 12px;  /* text reveal */
-  --distance-large: 30px;  /* check badge appear */
+  --distance-micro: 4px;
+  --distance-small: 6px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --distance-large: 30px;
   /* Scales */
-  --scale-large: 0.96;  /* modal open / close */
-  --scale-medium: 0.97;  /* dropdown open */
-  --scale-small: 0.98;  /* tooltip open */
-  --scale-tiny: 0.99;  /* dropdown close */
+  --scale-large: 0.96;
+  --scale-medium: 0.97;
+  --scale-small: 0.98;
+  --scale-tiny: 0.99;
   /* Blur */
-  --blur-small: 2px;  /* panel reveal, icon swap, text swap, skeleton reveal, number pop-in */
-  --blur-medium: 3px;  /* page slide, text reveal */
-  --blur-large: 8px;  /* success check open */
+  --blur-small: 2px;
+  --blur-medium: 3px;
+  --blur-large: 8px;
 
   /* Number pop-in */
   --digit-dur: 500ms;
@@ -57,12 +67,6 @@
   --dropdown-pre-scale: 0.97;
   --dropdown-closing-scale: 0.99;
   --dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Shimmer text (dark-theme tuned below) */
-  --shimmer-dur: 2000ms;
-  --shimmer-base: #77778c;
-  --shimmer-highlight: #ededf2;
-  --shimmer-band: 400%;
-  --shimmer-ease: linear;
   /* Texts reveal */
   --stagger-dur: 500ms;
   --stagger-distance: 12px;
@@ -89,85 +93,157 @@
   --learn-in: 350ms;
   --learn-out: 350ms;
   --learn-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Tabs sliding — retuned for paper */
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-text-muted: rgba(12, 12, 14, 0.55);
+  --tabs-text-active: #0c0c0e;
+  --tabs-bar-bg: rgba(12, 12, 14, 0.06);
+  --tabs-pill-bg: #ffffff;
 }
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  .animate-float,
-  .animate-float-slow,
   .animate-scroll-x,
-  .animate-spotlight,
-  .animate-pulse-soft,
-  .animate-shimmer,
-  .animate-spin-slow {
+  .animate-pulse-soft {
     animation: none !important;
   }
 }
 
 body {
-  background: var(--background);
-  color: #ededf2;
+  background: var(--paper);
+  color: var(--ink);
   overflow-x: hidden;
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(124, 92, 255, 0.35);
-  color: #ffffff;
+  background: rgba(216, 69, 42, 0.22);
+  color: var(--ink);
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
+  width: 11px;
 }
 ::-webkit-scrollbar-track {
-  background: #06060c;
+  background: var(--paper-deep);
 }
 ::-webkit-scrollbar-thumb {
-  background: #26263a;
+  background: rgba(12, 12, 14, 0.28);
   border-radius: 8px;
-  border: 2px solid #06060c;
+  border: 3px solid var(--paper-deep);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #7c5cff;
+  background: rgba(12, 12, 14, 0.5);
+}
+
+:where(a, button, [role="tab"], summary):focus-visible {
+  outline: 2px solid var(--vermilion);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+@layer components {
+  /* ── Response: feedback lives on pointer-down, not on click.
+        apple-design §1 — the instant something is pressed it must
+        answer, or the feeling of directness falls off a cliff. */
+  .press {
+    transition:
+      transform var(--duration-micro) var(--ease-out),
+      background-color var(--duration-quick) var(--ease-smooth-out),
+      border-color var(--duration-quick) var(--ease-smooth-out),
+      color var(--duration-quick) var(--ease-smooth-out);
+  }
+  .press:active {
+    transform: scale(0.97);
+    transition-duration: 100ms;
+  }
+
+  /* ── Hairline rules carry the structure instead of boxes. */
+  .rule-t {
+    border-top: 1px solid var(--rule);
+  }
+  .rule-b {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  /* ── Type: tracking is size-specific (apple-design §15).
+        Large display text tightens; micro labels open up. */
+  .display {
+    line-height: 0.94;
+    letter-spacing: -0.045em;
+    font-optical-sizing: auto;
+    text-wrap: balance;
+  }
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .measure {
+    max-width: 34rem;
+    line-height: 1.6;
+    letter-spacing: -0.005em;
+  }
+
+  /* ── Translucent chrome: content scrolls underneath, the bar is
+        a material rather than a fixed strip (apple-design §12). */
+  .material-paper {
+    background: rgba(242, 241, 236, 0.72);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+  }
+  .material-ink {
+    background: rgba(12, 12, 14, 0.68);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .material-paper {
+    background: var(--paper);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .material-ink {
+    background: var(--ink);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(120deg, #c9b8ff 0%, #7c5cff 45%, #4f8dff 100%);
-  }
-  .glass {
-    background: rgba(16, 16, 26, 0.6);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
   .mask-fade-x {
-    mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
-  }
-  .mask-fade-b {
-    mask-image: linear-gradient(to bottom, black 55%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
   }
   .perspective-1200 {
     perspective: 1200px;
   }
-  /* Apple-design type discipline: tracking is size-specific. */
-  .display-tight {
-    letter-spacing: -0.02em;
-    line-height: 1.05;
-    font-optical-sizing: auto;
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  .text-balance {
+    text-wrap: balance;
   }
 }
 
-/* ── transitions-dev: Texts reveal ───────────────────────────────
-   Lines start translated down + blurred + invisible; .is-shown
-   on the parent flips them to their resting state. */
+/* ══════════════════════════════════════════════════════════════
+   transitions.dev — snippets pasted verbatim. Do not reformat.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Texts reveal (18) ─────────────────────────────────────── */
 .t-stagger-line {
   display: block;
   opacity: 0;
@@ -189,8 +265,6 @@ body {
   transform: translateY(0);
   filter: blur(0);
 }
-/* Exit decouples from the stagger: same fade for every line,
-   no Y return, no blur. */
 .t-stagger.is-hiding .t-stagger-line {
   opacity: 0;
   transform: translateY(0);
@@ -206,45 +280,7 @@ body {
   .t-stagger-line { transition: none !important; }
 }
 
-/* ── transitions-dev: Shimmer text ───────────────────────────────
-   Pure CSS — no JS. Duplicate the string into data-text. */
-.t-shimmer {
-  position: relative;
-  display: inline-block;
-  color: var(--shimmer-base);
-}
-.t-shimmer::before {
-  content: attr(data-text);
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: linear-gradient(
-    90deg,
-    transparent          0%,
-    transparent         40%,
-    var(--shimmer-highlight) 50%,
-    transparent         60%,
-    transparent        100%
-  );
-  background-size: var(--shimmer-band) 100%;
-  background-repeat: no-repeat;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  animation: t-shimmer var(--shimmer-dur) var(--shimmer-ease) infinite;
-}
-@keyframes t-shimmer {
-  0%   { background-position: 100% 0; }
-  100% { background-position: 0% 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .t-shimmer::before { animation: none !important; }
-}
-
-/* ── transitions-dev: Learn more hover ───────────────────────────
-   Pure CSS. Chevron shifts + arms spread into an arrow. */
+/* ── Learn more hover (24) ─────────────────────────────────── */
 .t-learn-chevron {
   display: inline-flex;
   transform: translateX(0);
@@ -265,12 +301,11 @@ body {
   .t-learn-chevron, .t-learn-arm { transition: none !important; }
 }
 
-/* ── transitions-dev: Card hover tilt ────────────────────────────
-   Track the pointer on the OUTER .t-tilt (never transforms). */
+/* ── Card hover tilt (19) ──────────────────────────────────── */
 .t-tilt { touch-action: none; }
 .t-tilt-card {
   position: relative;
-  border-radius: 12px;
+  border-radius: 4px;
   overflow: hidden;
   transform:
     perspective(var(--tilt-perspective))
@@ -293,19 +328,17 @@ body {
     radial-gradient(circle 95px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
       rgba(255,255,255,0.48), rgba(255,255,255,0.06) 52%, rgba(255,255,255,0) 84%),
     radial-gradient(circle 200px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
-      rgba(255,255,255,0.22), rgba(255,255,255,0.04) 58%, rgba(255,255,255,0) 78%),
-    radial-gradient(circle 360px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
-      rgba(255,255,255,0.10), rgba(255,255,255,0) 88%);
+      rgba(255,255,255,0.22), rgba(255,255,255,0.04) 58%, rgba(255,255,255,0) 78%);
   transition: opacity var(--tilt-glare-fade) var(--tilt-glare-ease);
 }
 .t-tilt.is-hover .t-tilt-glare { opacity: var(--tilt-glare-opacity); }
 
 @media (prefers-reduced-motion: reduce) {
   .t-tilt-card { transform: none !important; transition: none !important; }
+  .t-tilt-glare { display: none; }
 }
 
-/* ── transitions-dev: Accordion expand ───────────────────────────
-   grid-template-rows 0fr → 1fr; padding lives on the inner. */
+/* ── Accordion expand (21) ─────────────────────────────────── */
 .t-acc-panel {
   display: grid;
   grid-template-rows: 0fr;
@@ -347,10 +380,9 @@ body {
   }
 }
 
-/* ── transitions-dev: Menu dropdown ──────────────────────────────
-   Origin-aware via data-origin; .is-open / .is-closing states. */
+/* ── Menu dropdown (05) ────────────────────────────────────── */
 .t-dropdown {
-  transform-origin: top left;
+  transform-origin: top right;
   transform: scale(var(--dropdown-pre-scale));
   opacity: 0;
   pointer-events: none;
@@ -383,8 +415,7 @@ body {
   .t-dropdown { transition: none !important; }
 }
 
-/* ── transitions-dev: Number pop-in ──────────────────────────────
-   Each digit re-enters with a blurred slide; .is-animating replays. */
+/* ── Number pop-in (02) ────────────────────────────────────── */
 @keyframes t-digit-pop-in {
   0%   {
     transform: translate(
@@ -420,4 +451,62 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .t-digit-group .t-digit { animation: none !important; }
+}
+
+/* ── Tabs sliding (16) ─────────────────────────────────────── */
+.t-tabs {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 48px;
+  background: var(--tabs-bar-bg);
+}
+.t-tab {
+  position: relative;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  height: 34px;
+  padding: 4px 15px;
+  color: var(--tabs-text-muted);
+  cursor: pointer;
+  border-radius: 48px;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color var(--tabs-dur) var(--tabs-ease);
+}
+.t-tab:not([aria-selected="true"]):hover,
+.t-tab[aria-selected="true"] {
+  color: var(--tabs-text-active);
+}
+
+.t-tabs-pill {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: 34px;
+  width: 0;
+  background: var(--tabs-pill-bg);
+  border-radius: 48px;
+  box-shadow: 0 1px 2px rgba(12, 12, 14, 0.1), 0 4px 12px -6px rgba(12, 12, 14, 0.25);
+  transform: translateX(0);
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width     var(--tabs-dur) var(--tabs-ease);
+  will-change: transform, width;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-tabs-pill, .t-tab { transition: none !important; }
+}
+
+/* ── In-page anchor offsets under the fixed bar ────────────── */
+section[id] {
+  scroll-margin-top: 76px;
 }
