@@ -26,7 +26,7 @@ export function Hero() {
           <span className="hidden md:block">Movies · TV · Anime · Manga</span>
           <span className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-vermilion animate-pulse-soft" />
-            v1.7.0 — free &amp; open source
+            v1.7.1 — free &amp; open source
           </span>
         </div>
       </div>
