@@ -1,7 +1,7 @@
 import { StatNumber } from "../ui/stat-number";
 
 const stats = [
-  { value: "216", label: "Unit tests, all green" },
+  { value: "237", label: "Unit tests, all green" },
   { value: "4", label: "Add-on ecosystems" },
   { value: "25k", label: "Lines of Kotlin" },
   { value: "2X", label: "Hold-for-2X player speed" },
