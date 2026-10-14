@@ -60,7 +60,7 @@ export function Footer() {
               </a>
               <span className="eyebrow flex items-center gap-2 text-[10px] text-white/35">
                 <span className="h-1.5 w-1.5 rounded-full bg-vermilion animate-pulse-soft" />
-                v1.7.0
+                v1.7.1
               </span>
             </div>
           </div>
