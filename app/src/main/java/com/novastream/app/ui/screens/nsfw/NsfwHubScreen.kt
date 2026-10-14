@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.novastream.app.data.adult.AdultSources
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.WatchEntry
 import com.novastream.app.ui.components.ConfirmRemoveDialog
@@ -79,6 +80,7 @@ import com.novastream.app.ui.components.PosterCard
 import com.novastream.app.ui.components.PosterQuickActionsSheet
 import com.novastream.app.ui.components.SearchField
 import com.novastream.app.ui.components.SectionHeader
+import com.novastream.app.ui.components.TagChip
 import com.novastream.app.ui.nav.LocalFloatingNavBottomPadding
 import com.novastream.app.ui.nav.Routes
 import com.novastream.app.ui.theme.AppSpacing
@@ -211,6 +213,9 @@ private fun NsfwContent(nav: NavHostController) {
     var animeQuery by rememberSaveable { mutableStateOf("") }
     var mangaQuery by rememberSaveable { mutableStateOf("") }
     var realQuery by rememberSaveable { mutableStateOf("") }
+    // Phase 36: Real 18+ source filter ("All" + one chip per built-in source).
+    var realSource by rememberSaveable { mutableStateOf<String?>(null) }
+    val realSourceOptions = remember { AdultSources.all.map { it.id to it.name } }
     // Index 0 is the Private dashboard (isolated history + tools); the browse sections shift by one.
     val titles = listOf("Private", "NSFW Anime", "NSFW Manga", "Real 18+")
 
@@ -267,6 +272,9 @@ private fun NsfwContent(nav: NavHostController) {
                 emptyHint = "Built-in sources unavailable. Install NSFW Stremio add-ons as a fallback.",
                 errors = vm.realErrors.collectAsStateSafe().value,
                 searchErrors = vm.realSearchErrors.collectAsStateSafe().value,
+                sourceOptions = realSourceOptions,
+                selectedSource = realSource,
+                onSelectSource = { realSource = it },
             )
         }
     }
@@ -727,6 +735,13 @@ private fun NsfwSection(
     searching: Boolean = false,
     /** The query this section's ViewModel last searched for (`null` = never, i.e. fresh VM). */
     searchedFor: String? = null,
+    /**
+     * Phase 36 source-filter chips ("All" + one per entry). Empty by default, so the
+     * anime/manga sections render exactly as before; Real 18+ passes its built-ins.
+     */
+    sourceOptions: List<Pair<String, String>> = emptyList(),
+    selectedSource: String? = null,
+    onSelectSource: (String?) -> Unit = {},
 ) {
     val nova = LocalNovaColors.current
     val listState = rememberLazyGridState()
@@ -750,6 +765,10 @@ private fun NsfwSection(
         results.isEmpty() && !searching -> searchErrors
         else -> emptyList()
     }
+    // Phase 36 source filter: applied to both rails and search results before render.
+    val (visibleRows, visibleResults) = remember(rows, results, selectedSource) {
+        applySourceFilter(rows, results, selectedSource)
+    }
     // Compact, dismissible notice. Hidden until the user refreshes to new errors (keyed on the
     // error set), and collapsed to a single line by default so it never dominates the page.
     var errorsHidden by rememberSaveable { mutableStateOf(false) }
@@ -765,6 +784,32 @@ private fun NsfwSection(
             onClear = { onQueryChange(""); onSearch("") },
             modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 8.dp),
         )
+        // Phase 36 source-filter chips: "All" plus one chip per built-in source for
+        // instantaneous per-site narrowing of rails and search results.
+        if (sourceOptions.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = AppSpacing.screen),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    TagChip(
+                        text = "All",
+                        selected = selectedSource == null,
+                        onClick = { onSelectSource(null) },
+                    )
+                }
+                items(sourceOptions.size) { i ->
+                    val (id, name) = sourceOptions[i]
+                    TagChip(
+                        text = name,
+                        selected = selectedSource == id,
+                        onClick = { onSelectSource(if (selectedSource == id) null else id) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
         if (visibleErrors.isNotEmpty() && !errorsHidden) {
             Surface(
                 color = nova.outline.copy(alpha = 0.20f),
@@ -830,17 +875,18 @@ private fun NsfwSection(
         ) {
             if (query.isNotBlank()) {
                 when {
-                    results.isEmpty() && (loading || searching) ->
+                    visibleResults.isEmpty() && (loading || searching) ->
                         item(span = { GridItemSpan(maxLineSpan) }) { LoadingRow() }
-                    results.isEmpty() ->
+                    visibleResults.isEmpty() ->
                         item(span = { GridItemSpan(maxLineSpan) }) {
                         EmptyState(
                             "No results",
-                            if (searchErrors.isNotEmpty()) "Sources are unavailable right now \u2014 see the notice above."
+                            if (selectedSource != null) "No results from this source — try All or a different query."
+                            else if (searchErrors.isNotEmpty()) "Sources are unavailable right now \u2014 see the notice above."
                             else "Try a different query.",
                         )
                     }
-                    else -> items(results, key = { it.key }) { item ->
+                    else -> items(visibleResults, key = { it.key }) { item ->
                         PosterCard(
                             item = item,
                             onClick = { nav.navigate(Routes.detail(item)) },
@@ -851,13 +897,13 @@ private fun NsfwSection(
                     }
                 }
             } else {
-                if (loading && rows.isEmpty()) {
+                if (loading && visibleRows.isEmpty()) {
                     items(3, span = { GridItemSpan(maxLineSpan) }) { LoadingRow() }
                 }
-                if (!loading && rows.isEmpty()) {
+                if (!loading && visibleRows.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) { EmptyState("Nothing here yet", emptyHint) }
                 }
-                items(rows, span = { GridItemSpan(maxLineSpan) }) { row ->
+                items(visibleRows, span = { GridItemSpan(maxLineSpan) }) { row ->
                     // Same card width as the Home feed: `MediaRow`'s 132 dp default made every
                     // NSFW/Real 18+ rail narrower than Home's, which is what read as "narrow cards"
                     // next to the edge-to-edge Home rows.

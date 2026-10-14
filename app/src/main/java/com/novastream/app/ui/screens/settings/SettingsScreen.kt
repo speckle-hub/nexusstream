@@ -112,6 +112,7 @@ fun SettingsScreen(nav: NavHostController) {
     val amoledBlack by vm.amoledBlack.collectAsStateSafe()
     val subtitleScale by vm.subtitleScale.collectAsStateSafe()
     val subtitleColor by vm.subtitleColor.collectAsStateSafe()
+    val subtitleOutline by vm.subtitleOutline.collectAsStateSafe()
     val subtitleBg by vm.subtitleBg.collectAsStateSafe()
     val subtitleOffset by vm.subtitleOffset.collectAsStateSafe()
     val playerSpeed by vm.playerSpeed.collectAsStateSafe()
@@ -318,6 +319,39 @@ fun SettingsScreen(nav: NavHostController) {
                             .size(48.dp)
                             .clip(CircleShape)
                             .clickable { vm.setSubtitleColor(key) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .border(BorderStroke(if (selected) 2.dp else 1.dp, if (selected) nova.accent else nova.outline), CircleShape)
+                                .padding(5.dp)
+                                .clip(CircleShape)
+                                .background(c),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Outline color", style = MaterialTheme.typography.labelLarge, color = nova.textSecondary)
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                listOf("black", "white", "yellow", "cyan", "green").forEach { key ->
+                    val selected = subtitleOutline == key
+                    val c = when (key) {
+                        "black" -> androidx.compose.ui.graphics.Color.Black
+                        "yellow" -> androidx.compose.ui.graphics.Color(0xFFFFEB3B)
+                        "cyan" -> androidx.compose.ui.graphics.Color(0xFF35D6E0)
+                        "green" -> androidx.compose.ui.graphics.Color(0xFF7CFF7C)
+                        else -> androidx.compose.ui.graphics.Color.White
+                    }
+                    // 48dp touch target with the visual dot (34dp) centred inside it.
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .clickable { vm.setSubtitleOutline(key) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Box(

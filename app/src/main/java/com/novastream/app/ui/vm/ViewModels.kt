@@ -116,6 +116,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.libraryStore.removeWatch(entry.item.key) }
     }
 
+    /**
+     * Phase 36 hero watchlist: SFW favourites power the home hero's quick
+     * "Watchlist" toggle (adult stays hub-side — see [NsfwViewModel.nsfwFavorites]).
+     */
+    val favorites: StateFlow<List<MediaItem>> =
+        container.libraryStore.favorites
+            .map { list -> list.filterSafe { it.id.isNotBlank() && !it.isAdult } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Toggle one title in/out of the watchlist (used by the home hero CTA). */
+    fun toggleFavorite(item: MediaItem) {
+        viewModelScope.launch { container.libraryStore.toggleFavorite(item) }
+    }
+
     /** Drop every entry currently in Continue Watching (reading progress is kept). */
     fun clearContinueWatching() {
         viewModelScope.launch { continueWatching.value.forEach { container.libraryStore.removeWatch(it.item.key) } }
@@ -1056,6 +1070,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val amoledBlack = container.settings.amoledBlack.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val subtitleScale = container.settings.subtitleScale.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
     val subtitleColor = container.settings.subtitleColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "white")
+    val subtitleOutline = container.settings.subtitleOutline.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "black")
     val subtitleBg = container.settings.subtitleBg.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.4f)
     val subtitleOffset = container.settings.subtitleOffset.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.05f)
     val playerSpeed = container.settings.playerSpeed.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
@@ -1125,6 +1140,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setAmoledBlack(v: Boolean) = viewModelScope.launch { container.settings.setAmoledBlack(v) }
     fun setSubtitleScale(v: Float) = viewModelScope.launch { container.settings.setSubtitleScale(v) }
     fun setSubtitleColor(v: String) = viewModelScope.launch { container.settings.setSubtitleColor(v) }
+    fun setSubtitleOutline(v: String) = viewModelScope.launch { container.settings.setSubtitleOutline(v) }
     fun setSubtitleBg(v: Float) = viewModelScope.launch { container.settings.setSubtitleBg(v) }
     fun setSubtitleOffset(v: Float) = viewModelScope.launch { container.settings.setSubtitleOffset(v) }
     fun setPlayerSpeed(v: Float) = viewModelScope.launch { container.settings.setPlayerSpeed(v) }

@@ -3,6 +3,7 @@ package com.novastream.app.ui.screens.home
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -41,6 +44,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,8 +57,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -115,6 +121,10 @@ fun HomeScreen(nav: NavHostController) {
         (withArt.ifEmpty { pool }).take(8)
     }
 
+    // Phase 36 hero watchlist: favourite keys drive each slide's Watchlist toggle.
+    val favorites by vm.favorites.collectAsStateSafe()
+    val favoriteKeys = remember(favorites) { favorites.map { it.key }.toSet() }
+
     // Entry awaiting confirmation before it is dropped from Continue Watching.
     var pendingRemoval by remember { mutableStateOf<WatchEntry?>(null) }
     // Row-level "Clear" confirmations (watching vs reading keep their own progress).
@@ -135,7 +145,12 @@ fun HomeScreen(nav: NavHostController) {
         // ---- Featured carousel (full-bleed, behind the status bar) -----------
         if (featured.isNotEmpty()) {
             item {
-                FeaturedCarousel(featured) { nav.navigate(Routes.detail(it)) }
+                FeaturedCarousel(
+                    items = featured,
+                    favoriteKeys = favoriteKeys,
+                    onClick = { nav.navigate(Routes.detail(it)) },
+                    onToggleFavorite = { vm.toggleFavorite(it) },
+                )
             }
         } else {
             // No hero to overlay: the top bar is a normal first row (with its own inset) and the
@@ -281,7 +296,12 @@ fun HomeScreen(nav: NavHostController) {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FeaturedCarousel(items: List<MediaItem>, onClick: (MediaItem) -> Unit) {
+private fun FeaturedCarousel(
+    items: List<MediaItem>,
+    favoriteKeys: Set<String>,
+    onClick: (MediaItem) -> Unit,
+    onToggleFavorite: (MediaItem) -> Unit,
+) {
     if (items.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { items.size })
 
@@ -307,7 +327,13 @@ private fun FeaturedCarousel(items: List<MediaItem>, onClick: (MediaItem) -> Uni
             pageSpacing = 0.dp,
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
-            HeroSlide(items[page], onClick)
+            val item = items[page]
+            HeroSlide(
+                item = item,
+                isFavorite = item.key in favoriteKeys,
+                onClick = onClick,
+                onToggleFavorite = onToggleFavorite,
+            )
         }
         // Pagination indicators overlay the bottom gradient of the active slide.
         CarouselDots(
@@ -359,8 +385,14 @@ private fun heroMeta(item: MediaItem): String = buildList {
  * background, and centre-aligned title, metadata and pill CTA.
  */
 @Composable
-private fun HeroSlide(item: MediaItem, onClick: (MediaItem) -> Unit) {
+private fun HeroSlide(
+    item: MediaItem,
+    isFavorite: Boolean,
+    onClick: (MediaItem) -> Unit,
+    onToggleFavorite: (MediaItem) -> Unit,
+) {
     val nova = LocalNovaColors.current
+    val haptic = LocalHapticFeedback.current
     val img = item.backdrop ?: item.poster
     // Dynamic theming: the accent + scrim shift to match each banner's artwork as it changes.
     val palette = rememberPosterPalette(img)
@@ -434,20 +466,44 @@ private fun HeroSlide(item: MediaItem, onClick: (MediaItem) -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             // Pill CTA — "Play" for video, "Read" for manga (the detail screen labels them the
-            // same way, so the banner never promises a player it won't open).
-            Button(
-                onClick = { onClick(item) },
-                shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
-                contentPadding = PaddingValues(horizontal = 26.dp, vertical = 11.dp),
+            // same way, so the banner never promises a player it won't open) — plus a
+            // Phase 36 Watchlist quick action that toggles the library favourite in place.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (item.isReadable) {
-                    Icon(Icons.AutoMirrored.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
-                } else {
-                    Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp))
+                Button(
+                    onClick = { onClick(item) },
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                    contentPadding = PaddingValues(horizontal = 26.dp, vertical = 11.dp),
+                ) {
+                    if (item.isReadable) {
+                        Icon(Icons.AutoMirrored.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
+                    } else {
+                        Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (item.isReadable) "Read" else "Play", fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.width(6.dp))
-                Text(if (item.isReadable) "Read" else "Play", fontWeight = FontWeight.Bold)
+                OutlinedButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onToggleFavorite(item)
+                    },
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.55f)),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp),
+                ) {
+                    Icon(
+                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (isFavorite) "Saved" else "Watchlist", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
