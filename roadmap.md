@@ -1,7 +1,15 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-14 — **Phase 35: Video Player UI
+> resume exactly where it left off. Last updated: 2026-10-14 — **v1.7.1 released.** Bundles
+> Phase 35 (§2ar: unified player gesture engine + state-driven auto-hide). `versionCode` 16 /
+> `versionName` 1.7.1; signed release built → `dist/NexusStream.apk` (43,708,575 bytes, SHA-256
+> `CEE1669A…74027D`; `versionCode` 16 / `versionName` 1.7.1 verified in `output-metadata.json`);
+> committed and pushed (`main` + tag `v1.7.1`). Website hero/footer bumped to v1.7.1, stats to
+> 216 (`next build` ✓, pushed; Vercel auto-redeploys). The **`v1.7.1` GitHub Release is
+> published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app update dialog
+> and the site CTA now serve v1.7.1.
+> Previous session, Last updated: 2026-10-14 — **Phase 35: Video Player UI
 > Overhaul & Touch Controller Re-architecture (§2ar).** Unified tap/double-tap/hold into one
 > `detectTapGestures` interceptor, state-driven auto-hide engine (`PlayerControlsState` +
 > `resetAutoHideTimer()`), 200/250 ms fades, top-bar track/speed actions, morphing play/pause,
@@ -331,7 +339,16 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: Phase 35 — Video Player UI Overhaul & Touch Controller Re-architecture (§2ar).**
+**Topic: v1.7.1 released** — bundles Phase 35 (§2ar: unified player gesture engine +
+state-driven auto-hide). `versionCode` 16 / `versionName` 1.7.1, signed APK built
+(`dist/NexusStream.apk`, 43,708,575 bytes, SHA-256 `CEE1669A…74027D`), source tagged +
+pushed, website at v1.7.1 / 216 tests, and the **GitHub Release is published with
+`NexusStream.apk` + `app-release.apk` attached**, so the in-app updater and the site
+CTA serve v1.7.1.
+
+Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **Phase 35 — Video Player UI Overhaul & Touch Controller Re-architecture (§2ar).**
 The control overlay's taps intermittently failed to reveal/hide (two competing
 `detectTapGestures` detectors raced for the same down event). Single-tap, double-tap seek
 and hold-for-2X now share **one** unified interceptor; visibility is a strict
@@ -4067,6 +4084,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-14 | **Source expansion (§2aq):** 7 new built-in sources — NSFW Anime `Rule34VideoSource` (`/search/` → `/video/` cards) + `AnimeIdHentaiSource` (`/?s=` → `/search/` → www-mirror); general `EpornerSource` (public JSON API v2 + `/cats/`/static categories + `TubeMedia` streams) + `BeegSource` (v6 API index/search/file-map streams + HTML fallback); JAV `JavGuruSource` (jav.guru WP), `SupJavSource` (maker/tag-aware), `VjavSource` (confirmed `/videos/` + `/search/1/?s=` layout). Registries 10 → 15 adult / 7 → 9 hentai; isolation/progressive loading inherited. Added `ExpandedSourcesTest` (10 cases → **209 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **209/209 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-14 | **v1.7.0 released:** bundles §2aq (7 new built-in sources) + §2ap (player controls auto-hide) — `versionCode` 15 / `versionName` 1.7.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **209/209**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/app-release.apk` (43,708,575 bytes, SHA-256 `16A7DB34…05F063`; `output-metadata.json` verified); tagged `v1.7.0`; website CTA/hero → v1.7.0, stats → 209 (`next build` ✅, 174 kB first-load). **GitHub Release `NexusStream v1.7.0` published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.7.0. |
 | 2026-10-14 | **Phase 35 — Video Player UI Overhaul & Touch Controller Re-architecture (§2ar):** unified tap/double-tap/hold into one `detectTapGestures` interceptor (two detectors raced for the same down event, breaking tap toggles); new pure `ui/player/PlayerControls.kt` state machine (`PlayerControlsState` VISIBLE/HIDING/HIDDEN, `PLAYER_CONTROLS_HIDE_MS` 3000L, `shouldAutoHideControls`/`playerTapAction`/`forcedControlsState`); single `autoHideJob` via `resetAutoHideTimer()` (cancel + fresh countdown, `pokeControls()` kept as alias); fades → 200/250 ms; top-bar track + speed actions; `AnimatedContent` play/pause morph; bottom quality badge (`StreamSource.quality` → `qualityLabel`). Added `Phase35PlayerControlsTest` (7 cases → **216 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **216/216 / 0 failures** ✅. Not pushed, no APK. |
+| 2026-10-14 | **v1.7.1 released:** bundles Phase 35 (§2ar) — `versionCode` 16 / `versionName` 1.7.1; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **216/216**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/app-release.apk` (43,708,575 bytes, SHA-256 `CEE1669A…74027D`; `output-metadata.json` verified); tagged `v1.7.1`; website hero/footer → v1.7.1, stats → 216 (`next build` ✅, 153 kB first-load). **GitHub Release `NexusStream v1.7.1` published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.7.1. |
 
 ---
 
