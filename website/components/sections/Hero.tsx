@@ -44,7 +44,7 @@ export function Hero() {
                 className="eyebrow mb-8 inline-flex items-center gap-2.5 rounded-full border border-rule bg-white/[0.04] py-2 pl-3 pr-4 text-muted"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse-soft" />
-                v1.8.0 — free &amp; open source
+                v1.9.0 — free &amp; open source
               </span>,
 
               <h1 key="h1" className="display text-paper" style={{ fontSize: "clamp(2.75rem, 7vw, 5.75rem)" }}>
@@ -53,7 +53,7 @@ export function Hero() {
               </h1>,
 
               <p key="deck" className="mt-7 max-w-xl text-[17px] leading-relaxed text-muted md:text-[19px]">
-                NexusStream unifies Stremio add-ons, CloudStream extensions,
+                Moovio unifies Stremio add-ons, CloudStream extensions,
                 Aniyomi and Mihon repos into a single Android app — movies, TV,
                 anime and manga, with a player and a reader built for the thing
                 you are actually watching.
@@ -85,7 +85,7 @@ export function Hero() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Star className="h-3.5 w-3.5 text-accent-soft" />
-                  237 unit tests, all green
+                  281 unit tests, all green
                 </span>
               </div>,
 

@@ -21,7 +21,7 @@ export default function NotFound() {
           href="/"
           className="press mt-8 inline-block rounded-full bg-paper px-8 py-3.5 text-[15px] font-semibold tracking-tight text-void hover:bg-white"
         >
-          Back to NexusStream
+          Back to Moovio
         </Link>
       </div>
     </main>

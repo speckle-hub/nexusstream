@@ -66,14 +66,14 @@ export function Navbar() {
           <a
             href="#top"
             className="press flex shrink-0 items-center gap-2.5"
-            aria-label="NexusStream home"
+            aria-label="Moovio home"
           >
             <LogoMark className="h-7 w-7" />
             <span className="font-display text-[17px] font-semibold tracking-tight text-paper">
-              NexusStream
+              Moovio
             </span>
             <span className="eyebrow hidden rounded-full border border-rule bg-white/[0.04] px-2.5 py-1 text-[9px] text-muted sm:block">
-              v1.8.0
+              v1.9.0
             </span>
           </a>
 
