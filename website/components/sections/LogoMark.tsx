@@ -6,7 +6,7 @@
  */
 export function LogoMark({
   className,
-  variant = "onPaper",
+  variant = "onInk",
 }: {
   className?: string;
   variant?: "onPaper" | "onInk";
