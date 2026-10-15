@@ -490,8 +490,8 @@ fun SettingsScreen(nav: NavHostController) {
             }
         } }
 
-        item { if (settingsGroupVisible("About", listOf("NexusStream", "version"))) SettingsGroup("About") {
-            SettingsRow("NexusStream", "v${BuildConfig.VERSION_NAME} · Stremio + CloudStream + Aniyomi + Mihon") {}
+        item { if (settingsGroupVisible("About", listOf("Moovio", "version"))) SettingsGroup("About") {
+            SettingsRow("Moovio", "v${BuildConfig.VERSION_NAME} · Stremio + CloudStream + Aniyomi + Mihon") {}
         } }
     }
 
@@ -548,7 +548,7 @@ fun SettingsScreen(nav: NavHostController) {
     message?.let { msg ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { message = null },
-            title = { Text("NexusStream") },
+            title = { Text("Moovio") },
             text = { Text(msg) },
             confirmButton = { androidx.compose.material3.TextButton(onClick = { message = null }) { Text("OK") } },
         )

@@ -4,7 +4,7 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <!--
-        NexusStream launcher foreground: the website's "N" zigzag lettermark + the stream
+        Moovio launcher foreground: the website's "N" zigzag lettermark + the stream
         dot, in crisp white. The solid purple rounded-square background is supplied by the
         adaptive-icon <background> (colors.xml → ic_launcher_background), so this foreground
         is artwork-only and stays legible on any launcher skin.

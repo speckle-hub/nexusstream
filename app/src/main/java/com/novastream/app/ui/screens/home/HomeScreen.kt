@@ -544,7 +544,7 @@ private fun HomeTopBar(
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                "NexusStream",
+                "Moovio",
                 style = MaterialTheme.typography.displaySmall,
                 color = titleColor,
             )

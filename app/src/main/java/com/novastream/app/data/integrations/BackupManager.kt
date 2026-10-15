@@ -80,7 +80,7 @@ class BackupManager(
             val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
                 ?: error("Could not open the selected file")
             val payload = Gson().fromJson(text, BackupPayload::class.java)
-                ?: error("Not a valid NexusStream backup")
+                ?: error("Not a valid Moovio backup")
             library.restore(payload.favorites, payload.history)
             if (payload.homeOrder.isNotEmpty()) settings.setHomeOrder(payload.homeOrder)
             settings.setCustomUserAgent(payload.customUserAgent)

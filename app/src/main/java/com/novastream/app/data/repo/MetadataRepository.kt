@@ -11,6 +11,12 @@ import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
 import com.novastream.app.data.model.MetaDetail
 import com.novastream.app.data.model.Video
+import com.novastream.app.data.sfw.SfwAnimeRepository
+import com.novastream.app.data.sfw.SfwAnimeSources
+import com.novastream.app.data.sfw.SfwDetail
+import com.novastream.app.data.sfw.SfwRepository
+import com.novastream.app.data.sfw.SfwSource
+import com.novastream.app.data.sfw.SfwSources
 import com.novastream.app.data.remote.AniListClient
 import com.novastream.app.data.remote.JikanClient
 import com.novastream.app.data.remote.MangaDexClient
@@ -35,6 +41,16 @@ class MetadataRepository(
             val adult = runCatching { AdultRepository.detail(item.id, source) }.getOrNull()
             if (adult != null) return adultMeta(source, item, adult)
         }
+        // Built-in SFW movie/TV sources own their title-page metadata (TMDB stays the
+        // authority for TMDB items — this only serves titles discovered through the
+        // built-in catalog rows/search).
+        SfwSources.byId(item.addonId)?.let { source ->
+            val sfw = runCatching { SfwRepository.detail(item.id, source) }.getOrNull()
+            if (sfw != null) return sfwMeta(source, item, sfw)
+        }
+        // Built-in SFW anime titles: AniList metadata stays primary, but a title that
+        // only exists in the built-in catalog still renders and plays via fallback.
+        if (SfwAnimeSources.isBuiltIn(item.addonId)) return sfwAnimeFallback(item)
         // CloudStream provider items resolve their own metadata (episode list included).
         if (item.addonId?.startsWith(CloudStreamSources.ADDON_PREFIX) == true) {
             val provider = cloudStreamRepo.providerFor(item.addonId)
@@ -68,6 +84,10 @@ class MetadataRepository(
         // Real 18+ titles must never surface a "couldn't load" error: fall back to the
         // catalog item itself (title/poster/backdrop) so the page still renders and plays.
         if (best == null && item.type == MediaType.REAL) return fallbackDetail(item)
+        // Same guarantee for built-in SFW titles whose page fetch failed.
+        if (best == null && (SfwSources.isBuiltIn(item.addonId) || SfwAnimeSources.isBuiltIn(item.addonId))) {
+            return fallbackDetail(item)
+        }
         // Same guarantee for NSFW anime: if both AniList and Jikan failed, build the detail from
         // what the built-in hentai sources know (poster/series/episodes), falling back to the
         // catalog item itself. The page still renders and plays instead of hard-failing.
@@ -129,6 +149,47 @@ class MetadataRepository(
         )
     }
 
+    /** Maps a built-in SFW source result onto the normal detail model. */
+    private fun sfwMeta(source: SfwSource, item: MediaItem, detail: SfwDetail): MetaDetail {
+        val t = detail.title
+        return MetaDetail(
+            id = item.id,
+            type = if (t.kind == MediaType.SERIES) "series" else "movie",
+            name = t.title.ifBlank { item.title },
+            poster = detail.poster ?: t.poster ?: item.poster,
+            background = detail.poster ?: t.poster ?: item.backdrop ?: item.poster,
+            description = detail.description,
+            releaseInfo = t.year ?: item.year,
+            imdbRating = t.rating?.let { String.format("%.1f", it) }
+                ?: item.rating?.let { String.format("%.1f", it) },
+            genres = item.genres,
+            videos = detail.episodes.map { it.toVideo() },
+            totalEpisodes = detail.episodes.size.takeIf { it > 0 },
+            addonId = source.id,
+            recommendations = detail.related.map {
+                it.toMediaItem(SfwSources.byId(it.sourceId)?.name ?: it.sourceId)
+            },
+        )
+    }
+
+    /**
+     * Last-resort SFW-anime detail: the catalog item's own metadata, enriched with
+     * whatever the built-in anime sources know (an episode list), so the page never
+     * hard-fails. The page keeps the title the user selected — only the episode
+     * list is borrowed, and only when it recognisably matches (the §2s rule).
+     */
+    private suspend fun sfwAnimeFallback(item: MediaItem): MetaDetail {
+        val base = fallbackDetail(item)
+        val episodes = runCatching { SfwAnimeRepository.episodes(item.title) }.getOrNull()?.episodes.orEmpty()
+        val head = episodes.firstOrNull() ?: return base
+        if (!adultTitlesMatch(item.title, head.series)) return base
+        return base.copy(
+            poster = base.poster ?: head.poster,
+            background = base.background ?: head.poster ?: base.poster,
+            videos = episodes.map { it.toVideo() },
+            totalEpisodes = episodes.size,
+        )
+    }
     /** Minimal detail synthesized from a catalog item when no add-on meta is available. */
     private fun fallbackDetail(item: MediaItem): MetaDetail = MetaDetail(
         id = item.id,

@@ -171,7 +171,7 @@ private fun AppLockGate(
                 modifier = Modifier.padding(32.dp),
             ) {
                 Icon(Icons.Filled.Lock, null, tint = nova.accent, modifier = Modifier.size(48.dp))
-                Text("NexusStream is locked", style = MaterialTheme.typography.titleLarge, color = nova.textPrimary)
+                Text("Moovio is locked", style = MaterialTheme.typography.titleLarge, color = nova.textPrimary)
                 Text("Unlock to continue", style = MaterialTheme.typography.bodyMedium, color = nova.textSecondary)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { promptUnlock(activity) { unlocked = true } }) { Text("Unlock") }
@@ -376,7 +376,7 @@ private fun promptUnlock(activity: FragmentActivity, onSuccess: () -> Unit) {
         },
     )
     val info = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("Unlock NexusStream")
+        .setTitle("Unlock Moovio")
         .setSubtitle("Confirm it's you")
         .setAllowedAuthenticators(authenticators)
         .build()

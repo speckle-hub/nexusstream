@@ -5,6 +5,13 @@ import com.novastream.app.data.adult.AdultSources
 import com.novastream.app.data.hentai.HentaiEpisode
 import com.novastream.app.data.hentai.HentaiRepository
 import com.novastream.app.data.cloudstream.CloudStreamSources
+import com.novastream.app.data.sfw.SfwAnimeEpisode
+import com.novastream.app.data.sfw.SfwAnimeRepository
+import com.novastream.app.data.sfw.SfwAnimeSources
+import com.novastream.app.data.sfw.SfwEpisode
+import com.novastream.app.data.sfw.SfwRepository
+import com.novastream.app.data.sfw.SfwSources
+import com.novastream.app.data.sfw.sfwSeasonEpisode
 import com.novastream.app.data.local.AddonStore
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
@@ -77,6 +84,34 @@ class StreamRepository(
             return StreamsResult(direct)
         }
 
+        // Built-in SFW movie/TV titles resolve their own direct streams: a movie page
+        // or an `sfw:` episode page, with no add-on involved.
+        SfwSources.byId(item.addonId)?.let { source ->
+            val direct = runCatching {
+                val ep = SfwEpisode.fromVideoId(videoId)
+                if (ep != null && ep.first == source.id) {
+                    SfwRepository.streamsForEpisode(
+                        SfwEpisode(source.id, item.title, item.title, ep.second),
+                        source,
+                    )
+                } else {
+                    SfwRepository.streams(item.id, source)
+                }
+            }.getOrDefault(emptyList())
+            return StreamsResult(direct)
+        }
+
+        // Built-in SFW anime episode pages (`sfwa:`) resolve directly.
+        SfwAnimeEpisode.fromVideoId(videoId)?.let { (sourceId, url) ->
+            val source = SfwAnimeSources.byId(sourceId)
+            val direct = if (source != null) {
+                runCatching {
+                    SfwAnimeRepository.streams(SfwAnimeEpisode(sourceId, item.title, item.title, url)).streams
+                }.getOrDefault(emptyList())
+            } else emptyList()
+            return StreamsResult(direct)
+        }
+
         // CloudStream provider items own their streams: a movie uses the provider's data URL, an
         // episode carries it in [videoId] (see CloudStreamSources).
         if (item.addonId?.startsWith(CloudStreamSources.ADDON_PREFIX) == true) {
@@ -107,7 +142,8 @@ class StreamRepository(
             }
         }
         // Phase 32: race the Stremio fan-out against the CloudStream title match concurrently
-        // instead of awaiting one before starting the other.
+        // instead of awaiting one before starting the other. Built-in SFW sources race
+        // alongside them, so Play works with zero add-ons installed.
         return coroutineScope {
             val baseDeferred = async { stremioStreamsDetailed(item, videoId, onPartial) }
             val extraDeferred = async {
@@ -116,15 +152,46 @@ class StreamRepository(
                         .getOrDefault(emptyList())
                 } else emptyList()
             }
+            val sfwDeferred = async {
+                if (item.type == MediaType.MOVIE || item.type == MediaType.SERIES || item.type == MediaType.ANIME) {
+                    runCatching { sfwBuiltins(item, videoId) }.getOrDefault(emptyList())
+                } else emptyList()
+            }
             val base = baseDeferred.await()
             val extra = extraDeferred.await()
-            if (extra.isNotEmpty()) {
-                StreamsResult(
-                    streams = (extra.ranked() + base.streams).distinctBy { streamKey(it) },
-                    errors = base.errors,
-                )
-            } else base
+            val sfw = sfwDeferred.await()
+            if (extra.isEmpty() && sfw.isEmpty()) return@coroutineScope base
+            val merged = (extra.ranked() + sfw.ranked() + base.streams).distinctBy { streamKey(it) }
+            StreamsResult(
+                streams = StreamRanking.rank(
+                    merged,
+                    AddonStore.Defaults.preferredStreamHosts,
+                    directFirst = true,
+                ),
+                errors = base.errors,
+            )
         }
+    }
+
+    /**
+     * Built-in SFW streams for a regular title: anime resolves by title + episode
+     * number (AniList-led, like the NSFW-anime path), movies/series by title with
+     * season/episode parsed from the Stremio-style video id and the TMDB id passed
+     * through for the TMDB-keyed resolvers (Vidsrc family).
+     */
+    private suspend fun sfwBuiltins(item: MediaItem, videoId: String?): List<StreamSource> {
+        if (item.type == MediaType.ANIME) {
+            return SfwAnimeRepository.streams(item.title, episodeNumber(item, videoId)).streams
+        }
+        val (season, episode) = sfwSeasonEpisode(videoId, item.id)
+        // TMDB-keyed resolvers (Vidsrc family) need an exact id: movies always carry
+        // it, series only once an episode is picked (a series without S/E must never
+        // resolve as a movie embed).
+        val tmdbId = item.id.takeIf {
+            item.addonId == "tmdb" && !it.contains(':') && it.all { c -> c.isDigit() } &&
+                (item.type == MediaType.MOVIE || (season != null && episode != null))
+        }
+        return SfwRepository.streamsForTitle(item.title, item.year, season, episode, tmdbId)
     }
 
     /** Streams from the built-in hentai sources for [item] / [videoId]. */

@@ -124,6 +124,10 @@ class SettingsStore(private val context: Context) {
         val OAUTH_VERIFIER = stringPreferencesKey("oauth_verifier")
         // Phase 30 dashboard: home-row titles the user hid (newline-joined; empty = show all).
         val HIDDEN_HOME_ROWS = stringPreferencesKey("hidden_home_rows")
+        // Phase 37 Anime4K enhancement: preset ("off" | "sharpen" | "deblur" | "denoise") and
+        // GPU tier ("mid" | "high"), chosen live in the player sheet and persisted here.
+        val ANIME4K_PRESET = stringPreferencesKey("anime4k_preset")
+        val ANIME4K_TIER = stringPreferencesKey("anime4k_tier")
     }
 
     val theme: StateFlow<String> = context.dataStore.data.map { it[Keys.THEME] ?: "dark" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "dark")
@@ -200,6 +204,9 @@ class SettingsStore(private val context: Context) {
     val hiddenHomeRows: StateFlow<List<String>> = context.dataStore.data
         .map { it[Keys.HIDDEN_HOME_ROWS]?.split('\n')?.filter { s -> s.isNotBlank() }.orEmpty() }
         .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Phase 37 Anime4K enhancement (persisted from the in-player sheet).
+    val anime4KPreset: StateFlow<String> = context.dataStore.data.map { it[Keys.ANIME4K_PRESET] ?: "off" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "off")
+    val anime4KGpuTier: StateFlow<String> = context.dataStore.data.map { it[Keys.ANIME4K_TIER] ?: "mid" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "mid")
 
     /** Most-recent-first list of past searches, capped at [MAX_RECENT]. */
     val recentSearches: StateFlow<List<String>> = context.dataStore.data
@@ -299,6 +306,16 @@ class SettingsStore(private val context: Context) {
     /** Persist the hidden home-row titles (Phase 30 dashboard). */
     suspend fun setHiddenHomeRows(titles: List<String>) = context.dataStore.edit {
         it[Keys.HIDDEN_HOME_ROWS] = titles.joinToString("\n")
+    }
+
+    /** Persist the Anime4K preset/tier (Phase 37); unknown keys fall back to off/mid. */
+    suspend fun setAnime4KPreset(v: String) = context.dataStore.edit {
+        val known = setOf("off", "sharpen", "deblur", "denoise")
+        it[Keys.ANIME4K_PRESET] = v.trim().lowercase().takeIf { k -> k in known } ?: "off"
+    }
+    suspend fun setAnime4KGpuTier(v: String) = context.dataStore.edit {
+        val known = setOf("mid", "high")
+        it[Keys.ANIME4K_TIER] = v.trim().lowercase().takeIf { k -> k in known } ?: "mid"
     }
 
     /** One-shot snapshot of every scrobble provider (enabled + token), for the sync client. */
