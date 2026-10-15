@@ -112,7 +112,9 @@ html {
     scroll-behavior: auto;
   }
   .animate-scroll-x,
-  .animate-pulse-soft {
+  .animate-pulse-soft,
+  .animate-float,
+  .animate-float-slow {
     animation: none !important;
   }
 }
@@ -207,6 +209,15 @@ body {
     background: rgba(12, 12, 14, 0.68);
     backdrop-filter: saturate(180%) blur(18px);
     -webkit-backdrop-filter: saturate(180%) blur(18px);
+  }
+
+  /* ── Floating product chips (PhoneMockup): dark glass plates that
+        sit on the paper beside the device. */
+  .glass {
+    background: rgba(12, 12, 14, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: saturate(160%) blur(14px);
+    -webkit-backdrop-filter: saturate(160%) blur(14px);
   }
 }
 

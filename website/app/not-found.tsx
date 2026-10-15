@@ -3,17 +3,19 @@ import { LogoMark } from "@/components/sections/LogoMark";
 
 export default function NotFound() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-void px-6 text-center">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_35%,rgba(124,92,255,0.22),transparent_70%)]" />
+    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 text-center">
       <div className="relative">
         <LogoMark className="mx-auto mb-8 h-16 w-16" />
-        <p className="font-display text-7xl font-bold text-gradient md:text-8xl">404</p>
-        <p className="mt-4 max-w-sm text-sm text-muted md:text-base">
+        <p className="eyebrow text-vermilion">Error 404</p>
+        <p className="display mt-4 font-sans font-bold text-ink" style={{ fontSize: "clamp(3rem, 10vw, 6rem)" }}>
+          Lost pages.
+        </p>
+        <p className="measure mx-auto mt-5 text-[16px] text-graphite">
           This stream ended — or never existed. Head back to the home feed.
         </p>
         <Link
           href="/"
-          className="mt-8 inline-block rounded-full bg-accent px-8 py-3.5 font-semibold text-white shadow-glow-accent transition hover:bg-accent-deep"
+          className="press mt-8 inline-block rounded-full bg-ink px-8 py-3.5 text-[15px] font-semibold tracking-tight text-paper hover:bg-graphite"
         >
           Back to NexusStream
         </Link>
