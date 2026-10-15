@@ -41,7 +41,7 @@ export function Footer() {
             <div className="flex items-center gap-2.5">
               <LogoMark className="h-8 w-8" />
               <span className="font-display text-lg font-semibold tracking-tight text-paper">
-                NexusStream
+                Moovio
               </span>
             </div>
             <p className="mt-5 max-w-sm text-[14.5px] leading-relaxed text-muted">
@@ -60,7 +60,7 @@ export function Footer() {
               </a>
               <span className="eyebrow flex items-center gap-2 text-[10px] text-faint">
                 <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse-soft" />
-                v1.8.0
+                v1.9.0
               </span>
             </div>
           </div>
@@ -91,7 +91,7 @@ export function Footer() {
         </div>
 
         <div className="mt-14 flex flex-col gap-4 border-t border-rule pt-6 text-[12.5px] text-faint md:flex-row md:items-center md:justify-between">
-          <p>© 2026 NexusStream contributors. GPL-3.0.</p>
+          <p>© 2026 Moovio contributors. GPL-3.0.</p>
           <p className="flex items-center gap-2">
             <Scale className="h-3.5 w-3.5" />
             Not affiliated with Stremio, CloudStream, Aniyomi or Mihon.

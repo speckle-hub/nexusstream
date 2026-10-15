@@ -36,7 +36,7 @@ function Poster({ g, title, meta, w = "w-[74px]" }: { g: string; title: string; 
 }
 
 /**
- * A pure-CSS recreation of the NexusStream home feed in a phone frame —
+ * A pure-CSS recreation of the Moovio home feed in a phone frame —
  * hero banner, poster rails and the floating pill navigation.
  */
 export function PhoneMockup({ className }: { className?: string }) {

@@ -6,7 +6,7 @@ import { Stagger } from "../ui/reveal";
 
 const spec = [
   ["File", "app-release.apk"],
-  ["Size", "≈42 MB"],
+  ["Size", "≈44 MB"],
   ["Requires", "Android 7.0 · SDK 24"],
   ["Licence", "GPL-3.0"],
 ];

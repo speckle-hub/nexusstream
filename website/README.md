@@ -1,6 +1,6 @@
-# NexusStream — Website
+# Moovio — Website
 
-The marketing/landing site for the [NexusStream Android app](https://github.com/speckle-hub/nexusstream).
+The marketing/landing site for the [Moovio Android app](https://github.com/speckle-hub/nexusstream).
 
 **Stack:** Next.js 15 (App Router, static) · TypeScript · Tailwind CSS v3 · framer-motion ·
 HeroUI · Aceternity-style components (hand-ported, see `components/ui/`) ·

@@ -6,12 +6,12 @@ import { Stagger } from "../ui/reveal";
 
 const faqs = [
   {
-    q: "Is NexusStream free?",
+    q: "Is Moovio free?",
     a: "Yes — free and open source. No accounts, no ads, no tracking, no paywalls. Download the APK from GitHub Releases and you're set.",
   },
   {
     q: "Where does the content come from?",
-    a: "NexusStream is a player and organiser, not a content source. Metadata comes from free public APIs (TMDB, AniList, MangaDex, Jikan, Cinemeta) and subtitles from OpenSubtitles. Any streaming capability comes from third-party add-ons that you choose to install — the app ships with no stream providers preinstalled.",
+    a: "Moovio is a player and organiser, not a content source. Metadata comes from free public APIs (TMDB, AniList, MangaDex, Jikan, Cinemeta) and subtitles from OpenSubtitles. Built-in resolvers cover popular movies, TV and anime out of the box, and you can add third-party add-ons of your own — nothing extra is enabled without your say-so.",
   },
   {
     q: "How do I install it?",
@@ -19,7 +19,7 @@ const faqs = [
   },
   {
     q: "What are Stremio, CloudStream, Aniyomi and Mihon add-ons?",
-    a: "Four popular open extension ecosystems. NexusStream speaks all four: paste a Stremio manifest URL or a provider repository URL in the Add-on Manager, browse its extensions, and install what you want. Nothing is enabled without your say-so.",
+    a: "Four popular open extension ecosystems. Moovio speaks all four: paste a Stremio manifest URL or a provider repository URL in the Add-on Manager, browse its extensions, and install what you want. Nothing is enabled without your say-so.",
   },
   {
     q: "Can it play and read offline?",

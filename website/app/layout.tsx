@@ -23,9 +23,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://website-zeta-one-92.vercel.app",
   ),
-  title: "NexusStream — Every stream. One app.",
+  title: "Moovio — Every stream. One app.",
   description:
-    "NexusStream unifies Stremio add-ons, CloudStream extensions, Aniyomi and Mihon repos into one beautiful Android app — movies, TV, anime and manga, with a player and reader that feel purpose-built.",
+    "Moovio unifies Stremio add-ons, CloudStream extensions, Aniyomi and Mihon repos into one beautiful Android app — movies, TV, anime and manga, with a player and reader that feel purpose-built.",
   keywords: [
     "Android",
     "streaming",
@@ -37,15 +37,15 @@ export const metadata: Metadata = {
     "open source",
   ],
   openGraph: {
-    title: "NexusStream — Every stream. One app.",
+    title: "Moovio — Every stream. One app.",
     description:
       "One beautiful Android app for movies, TV, anime and manga. Free and open source.",
     type: "website",
-    siteName: "NexusStream",
+    siteName: "Moovio",
   },
   twitter: {
     card: "summary_large_image",
-    title: "NexusStream — Every stream. One app.",
+    title: "Moovio — Every stream. One app.",
     description:
       "One beautiful Android app for movies, TV, anime and manga. Free and open source.",
   },
