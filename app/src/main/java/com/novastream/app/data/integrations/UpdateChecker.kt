@@ -137,7 +137,7 @@ suspend fun downloadApkWithProgress(
 ): File? = withContext(Dispatchers.IO) {
     runCatching {
         val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-        val out = File(dir, "nexusstream-update.apk")
+        val out = File(dir, "moovio-update.apk")
         // A stale partial from a cancelled run must never be mistaken for a finished APK.
         if (out.exists()) out.delete()
         val request = Request.Builder().url(url).build()
@@ -176,7 +176,7 @@ suspend fun downloadApkWithProgress(
         // by getOrElse's contract? No — runCatching captures it, so rethrow explicitly to keep
         // the caller's Job cancellable instead of swallowing it into a silent `null`.
         if (it is kotlinx.coroutines.CancellationException) {
-            runCatching { File(File(context.cacheDir, "updates"), "nexusstream-update.apk").delete() }
+            runCatching { File(File(context.cacheDir, "updates"), "moovio-update.apk").delete() }
             throw it
         }
         runCatching { outDelete(context) }
@@ -185,7 +185,7 @@ suspend fun downloadApkWithProgress(
 }
 
 private fun outDelete(context: Context) {
-    runCatching { File(File(context.cacheDir, "updates"), "nexusstream-update.apk").delete() }
+    runCatching { File(File(context.cacheDir, "updates"), "moovio-update.apk").delete() }
 }
 
 /**

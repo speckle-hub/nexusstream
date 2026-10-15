@@ -1,7 +1,26 @@
 # NexusStream — Roadmap & Working Notes
 
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-14 — **v1.8.0 released.** Bundles
+> resume exactly where it left off. Last updated: 2026-10-15 — **v1.9.0 released.** Bundles
+> the Moovio rebrand (§2au: display name), the Anime4K GPU shader engine (§2au) and the
+> 14 built-in SFW sources + auto-play best source (§2av). `versionCode` 18 /
+> `versionName` 1.9.0; signed release built → `dist/Moovio.apk` (43,946,889 bytes, SHA-256
+> `4E4E6E60…8D8D64`; `versionCode` 18 / `versionName` 1.9.0 verified in
+> `output-metadata.json`); committed and pushed (`main` + tag `v1.9.0`). Website
+> hero/footer bumped to Moovio v1.9.0, stats to 281 (pushed; Vercel auto-redeploys). The
+> **`v1.9.0` GitHub Release is published with `Moovio.apk` + `app-release.apk` attached**,
+> so the in-app update dialog and the site CTA now serve v1.9.0.
+> Previous: 2026-10-15 — **Phase 38 implemented
+> (see §2av):** 14 built-in SFW sources (8 movies/TV + 6 anime) with auto-play best
+> source. Verified `:app:compileDebugKotlin` ✓,
+> `:app:testDebugUnitTest --rerun-tasks` ✓ **281/281** (+34 `SfwSourcesTest`). Not
+> pushed; no APK rebuilt this session.
+> Previous: 2026-10-15 — **Phase 37 implemented
+> (see §2au):** Moovio rebrand (display name) + Anime4K GPU shader engine with presets,
+> tiers, persistence and in-player sheet. Verified `:app:compileDebugKotlin` ✓,
+> `:app:testDebugUnitTest --rerun-tasks` ✓ **247/247** (+10 `Phase37Anime4KTest`). Not
+> pushed; no APK rebuilt this session.
+> Previous: 2026-10-14 — **v1.8.0 released.** Bundles
 > Phase 36 (§2at: premium overhaul) on top of the §2as source expansion (13 new built-in
 > sources). `versionCode` 17 / `versionName` 1.8.0; signed release built →
 > `dist/NexusStream.apk` (43,741,343 bytes, SHA-256 `F98D6590…008C00`;
@@ -341,8 +360,8 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~25,800 LOC across 140 Kotlin source files in a single `:app` module (+29 test files). Unit tests
-(237 cases):
+~29,700 LOC across 163 Kotlin source files in a single `:app` module (+31 test files). Unit tests
+(281 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -355,6 +374,8 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 `Phase35PlayerControlsTest.kt` (7, touch-controller policy — §2ar),
 `MoreSourcesTest.kt` (14, source expansion — §2as),
 `Phase36PremiumTest.kt` (7, premium pass — §2at),
+`Phase37Anime4KTest.kt` (10, Anime4K engine — §2au),
+`SfwSourcesTest.kt` (34, SFW built-ins + auto-play ranking — §2av),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
 
@@ -362,7 +383,39 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: v1.8.0 released** — bundles Phase 36 (§2at: premium overhaul) on top of the
+**Topic: v1.9.0 released** — bundles the Moovio rebrand + Anime4K engine (§2au) and the
+14 built-in SFW sources + auto-play best source (§2av). `versionCode` 18 /
+`versionName` 1.9.0, signed APK built (`dist/Moovio.apk`, 43,946,889 bytes, SHA-256
+`4E4E6E60…8D8D64`), source tagged + pushed, website at Moovio v1.9.0 / 281 tests, and the
+**GitHub Release is published with `Moovio.apk` + `app-release.apk` attached**, so the
+in-app updater and the site CTA serve v1.9.0.
+
+Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **Phase 38 — built-in SFW sources + auto-play best source (§2av).** 14 modular
+scrapers (Vidsrc, YTS, FlixHQ, MultiMovies, Rive, Flixer, PopcornMovies, SuperStream
++ AnimePahe, Gogo, KickassAnime, YugenAnime, AnimeKai, Miruro) wired into search,
+catalog rows, metadata fallback and stream resolution, so Movies/TV/Anime play with
+zero add-ons; Play auto-starts the best-ranked working stream (reliability →
+quality → direct → seeders) with the sheet kept for manual override. Verified
+`:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **281/281**
+(+34 `SfwSourcesTest`). Not pushed; no APK rebuilt this session. Device pass still
+needed (per-site reachability + playback, auto-play first-paint).
+
+Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **Phase 37 — Moovio rebrand + Anime4K GPU shader engine (§2au).** Display name
+is now **Moovio** (package/`applicationId` unchanged, like the earlier NexusStream rename, so
+installs update in place); the player runs real-time Anime4K GLSL passes
+(`media3-effect` `GlEffect` + `BaseGlShaderProgram`) with 4 presets × 2 GPU tiers,
+persisted prefs and a live-switching sheet section. Verified
+`:app:compileDebugKotlin` ✓, `:app:testDebugUnitTest --rerun-tasks` ✓ **247/247**
+(+10 `Phase37Anime4KTest`). Not pushed; no APK rebuilt this session. Device pass still
+needed (sheet feel, effect on real GPU incl. HQ-tier frame drops, Off bypass).
+
+Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **v1.8.0 released** — bundles Phase 36 (§2at: premium overhaul) on top of the
 §2as source expansion (13 new built-in sources). `versionCode` 17 / `versionName`
 1.8.0, signed APK built (`dist/NexusStream.apk`, 43,741,343 bytes, SHA-256
 `F98D6590…008C00`), source tagged + pushed, website at v1.8.0 / 237 tests, and the
@@ -792,6 +845,200 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
 
 ---
+
+## 2av. Phase 38 — Built-in SFW sources + auto-play best source (2026-10-15)
+
+**Topic:** regular Movies/TV/Anime play with zero add-ons installed (14 modular
+built-in scrapers in the `data/adult/` + `data/hentai/` style), and Play
+auto-starting the best available stream instead of forcing a manual pick.
+
+Status: **implemented and verified (statically + unit).** No device/`adb` in this
+environment, so per-site reachability + real playback still need the device pass
+below. Every parser is pinned by fixture tests (no network); every network hop is
+bounded with per-source isolation, so one dead site never breaks its section.
+Files and verification at the end.
+
+### 1. Contracts + shared engine (`data/sfw/`)
+- **`SfwModels.kt`**: `SfwTitle` (page URL doubles as item id, like `AdultVideo`),
+  `SfwEpisode` (`sfw:` video ids, like `HentaiEpisode`), `SfwAnimeEpisode`
+  (`sfwa:` ids), `SfwRow`, `SfwDetail`, `SfwAnimeTitle`, `SfwSourceException`.
+- **`SfwSource.kt`**: `SfwSource` (movies/TV: `home`/`search`/`detail`/
+  `streamsForEpisode`/`streamsForTmdb`, with list-defaults so resolver-only
+  sources like Vidsrc implement just the TMDB hook) and `SfwAnimeSource`
+  (anime: `search`/`streams` + a default series-grouped `searchTitles` that
+  API sources override). Plus `sfwSeasonEpisode()` (`tt:2:5`, `S02E05`, trailing
+  anime numbers), the strict `sfwSameTitle` gate (shared adult matcher), and the
+  `sfwRows` concurrent-row helper.
+- **`SfwEmbeds.kt`**: page → direct media → `"file"`/`"sources"` blobs →
+  iframes → nested frame chain (`resolveChain`), a pure Dean-Edwards
+  `jsUnpackAll` for packed player scripts, `labeledSources`, `normalizeLabel`
+  (`HD`→`720p`, CAM kept verbatim), and the generic `parseTitleCards` index
+  parser. Reuses `AdultHttp` (browser headers, page cache, challenge → typed
+  error) exactly like the hentai sources do.
+
+### 2. Movies & TV (+8 — search + rows; TMDB stays the metadata authority)
+- **Vidsrc** (`vidsrc`, resolver-only) — TMDB-id-keyed embeds
+  (`/embed/movie/{id}`, `/embed/tv/{id}/{s}/{e}`) across 4 mirrors, first
+  playable mirror wins; no title matching needed.
+- **YTS** (`yts`, movies-only) — public JSON API for trending/popular/latest
+  rows + search; torrents resolve to `infoHash` streams with real quality +
+  seeder counts, so the existing torrent path and seeder ranking work unchanged.
+- **FlixHQ** (`flixhq`) — search cards, watch pages, and the documented ajax
+  ladder (`season/list` → `season/episodes` → `episode/servers` → `server/{id}`
+  → `{link}`), each hop fixture-pinned, mirrors walked with isolation.
+- **MultiMovies** (`multimovies`, Sora-style), **Rive** (`rive`), **Flixer**
+  (`flixer`), **PopcornMovies** (`popcornmovies`) — search-first indexes with
+  title pages (synopsis + episode picker for series) resolving through the
+  shared embed chain, each with mirror fallbacks.
+- **SuperStream** (`superstream`, StreamPlay-style) — JSON app API
+  (`Search`/`Detail`/`EpisodeLinks` modules) returning title records, seasons
+  and `{file, label}` link lists; no markup scraping.
+
+### 3. Anime (+6 — AniList-led, built-ins resolve episodes/streams only)
+- **AnimePahe** (`animepahe`) — JSON API (`?m=search`, `?m=release` paging) with
+  native anime-level `searchTitles`; episodes resolve via pahe_win windows into
+  kwik embeds (packed scripts unpacked).
+- **Gogo** (`gogo`, Anichi-style) — ajax keyword search, `/category/` episode
+  lists, vidstream-style embeds.
+- **KickassAnime** (`kickassanime`), **YugenAnime** (`yugenanime`, successor
+  mirrors — the original `.tv` shut down Dec 2024), **AnimeKai** (`animekai`,
+  ajax search + `/ajax/episode/list` + `/ajax/server/{id}` ladder),
+  **Miruro** (`miruro`, search API + `/series/` pages) — series search,
+  episode-list expansion, shared embed resolution.
+
+### 4. Repositories (isolation + progressive + cached, NSFW-pattern)
+- **`SfwRepository`**: progressive `homeRows(section)` (per-source TTL cache,
+  5 s caps, mirror quarantine), ranked `searchProgressive` (relevance filter
+  with unfiltered fallback, one retry on transient failure), cached `detail`,
+  `streams`/`streamsForEpisode` with bounded dead-link pre-flight
+  (`AdultHttp.verifyPlayable`, so Play lights up on live links only), and
+  `streamsForTitle` (TMDB resolvers first when the id is known, else
+  search → strict same-title + year match → episodes/S-E pick → resolve).
+- **`SfwAnimeRepository`**: `episodes(title)` with query variants + strict
+  series matching (the §2s correct-title guarantee), `streams(title, ep)` /
+  `streams(episode)` with pre-flight, and series-level `searchTitles` for rows.
+
+### 5. Wiring (TMDB/AniList metadata untouched)
+- **`StreamRepository`**: built-in title/episode pages resolve directly
+  (`sfw:`/`sfwa:` branches, like the adult branch); regular
+  Movie/Series/Anime items now race Stremio + CloudStream + SFW built-ins
+  concurrently and re-rank the merge (preferred hosts → quality → direct →
+  seeders). Series embed-as-movie is guarded: TMDB resolvers only run with an
+  exact id (+ S/E for series).
+- **`CatalogRepository`**: section search + global search merge built-in titles
+  (bounded, de-duplicated downstream); Browse Movie/Series/Anime tabs gain
+  built-in Popular/Latest/Trending rows (Home feed intentionally unchanged).
+- **`MetadataRepository`**: built-in titles get `sfwMeta` (page meta +
+  episodes + related) with a `fallbackDetail` guarantee; anime titles get the
+  title-preserving `sfwAnimeFallback` (mirrors `hentaiFallback`).
+- **Ranking + auto-play**: `StreamRanking.rank` gained a default-off
+  `directFirst` tier (existing tests pin the default order unchanged) plus pure
+  `isDirectMediaUrl` / `bestPlayable` (playable-only filter → preferred →
+  quality → direct → seeders); `preferredStreamHosts` now lists Torrentio +
+  the known-good built-ins (ordering only — nothing is installed); the detail
+  Play CTA and season bulk-download both use `bestPlayable`, so tapping Play
+  starts the best working stream immediately while the sheet stays one tap away.
+
+### Files
+`data/sfw/SfwModels.kt`, `SfwSource.kt`, `SfwEmbeds.kt`, `VidsrcSource.kt`,
+`YtsSource.kt`, `FlixhqSource.kt`, `MultiMoviesSource.kt`, `RiveSource.kt`,
+`FlixerSource.kt`, `PopcornMoviesSource.kt`, `SuperStreamSource.kt`,
+`AnimePaheSource.kt`, `GogoSource.kt`, `KickassAnimeSource.kt`,
+`YugenAnimeSource.kt`, `AnimeKaiSource.kt`, `MiruroSource.kt`,
+`SfwSources.kt` (8), `SfwAnimeSources.kt` (6), `SfwRepository.kt`,
+`SfwAnimeRepository.kt`, `data/repo/StreamRepository.kt` (SFW race + merge),
+`data/repo/StreamRanking.kt` (`directFirst`, `bestPlayable`, `isDirectMediaUrl`),
+`data/repo/CatalogRepository.kt` (search + rows), `data/repo/MetadataRepository.kt`
+(`sfwMeta`, fallbacks), `data/local/AddonStore.kt` (preferred hosts),
+`ui/screens/detail/DetailScreen.kt` (auto-play pick), `app/src/test/.../SfwSourcesTest.kt` (+34).
+
+### Verification (2026-10-15)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings;
+  two in-session fixes: `Regex.findAll` on the packer pattern, one fixture URL missing
+  the `/episode/` contract).
+- `:app:testDebugUnitTest --rerun-tasks` → **281/281 tests, 0 failures, 0 errors** (+34 new;
+  per-source fixtures, registry uniqueness, unpacker, S/E parsing, id round-trips,
+  auto-play ordering incl. preferred-beats-4K, quality-beats-direct, direct-wins-ties).
+- Not pushed; no APK rebuilt this session. Device pass still needed: per-site home rows,
+  search relevance, detail + real playback per source (especially Vidsrc mirror hops,
+  FlixHQ ajax drift, kwik unpacking, YTS torrent streaming, Rive/SuperStream/Flixer/
+  PopcornMovies reachability, Yugen successor mirrors), and auto-play first-paint on a
+  cold title with no add-ons installed.
+
+## 2au. Phase 37 — Moovio rebrand & Anime4K GPU shader engine (2026-10-15)
+
+**Topic:** dual milestone — (1) rebrand the display name NexusStream → **Moovio**,
+(2) run real-time Anime4K GLSL enhancement passes inside the Media3 frame-processor
+loop with presets, GPU tiers, persisted prefs and an in-player sheet.
+
+Status: **implemented and verified (statically + unit).** No device/`adb` in this
+environment, so GPU feel/frame-drop behaviour still needs the device pass below. Every
+new path is unit-pinned where it is pure-JVM; the GL hook is total (any GPU rejection
+logs and leaves playback untouched). Files and verification at the end.
+
+### 1. Rebrand: NexusStream → Moovio (display name only)
+- User-visible strings now read **Moovio**: `strings.xml` `app_name`, Home top bar,
+  app-lock gate ("Moovio is locked" + biometric prompt), Settings About row + dialog
+  title, download fallback filename, backup error, HTTP `UA` (`… Moovio/1.0`), and the
+  updater's staged APK (`moovio-update.apk`).
+- **Deliberately unchanged for compat** (same doctrine as the earlier NexusStream
+  rename): package/`applicationId` `com.novastream.app` (in-place updates), theme and
+  Nova-prefixed class names (technical identifiers, not branding), the `novastream://`
+  OAuth deep-link scheme (issued redirect URIs), `UpdateChecker.DEFAULT_REPO`
+  (`speckle-hub/nexusstream`) and the `nova_settings` DataStore name.
+
+### 2. Anime4K engine (`ui/player/Anime4KEngine.kt`, pure JVM)
+- **Presets:** `OFF` (frame-processor bypass, zero cost), `SHARPEN` (unsharp-mask edge
+  restoration), `DEBLUR` (difference-of-Gaussians soft restoration), `DENOISE`
+  (edge-aware 3×3 bilateral-ish cleanup). Total `parseAnime4KPreset()` falls back to Off.
+- **GPU tiers:** `MID` (lightweight: fast edge recovery + debanding suffix) vs `HIGH`
+  (full HQ spatial-scaling suffix). Total `parseAnime4KGpuTier()` falls back to Mid.
+- `anime4KPasses()` names the ordered pass list per preset × tier (empty when Off),
+  `anime4KEstimatedCost()` buckets 0/1/2, `isAnime4KHeavy()` is true only for live+HIGH,
+  `anime4KEffectLabel()` renders "Off" / "Sharpen · Mid-range GPU".
+- `anime4KFragmentShader()` emits the combined GLSL program bound to the
+  frame-processor contract (`uTexture` sampler, `vTexCoord` varying, `uTexelSize`).
+
+### 3. GPU hook (`ui/player/Anime4KGl.kt`, new `media3-effect:1.3.1` dep)
+- `Anime4KGlEffect : GlEffect` carries the config into the loop (`isNoOp` when Off);
+  `Anime4KShaderProgram : BaseGlShaderProgram` draws a full-screen quad through
+  `GlProgram(vertex, anime4KFragmentShader(config))`, setting `uTexture`/`uTexelSize`
+  per frame (API verified against the 1.3.1 sources: `GlEffect.toGlShaderProgram`,
+  `GlProgram(String, String)`, `Size(int, int)`).
+- `Anime4KEffectApplier.apply(player, config)` swaps `player.setVideoEffects(...)`
+  **without rebuilding the player** (Off clears to `emptyList()`); total via
+  `runCatching` + log, so a GPU rejection degrades to normal playback, never a crash.
+
+### 4. Persistence + in-player sheet
+- `SettingsStore` gained `ANIME4K_PRESET`/`ANIME4K_TIER` keys + flows (defaults
+  off/mid) with validated setters (unknown keys clamp to off/mid) — the choice
+  survives across playback sessions.
+- `TrackSheet` (Quality & Audio) gained an **Anime4K Enhancement** section: live
+  status label, one `TrackRow` per preset, one per GPU tier, and an HQ warning when a
+  heavy config is active. `PlayerScreen` collects the flows and re-applies via a
+  `LaunchedEffect(preset, tier)`, so switching is live mid-playback.
+
+### Files
+`res/values/strings.xml` (`app_name`), `res/values/colors.xml` + `drawable/ic_launcher_foreground.xml`
+(brand comments), `data/remote/Http.kt` (UA), `data/download/VideoDownloadManager.kt`
+(fallback name), `data/integrations/BackupManager.kt` (error text),
+`data/integrations/UpdateChecker.kt` (staged APK name), `ui/MainActivity.kt` (lock strings),
+`ui/screens/home/HomeScreen.kt` (top bar), `ui/screens/settings/SettingsScreen.kt` (About),
+`ui/player/Anime4KEngine.kt` (new policy), `ui/player/Anime4KGl.kt` (new GL hook),
+`ui/player/PlayerActivity.kt` (sheet section + live apply), `data/local/SettingsStore.kt`
+(preset/tier keys), `app/build.gradle.kts` (`media3-effect:1.3.1`),
+`app/src/test/.../Phase37Anime4KTest.kt` (+10).
+
+### Verification (2026-10-15)
+- `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings;
+  one in-session fix: sheet callbacks capture `LocalContainer.current.settings` in
+  composition instead of reading `settings` with no receiver).
+- `:app:testDebugUnitTest --rerun-tasks` → **247/247 tests, 0 failures, 0 errors** (+10 new;
+  parse fallbacks, Off emptiness, per-preset pass distinctness, Lite/HQ suffixes, heavy
+  gating, cost ordering, labels, GLSL bindings).
+- Not pushed; no APK rebuilt this session. Device pass still needed: sheet feel, effect
+  visible on a real GPU per preset, HQ-tier frame drops on mid-range hardware, Off
+  bypass, and preference survival across sessions.
 
 ## 2at. Phase 36 — Premium UI/UX Overhaul (2026-10-14)
 

@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.novastream.app.data.download.VideoKind
+import com.novastream.app.data.local.AddonStore
 import com.novastream.app.data.model.CastMember
 import com.novastream.app.data.model.MediaItem
 import com.novastream.app.data.model.MediaType
@@ -96,6 +97,7 @@ import com.novastream.app.data.model.StreamSource
 import com.novastream.app.data.model.SubtitleTrack
 import com.novastream.app.data.model.Video
 import com.novastream.app.data.remote.TorrentStreamer
+import com.novastream.app.data.repo.StreamRanking
 import com.novastream.app.ui.components.EmptyState
 import com.novastream.app.ui.components.GlassSurface
 import com.novastream.app.ui.components.MediaRow
@@ -217,7 +219,8 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
             for (ep in eps) {
                 val sources = runCatching { container.streamRepository.streamsFor(item, ep.id) }
                     .getOrDefault(emptyList())
-                val source = sources.firstOrNull { it.playableUrl != null } ?: continue
+                val source = StreamRanking.bestPlayable(sources, AddonStore.Defaults.preferredStreamHosts)
+                    ?: continue
                 val url = source.playableUrl ?: continue
                 val kind = if (url.contains(".m3u8", ignoreCase = true)) VideoKind.HLS else VideoKind.PROGRESSIVE
                 val label = buildString {
@@ -372,9 +375,14 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                         Icon(Icons.Filled.MenuBook, null, modifier = Modifier.size(20.dp))
                     }
                 } else {
-                    val firstPlayable = streams.firstOrNull {
-                        it.playableUrl != null || it.infoHash != null || it.ytId != null
-                    }
+                    // Auto-play best source: reliability (preferred hosts) → quality →
+                    // direct-over-embed → seeders, recomputed live as providers resolve,
+                    // so Play starts the best available stream with no manual picking.
+                    // The stream sheet stays one tap away for manual override.
+                    val firstPlayable = StreamRanking.bestPlayable(
+                        streams,
+                        AddonStore.Defaults.preferredStreamHosts,
+                    )
                     PrimaryActionButton(
                         label = if (streamsLoading && streams.isEmpty()) {
                             "Finding\u2026"

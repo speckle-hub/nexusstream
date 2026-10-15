@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">NexusStream</string>
+    <string name="app_name">Moovio</string>
     <string name="download_channel_name">Video downloads</string>
     <string name="download_channel_description">Shows progress for video downloads</string>
 </resources>

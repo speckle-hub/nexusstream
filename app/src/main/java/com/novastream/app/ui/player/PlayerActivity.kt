@@ -1250,6 +1250,16 @@ private fun PlayerScreen(
     var boost by remember { mutableStateOf(audioBoostOn) }
     var normalize by remember { mutableStateOf(audioNormalizeOn) }
     val doubleTapMs by LocalContainer.current.settings.doubleTapMs.collectAsStateWithLifecycle()
+    // ---- Phase 37: Anime4K enhancement (persisted preset + GPU tier) ----
+    // Applied to the live player on every change, so the sheet switches passes mid-playback.
+    val anime4KPresetKey by LocalContainer.current.settings.anime4KPreset.collectAsStateWithLifecycle()
+    val anime4KGpuTierKey by LocalContainer.current.settings.anime4KGpuTier.collectAsStateWithLifecycle()
+    val anime4KConfig = Anime4KConfig(parseAnime4KPreset(anime4KPresetKey), parseAnime4KGpuTier(anime4KGpuTierKey))
+    // Captured once (composition context) so the sheet callbacks can persist below.
+    val anime4KSettings = LocalContainer.current.settings
+    LaunchedEffect(anime4KPresetKey, anime4KGpuTierKey) {
+        Anime4KEffectApplier.apply(player, anime4KConfig)
+    }
     var locked by remember { mutableStateOf(false) }
     var scaleMode by remember { mutableStateOf(ScaleMode.FIT) }
     var playerView by remember { mutableStateOf<PlayerView?>(null) }
@@ -1912,6 +1922,16 @@ private fun PlayerScreen(
                 onSubtitleSync = onSubtitleSync,
                 subtitleStyle = subtitleStyle,
                 onSubtitleStyle = onSubtitleStyle,
+                anime4KPreset = anime4KConfig.preset,
+                anime4KTier = anime4KConfig.tier,
+                onAnime4KPreset = { preset ->
+                    scope.launch { anime4KSettings.setAnime4KPreset(preset.key) }
+                    pokeControls()
+                },
+                onAnime4KTier = { tier ->
+                    scope.launch { anime4KSettings.setAnime4KGpuTier(tier.key) }
+                    pokeControls()
+                },
                 onDismiss = { showTracks = false },
             )
         }
@@ -2022,6 +2042,10 @@ private fun TrackSheet(
     onSubtitleSync: (Int) -> Unit,
     subtitleStyle: SubtitleStyle,
     onSubtitleStyle: (SubtitleStyle) -> Unit,
+    anime4KPreset: Anime4KPreset,
+    anime4KTier: Anime4KGpuTier,
+    onAnime4KPreset: (Anime4KPreset) -> Unit,
+    onAnime4KTier: (Anime4KGpuTier) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val nova = LocalNovaColors.current
@@ -2248,6 +2272,51 @@ private fun TrackSheet(
                             valueRange = 0f..0.3f,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                    }
+
+                    // Phase 37: Anime4K GPU enhancement — live preset + tier switching.
+                    // The selection applies to the running player immediately and persists
+                    // in Settings, so it survives across playback sessions.
+                    item {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Anime4K Enhancement",
+                            color = nova.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                        Text(
+                            anime4KEffectLabel(Anime4KConfig(anime4KPreset, anime4KTier)),
+                            color = nova.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            anime4KPreset.blurb,
+                            color = nova.textTertiary,
+                            fontSize = 11.sp,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Anime4KPreset.entries.forEach { preset ->
+                            TrackRow(preset.label, preset == anime4KPreset) { onAnime4KPreset(preset) }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("GPU tier", color = nova.textSecondary, fontSize = 13.sp)
+                        Text(
+                            anime4KTier.blurb,
+                            color = nova.textTertiary,
+                            fontSize = 11.sp,
+                        )
+                        Anime4KGpuTier.entries.forEach { tier ->
+                            TrackRow(tier.label, tier == anime4KTier) { onAnime4KTier(tier) }
+                        }
+                        if (isAnime4KHeavy(Anime4KConfig(anime4KPreset, anime4KTier))) {
+                            Text(
+                                "Full HQ pass — best on flagship GPUs; drop to Mid-range if frames stutter.",
+                                color = nova.accent,
+                                fontSize = 11.sp,
+                            )
+                        }
                     }
                 }
             }

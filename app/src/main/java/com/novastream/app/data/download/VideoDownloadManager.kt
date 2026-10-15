@@ -535,7 +535,7 @@ class VideoDownloadManager(private val context: Context) {
     private fun exportFileName(meta: VideoDownloadMeta): String {
         val ext = meta.url.substringBefore('?').substringAfterLast('.', "").lowercase()
             .takeIf { it in EXPORT_EXTENSIONS } ?: "mp4"
-        val base = meta.title.replace(Regex("[^A-Za-z0-9 ._-]"), "_").trim().ifBlank { "NovaStream download" }
+        val base = meta.title.replace(Regex("[^A-Za-z0-9 ._-]"), "_").trim().ifBlank { "Moovio download" }
         return "$base.$ext"
     }
 

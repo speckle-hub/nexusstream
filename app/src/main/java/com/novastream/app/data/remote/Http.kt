@@ -158,7 +158,7 @@ suspend fun httpPostJsonCached(
 }
 
 /** Default browser-like user agent so addons / APIs behave. */
-const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 NexusStream/1.0"
+const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 Moovio/1.0"
 
 /** Attempts for idempotent GETs, on top of OkHttp's own connection retry. */
 private const val GET_ATTEMPTS = 3

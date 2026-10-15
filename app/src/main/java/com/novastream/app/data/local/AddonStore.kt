@@ -106,10 +106,21 @@ class AddonStore(private val context: Context) {
 
         /**
          * Reliability order for stream ranking: streams from these add-ons are surfaced first.
-         * Empty by default — the app ships no preferred providers, so ranking falls back to
-         * quality, then seeders. Matched case-insensitively against the add-on name/id.
+         * This installs nothing (the app still ships source-neutral) — it only orders the
+         * merged list, so Torrentio and the known-good built-ins lead when available and
+         * ranking otherwise falls back to quality, then seeders. Matched case-insensitively
+         * against the add-on name/id.
          */
-        val preferredStreamHosts: List<String> = emptyList()
+        val preferredStreamHosts: List<String> = listOf(
+            "torrentio",
+            "vidsrc",
+            "yts",
+            "flixhq",
+            "animepahe",
+            "gogo",
+            "superstream",
+            "multimovies",
+        )
 
         /**
          * Hosts that used to be seeded but must no longer be: existing installs are pruned of

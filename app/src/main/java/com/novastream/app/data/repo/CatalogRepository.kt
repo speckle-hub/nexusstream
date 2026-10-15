@@ -13,6 +13,8 @@ import com.novastream.app.data.remote.JikanClient
 import com.novastream.app.data.remote.MangaDexClient
 import com.novastream.app.data.remote.StremioClient
 import com.novastream.app.data.remote.TmdbClient
+import com.novastream.app.data.sfw.SfwAnimeRepository
+import com.novastream.app.data.sfw.SfwRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
@@ -82,7 +84,7 @@ class CatalogRepository(
                     async { safeRow("Action", MediaType.MOVIE) { TmdbClient.discoverMovies("28") } },
                     async { safeRow("Comedy", MediaType.MOVIE) { TmdbClient.discoverMovies("35") } },
                 ).mapNotNull { it.await() }
-                rows + stremioRowsFor(setOf(MediaType.MOVIE))
+                rows + sfwSectionRows(section) + stremioRowsFor(setOf(MediaType.MOVIE))
             }
 
             MediaType.SERIES -> {
@@ -92,7 +94,7 @@ class CatalogRepository(
                     async { safeRow("Airing Today", MediaType.SERIES) { TmdbClient.airingToday() } },
                     async { safeRow("Drama", MediaType.SERIES) { TmdbClient.discoverTv("18") } },
                 ).mapNotNull { it.await() }
-                rows + stremioRowsFor(setOf(MediaType.SERIES))
+                rows + sfwSectionRows(section) + stremioRowsFor(setOf(MediaType.SERIES))
             }
 
             MediaType.ANIME -> {
@@ -103,7 +105,7 @@ class CatalogRepository(
                     async { safeRow("Romance", MediaType.ANIME) { AniListClient.byGenre("Romance") } },
                     async { safeRow("Fantasy", MediaType.ANIME) { AniListClient.byGenre("Fantasy") } },
                 ).mapNotNull { it.await() }
-                rows + stremioRowsFor(setOf(MediaType.ANIME))
+                rows + sfwSectionRows(section) + stremioRowsFor(setOf(MediaType.ANIME))
             }
 
             MediaType.MANGA -> listOf(
@@ -116,6 +118,15 @@ class CatalogRepository(
             else -> emptyList()
         }
     }
+
+    /**
+     * Built-in SFW catalog rows for a section (Popular / Latest / Trending where the
+     * sites offer them). Bounded like every other row fetch: a hung scraper degrades
+     * to "no rows" instead of gating the section.
+     */
+    private suspend fun sfwSectionRows(section: MediaType): List<CatalogRow> =
+        ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.homeRows(section).rows }
+            .getOrDefault(emptyList())
 
     // ---- NSFW ---------------------------------------------------------------
 
@@ -326,14 +337,23 @@ class CatalogRepository(
 
         // Phase 32: race the built-in search against the add-on fan-out concurrently instead of
         // running one after the other — the total costs the slowest, not the sum.
+        // Built-in SFW sources join the metadata search so Movies/TV/Anime surface
+        // playable titles with zero add-ons installed (TMDB/AniList stay authoritative
+        // for metadata; built-ins only add their own title rows).
         val builtInDeferred = async {
             when (section) {
                 MediaType.MOVIE -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchMovies(query) }
-                    .getOrDefault(emptyList())
+                    .getOrDefault(emptyList()) +
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query, MediaType.MOVIE).items }
+                        .getOrDefault(emptyList())
                 MediaType.SERIES -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchTv(query) }
-                    .getOrDefault(emptyList())
+                    .getOrDefault(emptyList()) +
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query, MediaType.SERIES).items }
+                        .getOrDefault(emptyList())
                 MediaType.ANIME -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }
-                    .getOrDefault(emptyList())
+                    .getOrDefault(emptyList()) +
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }
+                        .getOrDefault(emptyList())
                 MediaType.MANGA -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }
                     .getOrDefault(emptyList())
                 MediaType.NSFW_ANIME -> {
@@ -417,6 +437,14 @@ class CatalogRepository(
                 },
                 async {
                     ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }
+                        .getOrDefault(emptyList())
+                },
+                async {
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query).items }
+                        .getOrDefault(emptyList())
+                },
+                async {
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }
                         .getOrDefault(emptyList())
                 },
             ).flatMap { it.await() }

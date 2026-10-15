@@ -46,11 +46,16 @@ object StreamRanking {
 
     /**
      * De-duplicate and order a stream list: preferred add-ons first, then quality, then seeders.
+     *
+     * With [directFirst], directly playable media URLs (`.mp4`/`.m3u8`/…) outrank
+     * embed/player pages at equal preference and quality — an embed that still has
+     * to survive another hop is less likely to play than a file URL.
      */
     fun rank(
         streams: List<StreamSource>,
         preferredHosts: List<String> = emptyList(),
         reliableFirst: Boolean = true,
+        directFirst: Boolean = false,
     ): List<StreamSource> = streams
         .distinctBy { key(it) }
         .sortedWith(
@@ -58,8 +63,34 @@ object StreamRanking {
                 if (reliableFirst) preferredIndex(it, preferredHosts) else 0
             }
                 .thenByDescending { qualityRank(it.quality) }
+                .thenByDescending { if (directFirst) isDirectMediaUrl(it.url ?: it.externalUrl) else true }
                 .thenByDescending { it.seeders ?: -1 },
         )
+
+    /** True when [url] points at a media file rather than an embed/player page. */
+    fun isDirectMediaUrl(url: String?): Boolean {
+        if (url.isNullOrBlank() || !url.startsWith("http")) return false
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        return path.endsWith(".mp4") || path.endsWith(".m3u8") ||
+            path.endsWith(".mkv") || path.endsWith(".webm") ||
+            path.endsWith(".m4v") || path.endsWith(".mov")
+    }
+
+    /**
+     * Auto-play pick: the highest-ranked stream that can actually be played
+     * (direct URL, YouTube id or torrent hash — dead/empty entries never win).
+     * Reliability order first (preferred hosts like Torrentio and the known-good
+     * built-ins), then quality, then direct-over-embed, then seeders — so Play
+     * starts the best available source immediately with no manual picking.
+     */
+    fun bestPlayable(
+        streams: List<StreamSource>,
+        preferredHosts: List<String> = emptyList(),
+    ): StreamSource? = rank(
+        streams.filter { it.playableUrl != null || it.ytId != null || !it.infoHash.isNullOrBlank() },
+        preferredHosts,
+        directFirst = true,
+    ).firstOrNull()
 
     private fun key(stream: StreamSource): String =
         stream.url ?: stream.infoHash ?: stream.externalUrl ?: stream.ytId
