@@ -24,8 +24,8 @@ const colophon = [
   {
     head: "On this page",
     links: [
-      { label: "Showcase", href: "#showcase" },
       { label: "Features", href: "#features" },
+      { label: "Showcase", href: "#showcase" },
       { label: "FAQ", href: "#faq" },
       { label: "Download", href: "#download" },
     ],
@@ -34,17 +34,17 @@ const colophon = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-white/12 bg-ink text-paper">
+    <footer className="border-t border-rule bg-void-deep/60">
       <div className="mx-auto max-w-editorial px-5 py-16 sm:px-8 md:py-20">
         <div className="grid gap-12 md:grid-cols-[1.3fr_2fr] md:gap-16">
           <div>
             <div className="flex items-center gap-2.5">
-              <LogoMark className="h-8 w-8" variant="onInk" />
+              <LogoMark className="h-8 w-8" />
               <span className="font-display text-lg font-semibold tracking-tight text-paper">
                 NexusStream
               </span>
             </div>
-            <p className="mt-5 max-w-sm text-[14.5px] leading-relaxed text-white/50">
+            <p className="mt-5 max-w-sm text-[14.5px] leading-relaxed text-muted">
               One Android app for movies, TV, anime and manga. Free, open
               source, and source-neutral by design.
             </p>
@@ -54,12 +54,12 @@ export function Footer() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="GitHub repository"
-                className="press inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/70 hover:border-white hover:text-paper"
+                className="press inline-flex h-9 w-9 items-center justify-center rounded-full border border-rule text-muted hover:border-paper/40 hover:text-paper"
               >
                 <Github className="h-4 w-4" />
               </a>
-              <span className="eyebrow flex items-center gap-2 text-[10px] text-white/35">
-                <span className="h-1.5 w-1.5 rounded-full bg-vermilion animate-pulse-soft" />
+              <span className="eyebrow flex items-center gap-2 text-[10px] text-faint">
+                <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse-soft" />
                 v1.8.0
               </span>
             </div>
@@ -68,7 +68,7 @@ export function Footer() {
           <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3">
             {colophon.map((c) => (
               <nav key={c.head} aria-label={c.head}>
-                <h3 className="eyebrow border-b border-white/12 pb-3 text-[10px] text-white/40">
+                <h3 className="eyebrow border-b border-rule pb-3 text-[10px] text-faint">
                   {c.head}
                 </h3>
                 <ul className="mt-4 space-y-2.5">
@@ -78,24 +78,9 @@ export function Footer() {
                         href={l.href}
                         target={l.href.startsWith("http") ? "_blank" : undefined}
                         rel={l.href.startsWith("http") ? "noreferrer" : undefined}
-                        className="press t-learn inline-flex items-center gap-1.5 text-[14px] text-white/55 transition-colors hover:text-paper"
+                        className="press text-[14px] text-muted transition-colors hover:text-paper"
                       >
                         {l.label}
-                        <span className="t-learn-chevron">
-                          <svg
-                            width="13"
-                            height="13"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path className="t-learn-arm t-learn-arm-top" d="M6 4L10 8" />
-                            <path className="t-learn-arm t-learn-arm-bot" d="M10 8L6 12" />
-                          </svg>
-                        </span>
                       </a>
                     </li>
                   ))}
@@ -105,7 +90,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-4 border-t border-white/12 pt-6 text-[12.5px] text-white/35 md:flex-row md:items-center md:justify-between">
+        <div className="mt-14 flex flex-col gap-4 border-t border-rule pt-6 text-[12.5px] text-faint md:flex-row md:items-center md:justify-between">
           <p>© 2026 NexusStream contributors. GPL-3.0.</p>
           <p className="flex items-center gap-2">
             <Scale className="h-3.5 w-3.5" />

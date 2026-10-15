@@ -6,9 +6,9 @@ import { APK_URL, GITHUB_URL, cn } from "@/lib/utils";
 import { LogoMark } from "./LogoMark";
 
 const links = [
-  { label: "Showcase", href: "#showcase" },
-  { label: "Features", href: "#features" },
   { label: "Ecosystem", href: "#ecosystem" },
+  { label: "Features", href: "#features" },
+  { label: "Showcase", href: "#showcase" },
   { label: "FAQ", href: "#faq" },
 ];
 
@@ -56,9 +56,9 @@ export function Navbar() {
     <header className="fixed inset-x-0 top-0 z-50">
       <div
         className={cn(
-          "transition-[background-color,border-color,box-shadow] duration-300 ease-[var(--ease-smooth-out)]",
+          "transition-[background-color,border-color] duration-300 ease-[var(--ease-smooth-out)]",
           scrolled
-            ? "material-paper border-b border-rule-soft"
+            ? "material-void border-b border-rule-soft"
             : "border-b border-transparent bg-transparent",
         )}
       >
@@ -69,25 +69,25 @@ export function Navbar() {
             aria-label="NexusStream home"
           >
             <LogoMark className="h-7 w-7" />
-            <span className="font-display text-[17px] font-semibold tracking-tight text-ink">
+            <span className="font-display text-[17px] font-semibold tracking-tight text-paper">
               NexusStream
+            </span>
+            <span className="eyebrow hidden rounded-full border border-rule bg-white/[0.04] px-2.5 py-1 text-[9px] text-muted sm:block">
+              v1.8.0
             </span>
           </a>
 
-          <nav
-            className="hidden items-center gap-7 lg:flex"
-            aria-label="Primary"
-          >
+          <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary">
             {links.map((l) => (
               <a
                 key={l.href}
                 href={l.href}
-                className="press eyebrow group relative py-1 text-ash transition-colors hover:text-ink"
+                className="press eyebrow group relative py-1 text-muted transition-colors hover:text-paper"
               >
                 {l.label}
                 <span
                   aria-hidden
-                  className="absolute -bottom-0.5 left-0 h-px w-0 bg-ink transition-[width] duration-300 ease-[var(--ease-smooth-out)] group-hover:w-full"
+                  className="absolute -bottom-0.5 left-0 h-px w-0 bg-accent-soft transition-[width] duration-300 ease-[var(--ease-smooth-out)] group-hover:w-full"
                 />
               </a>
             ))}
@@ -99,14 +99,14 @@ export function Navbar() {
               target="_blank"
               rel="noreferrer"
               aria-label="GitHub repository"
-              className="press hidden h-9 w-9 items-center justify-center rounded-full border border-rule text-graphite hover:border-ink hover:text-ink sm:flex"
+              className="press hidden h-9 w-9 items-center justify-center rounded-full border border-rule text-muted hover:border-paper/40 hover:text-paper sm:flex"
             >
               <Github className="h-4 w-4" />
             </a>
 
             <a
               href={APK_URL}
-              className="press hidden items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-[13px] font-semibold tracking-tight text-paper hover:bg-graphite sm:inline-flex"
+              className="press hidden items-center gap-2 rounded-full bg-paper px-5 py-2.5 text-[13px] font-semibold tracking-tight text-void hover:bg-white sm:inline-flex"
             >
               <Download className="h-3.5 w-3.5" />
               Download APK
@@ -117,16 +117,15 @@ export function Navbar() {
                 onClick={toggleMenu}
                 aria-expanded={open}
                 aria-label={open ? "Close menu" : "Open menu"}
-                className="press flex h-9 w-9 items-center justify-center rounded-full border border-rule text-ink"
+                className="press flex h-9 w-9 items-center justify-center rounded-full border border-rule text-paper"
               >
                 {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </button>
 
               {(open || closing) && (
                 <div
-                  data-origin="top-right"
                   className={cn(
-                    "t-dropdown absolute right-0 top-full mt-3 w-60 origin-top-right overflow-hidden rounded-2xl border border-rule-soft bg-paper-raised p-1.5 shadow-lift",
+                    "t-dropdown absolute right-0 top-full mt-3 w-60 origin-top-right overflow-hidden rounded-2xl border border-rule bg-void-raised p-1.5 shadow-card",
                     open && !closing && "is-open",
                     closing && "is-closing",
                   )}
@@ -136,7 +135,7 @@ export function Navbar() {
                       key={l.href}
                       href={l.href}
                       onClick={closeMenu}
-                      className="press block rounded-xl px-4 py-3 text-sm font-medium text-graphite hover:bg-paper hover:text-ink"
+                      className="press block rounded-xl px-4 py-3 text-sm font-medium text-muted hover:bg-white/[0.05] hover:text-paper"
                     >
                       {l.label}
                     </a>
@@ -145,7 +144,7 @@ export function Navbar() {
                   <a
                     href={APK_URL}
                     onClick={closeMenu}
-                    className="press flex items-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-paper"
+                    className="press flex items-center gap-2 rounded-xl bg-paper px-4 py-3 text-sm font-semibold text-void"
                   >
                     <Download className="h-4 w-4" />
                     Download APK

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { SectionHead } from "./SectionHead";
+import { Stagger } from "../ui/reveal";
 
 const faqs = [
   {
@@ -31,49 +31,34 @@ const faqs = [
   },
 ];
 
-function Chevron() {
-  return (
-    <span className="t-acc-chevron shrink-0 text-ash">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M4 6.5L8 10.5L12 6.5" />
-      </svg>
-    </span>
-  );
-}
-
 export function Faq() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="border-t border-rule">
+    <section id="faq" className="border-t border-rule bg-void-deep/40">
       <div className="mx-auto max-w-editorial px-5 py-20 sm:px-8 md:py-28">
-        <SectionHead
-          index="05"
-          rubric="FAQ"
-          title={
-            <>
-              The honest answers,{" "}
-              <span className="font-serif italic">including the legal one.</span>
-            </>
-          }
+        <Stagger
+          items={[
+            <p key="rubric" className="eyebrow text-accent-soft">
+              04 — FAQ
+            </p>,
+            <h2
+              key="h2"
+              className="display mt-4 max-w-3xl font-sans font-bold text-paper"
+              style={{ fontSize: "clamp(1.9rem, 3.6vw, 3.25rem)" }}
+            >
+              The honest answers, <span className="text-muted">including the legal one.</span>
+            </h2>,
+          ]}
         />
 
-        <div className="mt-4 grid md:grid-cols-[190px_1fr] md:gap-12 lg:grid-cols-[220px_1fr]">
-          <div className="hidden md:block">
-            <p className="sticky top-28 text-[13.5px] leading-relaxed text-ash">
+        <div className="mt-10 grid md:grid-cols-[220px_1fr] md:gap-12">
+          <p className="hidden text-[13.5px] leading-relaxed text-faint md:block">
+            <span className="sticky top-28 block">
               Still stuck? Everything is written down in the repository — the
               README, the build logs and the test suite are all public.
-            </p>
-          </div>
+            </span>
+          </p>
 
           <div>
             {faqs.map((f, i) => {
@@ -82,29 +67,29 @@ export function Faq() {
                 <div
                   key={f.q}
                   data-open={isOpen ? "true" : "false"}
-                  className={cn(
-                    "t-acc border-b",
-                    isOpen ? "border-rule" : "border-rule-soft",
-                    i === 0 && "border-t",
-                  )}
+                  className={cn("t-acc border-b border-rule", i === 0 && "border-t")}
                 >
                   <button
                     type="button"
                     onClick={() => setOpen(isOpen ? null : i)}
                     aria-expanded={isOpen}
-                    className="press t-acc-head group flex w-full items-start gap-5 py-6 text-left"
+                    className="press group flex w-full items-start gap-5 py-6 text-left"
                   >
-                    <span className="eyebrow tabular mt-1.5 shrink-0 text-[10px] text-ash transition-colors group-hover:text-vermilion">
+                    <span className="eyebrow tabular mt-1.5 shrink-0 text-[10px] text-faint transition-colors group-hover:text-accent-soft">
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <span className="flex-1 font-display text-[17px] font-semibold leading-snug tracking-tight text-ink md:text-[19px]">
+                    <span className="flex-1 font-display text-[17px] font-semibold leading-snug tracking-tight text-paper md:text-[19px]">
                       {f.q}
                     </span>
-                    <Chevron />
+                    <span className="t-acc-chevron shrink-0 text-muted">
+                      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 6.5L8 10.5L12 6.5" />
+                      </svg>
+                    </span>
                   </button>
                   <div className="t-acc-panel">
                     <div className="t-acc-panel-inner">
-                      <p className="max-w-[62ch] pb-7 pl-[3.1rem] pr-8 text-[15.5px] leading-[1.65] text-graphite">
+                      <p className="max-w-[62ch] pb-7 pl-[3.1rem] pr-8 text-[15.5px] leading-[1.65] text-muted">
                         {f.a}
                       </p>
                     </div>

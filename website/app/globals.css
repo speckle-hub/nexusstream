@@ -3,55 +3,34 @@
 @tailwind utilities;
 
 /* ══════════════════════════════════════════════════════════════
-   EDITORIAL GALLERY — design system
-   Warm paper, near-black ink, hairline rules. Colour comes from
-   the product, not the chrome. One accent: vermilion, used rarely.
+   NEXUSSTREAM — dark flagship system (rebuild)
+   Deep void, violet signal, mint secondary. Patterns borrowed from
+   the best landing pages on the web: Linear glow, Vercel grid,
+   Stripe hairlines, Aceternity motion.
    ══════════════════════════════════════════════════════════════ */
 
 :root {
-  --paper: #f2f1ec;
-  --paper-raised: #ffffff;
-  --paper-deep: #e7e6e0;
-  --ink: #0c0c0e;
-  --ink-raised: #17171a;
-  --graphite: #3a3a40;
-  --ash: #6e6e76;
+  --void: #06060c;
+  --void-raised: #0b0b15;
+  --void-deep: #030308;
+  --paper: #ededf2;
+  --muted: #9a9ab0;
+  --faint: #5c5c72;
+  --accent: #7c5cff;
+  --accent-soft: #bfaeff;
+  --signal: #3ddc97;
   --vermilion: #d8452a;
-  --rule: rgba(12, 12, 14, 0.16);
-  --rule-soft: rgba(12, 12, 14, 0.08);
+  --rule: rgba(255, 255, 255, 0.08);
+  --rule-soft: rgba(255, 255, 255, 0.05);
 
-  /* ── Motion tokens — shared scale (transitions.dev) ─────────
-     Reference these with var(--…) anywhere in your project. */
-  /* Durations */
-  --duration-stagger: 40ms;
+  /* Motion (transitions.dev scale) */
   --duration-micro: 80ms;
   --duration-quick: 150ms;
   --duration-fast: 250ms;
   --duration-medium: 350ms;
-  --duration-slow: 400ms;
-  --duration-very-slow: 500ms;
-  /* Easings */
+  --duration-slow: 500ms;
   --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out: ease-in-out;
   --ease-out: ease-out;
-  --ease-linear: linear;
-  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
-  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
-  /* Distances */
-  --distance-micro: 4px;
-  --distance-small: 6px;
-  --distance-base: 8px;
-  --distance-medium: 12px;
-  --distance-large: 30px;
-  /* Scales */
-  --scale-large: 0.96;
-  --scale-medium: 0.97;
-  --scale-small: 0.98;
-  --scale-tiny: 0.99;
-  /* Blur */
-  --blur-small: 2px;
-  --blur-medium: 3px;
-  --blur-large: 8px;
 
   /* Number pop-in */
   --digit-dur: 500ms;
@@ -73,7 +52,7 @@
   --stagger-stagger: 40ms;
   --stagger-blur: 3px;
   --stagger-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Card hover tilt */
+  /* Card tilt */
   --tilt-perspective: 1000px;
   --tilt-return: 1000ms;
   --tilt-return-ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -82,24 +61,13 @@
   --tilt-glare-opacity: 0.32;
   --tilt-glare-fade: 300ms;
   --tilt-glare-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Accordion expand */
+  /* Accordion */
   --acc-expand: 250ms;
   --acc-collapse: 250ms;
   --acc-chevron: 250ms;
   --acc-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Learn more hover */
-  --learn-shift: 2px;
-  --learn-spread: 8deg;
-  --learn-in: 350ms;
-  --learn-out: 350ms;
-  --learn-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Tabs sliding — retuned for paper */
-  --tabs-dur: 250ms;
-  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --tabs-text-muted: rgba(12, 12, 14, 0.55);
-  --tabs-text-active: #0c0c0e;
-  --tabs-bar-bg: rgba(12, 12, 14, 0.06);
-  --tabs-pill-bg: #ffffff;
+  /* Marquee */
+  --marquee-dur: 36s;
 }
 
 html {
@@ -107,21 +75,9 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  .animate-scroll-x,
-  .animate-pulse-soft,
-  .animate-float,
-  .animate-float-slow {
-    animation: none !important;
-  }
-}
-
 body {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--void);
+  color: var(--paper);
   overflow-x: hidden;
   font-synthesis-weight: none;
   text-rendering: optimizeLegibility;
@@ -129,35 +85,32 @@ body {
 }
 
 ::selection {
-  background: rgba(216, 69, 42, 0.22);
-  color: var(--ink);
+  background: rgba(124, 92, 255, 0.45);
+  color: #fff;
 }
 
 ::-webkit-scrollbar {
   width: 11px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--paper-deep);
+  background: var(--void-deep);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(12, 12, 14, 0.28);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 8px;
-  border: 3px solid var(--paper-deep);
+  border: 3px solid var(--void-deep);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(12, 12, 14, 0.5);
+  background: rgba(255, 255, 255, 0.32);
 }
 
 :where(a, button, [role="tab"], summary):focus-visible {
-  outline: 2px solid var(--vermilion);
+  outline: 2px solid var(--accent-soft);
   outline-offset: 3px;
-  border-radius: 2px;
+  border-radius: 4px;
 }
 
 @layer components {
-  /* ── Response: feedback lives on pointer-down, not on click.
-        apple-design §1 — the instant something is pressed it must
-        answer, or the feeling of directness falls off a cliff. */
   .press {
     transition:
       transform var(--duration-micro) var(--ease-out),
@@ -170,20 +123,9 @@ body {
     transition-duration: 100ms;
   }
 
-  /* ── Hairline rules carry the structure instead of boxes. */
-  .rule-t {
-    border-top: 1px solid var(--rule);
-  }
-  .rule-b {
-    border-bottom: 1px solid var(--rule);
-  }
-
-  /* ── Type: tracking is size-specific (apple-design §15).
-        Large display text tightens; micro labels open up. */
   .display {
-    line-height: 0.94;
+    line-height: 0.98;
     letter-spacing: -0.045em;
-    font-optical-sizing: auto;
     text-wrap: balance;
   }
   .eyebrow {
@@ -192,43 +134,35 @@ body {
     letter-spacing: 0.16em;
     text-transform: uppercase;
   }
-  .measure {
-    max-width: 34rem;
-    line-height: 1.6;
-    letter-spacing: -0.005em;
-  }
 
-  /* ── Translucent chrome: content scrolls underneath, the bar is
-        a material rather than a fixed strip (apple-design §12). */
-  .material-paper {
-    background: rgba(242, 241, 236, 0.72);
+  /* Glass nav + floating chips */
+  .material-void {
+    background: rgba(6, 6, 12, 0.72);
     backdrop-filter: saturate(180%) blur(18px);
     -webkit-backdrop-filter: saturate(180%) blur(18px);
   }
-  .material-ink {
-    background: rgba(12, 12, 14, 0.68);
-    backdrop-filter: saturate(180%) blur(18px);
-    -webkit-backdrop-filter: saturate(180%) blur(18px);
-  }
-
-  /* ── Floating product chips (PhoneMockup): dark glass plates that
-        sit on the paper beside the device. */
   .glass {
-    background: rgba(12, 12, 14, 0.82);
+    background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: saturate(160%) blur(14px);
     -webkit-backdrop-filter: saturate(160%) blur(14px);
   }
+
+  /* Hero backdrop: grid + glows (Vercel/Linear pattern) */
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 62% at 50% 38%, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 62% at 50% 38%, black 30%, transparent 75%);
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .material-paper {
-    background: var(--paper);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  .material-ink {
-    background: var(--ink);
+  .material-void,
+  .glass {
+    background: var(--void-raised);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -236,7 +170,7 @@ body {
 
 @layer utilities {
   .mask-fade-x {
-    mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
   }
   .perspective-1200 {
     perspective: 1200px;
@@ -248,75 +182,56 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  .text-gradient {
+    background: linear-gradient(120deg, #fff 20%, var(--accent-soft) 55%, var(--signal) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
-/* ══════════════════════════════════════════════════════════════
-   transitions.dev — snippets pasted verbatim. Do not reformat.
-   ══════════════════════════════════════════════════════════════ */
+/* ── Marquee (logo/protocol rail) ─────────────────────────── */
+@keyframes marquee-x {
+  to {
+    transform: translateX(calc(-50% - 0.75rem));
+  }
+}
+.marquee-track {
+  animation: marquee-x var(--marquee-dur) linear infinite;
+  will-change: transform;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
 
-/* ── Texts reveal (18) ─────────────────────────────────────── */
+/* ── Texts reveal ─────────────────────────────────────────── */
 .t-stagger-line {
   display: block;
   opacity: 0;
   transform: translateY(var(--stagger-distance));
   filter: blur(var(--stagger-blur));
   transition:
-    opacity   var(--stagger-dur) var(--stagger-ease),
+    opacity var(--stagger-dur) var(--stagger-ease),
     transform var(--stagger-dur) var(--stagger-ease),
-    filter    var(--stagger-dur) var(--stagger-ease);
+    filter var(--stagger-dur) var(--stagger-ease);
   will-change: transform, opacity, filter;
 }
 .t-stagger-line--2 { transition-delay: var(--stagger-stagger); }
 .t-stagger-line--3 { transition-delay: calc(var(--stagger-stagger) * 2); }
 .t-stagger-line--4 { transition-delay: calc(var(--stagger-stagger) * 3); }
 .t-stagger-line--5 { transition-delay: calc(var(--stagger-stagger) * 4); }
-
 .t-stagger.is-shown .t-stagger-line {
   opacity: 1;
   transform: translateY(0);
   filter: blur(0);
 }
-.t-stagger.is-hiding .t-stagger-line {
-  opacity: 0;
-  transform: translateY(0);
-  filter: blur(0);
-  transition:
-    opacity 200ms ease,
-    transform 0s linear,
-    filter 0s linear;
-  transition-delay: 0s;
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .t-stagger-line { transition: none !important; }
+/* ── Card tilt ────────────────────────────────────────────── */
+.t-tilt {
+  touch-action: none;
 }
-
-/* ── Learn more hover (24) ─────────────────────────────────── */
-.t-learn-chevron {
-  display: inline-flex;
-  transform: translateX(0);
-  transition: transform var(--learn-out) var(--learn-ease);
-}
-.t-learn-arm {
-  transform-box: view-box;
-  transform-origin: 10px 8px;
-  vector-effect: non-scaling-stroke;
-  transition: transform var(--learn-out) var(--learn-ease);
-}
-.t-learn:hover .t-learn-chevron { transform: translateX(var(--learn-shift)); transition-duration: var(--learn-in); }
-.t-learn:hover .t-learn-arm { transition-duration: var(--learn-in); }
-.t-learn:hover .t-learn-arm-top { transform: rotate(var(--learn-spread)); }
-.t-learn:hover .t-learn-arm-bot { transform: rotate(calc(var(--learn-spread) * -1)); }
-
-@media (prefers-reduced-motion: reduce) {
-  .t-learn-chevron, .t-learn-arm { transition: none !important; }
-}
-
-/* ── Card hover tilt (19) ──────────────────────────────────── */
-.t-tilt { touch-action: none; }
 .t-tilt-card {
   position: relative;
-  border-radius: 4px;
   overflow: hidden;
   transform:
     perspective(var(--tilt-perspective))
@@ -337,19 +252,14 @@ body {
   mix-blend-mode: screen;
   background:
     radial-gradient(circle 95px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
-      rgba(255,255,255,0.48), rgba(255,255,255,0.06) 52%, rgba(255,255,255,0) 84%),
-    radial-gradient(circle 200px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
-      rgba(255,255,255,0.22), rgba(255,255,255,0.04) 58%, rgba(255,255,255,0) 78%);
+      rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.05) 52%, rgba(255, 255, 255, 0) 84%);
   transition: opacity var(--tilt-glare-fade) var(--tilt-glare-ease);
 }
-.t-tilt.is-hover .t-tilt-glare { opacity: var(--tilt-glare-opacity); }
-
-@media (prefers-reduced-motion: reduce) {
-  .t-tilt-card { transform: none !important; transition: none !important; }
-  .t-tilt-glare { display: none; }
+.t-tilt.is-hover .t-tilt-glare {
+  opacity: var(--tilt-glare-opacity);
 }
 
-/* ── Accordion expand (21) ─────────────────────────────────── */
+/* ── Accordion ────────────────────────────────────────────── */
 .t-acc-panel {
   display: grid;
   grid-template-rows: 0fr;
@@ -380,18 +290,11 @@ body {
   transform-origin: center;
   transition: transform var(--acc-chevron) var(--acc-ease);
 }
-.t-acc-chevron path { vector-effect: non-scaling-stroke; }
 .t-acc[data-open="true"] .t-acc-chevron {
   transform: scaleY(-1);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .t-acc-panel, .t-acc-panel-inner, .t-acc-chevron {
-    transition: none !important;
-  }
-}
-
-/* ── Menu dropdown (05) ────────────────────────────────────── */
+/* ── Menu dropdown ────────────────────────────────────────── */
 .t-dropdown {
   transform-origin: top right;
   transform: scale(var(--dropdown-pre-scale));
@@ -399,15 +302,9 @@ body {
   pointer-events: none;
   transition:
     transform var(--dropdown-open-dur) var(--dropdown-ease),
-    opacity   var(--dropdown-open-dur) var(--dropdown-ease);
+    opacity var(--dropdown-open-dur) var(--dropdown-ease);
   will-change: transform, opacity;
 }
-.t-dropdown[data-origin="top-right"]     { transform-origin: top right; }
-.t-dropdown[data-origin="top-center"]    { transform-origin: top center; }
-.t-dropdown[data-origin="bottom-left"]   { transform-origin: bottom left; }
-.t-dropdown[data-origin="bottom-center"] { transform-origin: bottom center; }
-.t-dropdown[data-origin="bottom-right"]  { transform-origin: bottom right; }
-
 .t-dropdown.is-open {
   transform: scale(1);
   opacity: 1;
@@ -419,16 +316,12 @@ body {
   pointer-events: none;
   transition:
     transform var(--dropdown-close-dur) var(--dropdown-ease),
-    opacity   var(--dropdown-close-dur) var(--dropdown-ease);
+    opacity var(--dropdown-close-dur) var(--dropdown-ease);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .t-dropdown { transition: none !important; }
-}
-
-/* ── Number pop-in (02) ────────────────────────────────────── */
+/* ── Number pop-in ────────────────────────────────────────── */
 @keyframes t-digit-pop-in {
-  0%   {
+  0% {
     transform: translate(
       calc(var(--digit-distance) * var(--digit-dir-x)),
       calc(var(--digit-distance) * var(--digit-dir-y))
@@ -436,9 +329,12 @@ body {
     opacity: 0;
     filter: blur(var(--digit-blur));
   }
-  100% { transform: translate(0, 0); opacity: 1; filter: blur(0); }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+    filter: blur(0);
+  }
 }
-
 .t-digit-group {
   display: inline-flex;
   align-items: baseline;
@@ -456,68 +352,38 @@ body {
 .t-digit-group.is-animating .t-digit[data-stagger="2"] {
   animation-delay: calc(var(--digit-stagger) * 2);
 }
-.t-digit-group.is-animating .t-digit[data-same] {
-  animation: none;
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .t-digit-group .t-digit { animation: none !important; }
-}
-
-/* ── Tabs sliding (16) ─────────────────────────────────────── */
-.t-tabs {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px;
-  border-radius: 48px;
-  background: var(--tabs-bar-bg);
-}
-.t-tab {
-  position: relative;
-  appearance: none;
-  border: 0;
-  background: transparent;
-  height: 34px;
-  padding: 4px 15px;
-  color: var(--tabs-text-muted);
-  cursor: pointer;
-  border-radius: 48px;
-  z-index: 1;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  transition: color var(--tabs-dur) var(--tabs-ease);
-}
-.t-tab:not([aria-selected="true"]):hover,
-.t-tab[aria-selected="true"] {
-  color: var(--tabs-text-active);
-}
-
-.t-tabs-pill {
-  position: absolute;
-  top: 3px;
-  left: 0;
-  height: 34px;
-  width: 0;
-  background: var(--tabs-pill-bg);
-  border-radius: 48px;
-  box-shadow: 0 1px 2px rgba(12, 12, 14, 0.1), 0 4px 12px -6px rgba(12, 12, 14, 0.25);
-  transform: translateX(0);
-  transition:
-    transform var(--tabs-dur) var(--tabs-ease),
-    width     var(--tabs-dur) var(--tabs-ease);
-  will-change: transform, width;
-  z-index: 0;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .t-tabs-pill, .t-tab { transition: none !important; }
-}
-
-/* ── In-page anchor offsets under the fixed bar ────────────── */
+/* ── In-page anchor offsets under the fixed bar ───────────── */
 section[id] {
   scroll-margin-top: 76px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .marquee-track,
+  .animate-float,
+  .animate-float-slow,
+  .animate-pulse-soft {
+    animation: none !important;
+  }
+  .t-stagger-line,
+  .t-tilt-card,
+  .t-tilt-glare,
+  .t-acc-panel,
+  .t-acc-panel-inner,
+  .t-acc-chevron,
+  .t-dropdown {
+    transition: none !important;
+  }
+  .t-tilt-card {
+    transform: none !important;
+  }
+  .t-tilt-glare {
+    display: none;
+  }
+  .t-digit-group .t-digit {
+    animation: none !important;
+  }
 }
