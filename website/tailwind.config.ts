@@ -61,6 +61,8 @@ const config: Config = {
       animation: {
         "scroll-x": "scroll-x var(--animation-duration,40s) var(--animation-direction,forwards) linear infinite",
         "pulse-soft": "pulse-soft 3.2s ease-in-out infinite",
+        float: "float 7s ease-in-out infinite",
+        "float-slow": "float-slow 9s ease-in-out infinite",
       },
       keyframes: {
         "scroll-x": {
@@ -69,6 +71,14 @@ const config: Config = {
         "pulse-soft": {
           "0%, 100%": { opacity: "0.45" },
           "50%": { opacity: "1" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-8px)" },
+        },
+        "float-slow": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(8px)" },
         },
       },
       boxShadow: {
