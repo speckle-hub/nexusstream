@@ -362,11 +362,12 @@
 > ✅; hydration fix ✅). Device passes outstanding: §7 items 20–31 (plus the Phase 19 interaction
 > checks); item 31 covers the Sources crash fix.
 >
-> **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
-> `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
+> **Name change (historical):** the app was **NexusStream** (display name only — the Kotlin package
+> and `applicationId` remained `com.novastream.app` so existing installs updated in place; see §8).
 >
-> **Superseded:** the product is now **Moovio** and the package / `applicationId` are
-> `com.moovio.app` — existing installs no longer update in place (see §2aw).
+> **Superseded (2026-10-22):** the product is now **Moovio**, the package / `applicationId` are
+> `com.moovio.app`, the OAuth scheme is `moovio://oauth`, and the release key was rotated — so
+> existing installs no longer update in place (see §2aw/§2ax and the decisions log in §8).
 
 ---
 
@@ -377,8 +378,8 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~29,700 LOC across 163 Kotlin source files in a single `:app` module (+31 test files). Unit tests
-(281 cases):
+~29,600 LOC across 165 Kotlin source files in a single `:app` module (+33 test files). Unit tests
+(292 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -393,8 +394,19 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 `Phase36PremiumTest.kt` (7, premium pass — §2at),
 `Phase37Anime4KTest.kt` (10, Anime4K engine — §2au),
 `SfwSourcesTest.kt` (34, SFW built-ins + auto-play ranking — §2av),
+`OAuthAndSignatureSecurityTest.kt` (6, OAuth state nonce + APK signature trust — §2ax),
+`ProviderSettingsCodecTest.kt` (5, provider-settings JSON codec — §2ax),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
+
+**Identity & signing (as of v1.10.0, §2aw/§2ax):** the package / `applicationId` is
+`com.moovio.app`, the OAuth redirect scheme is `moovio://oauth`, and the release signing key was
+**rotated and moved out of the repository** (`~/.moovio/moovio-release.jks`). The build reads the
+signing material only from the untracked `local.properties` (`moovio.storeFile` /
+`moovio.storePassword` / `moovio.keyAlias` / `moovio.keyPassword`) or the `MOOVIO_*` environment
+variables — never from a tracked file. The old key blob was purged from the git history
+(`git filter-repo` + force-push of `main` and all tags). Consequence: **v1.10.0 does not install
+over v1.9.0** (different package id *and* different key) — existing users reinstall.
 
 ---
 
@@ -2231,7 +2243,7 @@ Status: **implemented and verified.** Files and verification at the end.
 - **UI Compose crash prevention:** Added `val uniqueItems = items.distinctBy { it.key }` before `itemsIndexed()` in `MediaRow` (`Components.kt`). This eliminates duplicate item keys from add-on feeds and completely prevents fatal `IllegalArgumentException: Key was already used` crashes when rendering `LazyRow` rails.
 
 ### Files
-`data/download/MangaDownloadManager.kt`, `data/remote/TmdbClient.kt`, `ui/vm/ViewModels.kt`, `data/download/VideoDownloadManager.kt`, `data/remote/StremioClient.kt`, `data/repo/CatalogRepository.kt`, `ui/components/Components.kt`, `app/src/test/java/com/novastream/app/Phase26P0FixesTest.kt`.
+`data/download/MangaDownloadManager.kt`, `data/remote/TmdbClient.kt`, `ui/vm/ViewModels.kt`, `data/download/VideoDownloadManager.kt`, `data/remote/StremioClient.kt`, `data/repo/CatalogRepository.kt`, `ui/components/Components.kt`, `app/src/test/java/com/moovio/app/Phase26P0FixesTest.kt`.
 
 ### Verification (2026-10-11)
 - `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0).
@@ -2637,7 +2649,7 @@ Status: **implemented and built.** Source list and verification at the end.
 `ui/theme/Tokens.kt` (`AppSpacing.railCard`), `ui/screens/home/HomeScreen.kt`,
 `ui/screens/manga/MangaScreen.kt`, `ui/screens/nsfw/NsfwScreen.kt`,
 `data/ext/ExtensionCodec.kt` (new), `data/ext/ExtensionRepository.kt`,
-`ui/screens/sources/SourcesScreen.kt`, `app/src/test/java/com/novastream/app/ExtensionCodecTest.kt` (new).
+`ui/screens/sources/SourcesScreen.kt`, `app/src/test/java/com/moovio/app/ExtensionCodecTest.kt` (new).
 
 ### Verification (2026-10-06)
 - `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only the repo's pre-existing deprecation
@@ -2701,8 +2713,8 @@ Status: **implemented and built.** Files and verification at the end.
 ### Files
 `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/hentai/HahoSource.kt`,
 `data/hentai/HentaiTubes.kt`, `data/adult/AdultSources.kt`, `data/hentai/HentaiSources.kt`,
-`app/src/test/java/com/novastream/app/AdultSourcesExtraTest.kt`,
-`app/src/test/java/com/novastream/app/HentaiSourcesExtraTest.kt`.
+`app/src/test/java/com/moovio/app/AdultSourcesExtraTest.kt`,
+`app/src/test/java/com/moovio/app/HentaiSourcesExtraTest.kt`.
 
 ### Verification (2026-10-06)
 - Live probes: hexated old URL **404** / `JoeTinnySpace` **200**; Haho `GET /anime?q=test` **200**
@@ -2841,7 +2853,7 @@ names), README (new "Content neutrality" section; Sources & extensions rewritten
 ### Files
 `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/repo/StreamRanking.kt`,
 `data/model/Models.kt`, `data/remote/CloudStreamRepo.kt`, `ui/screens/addons/AddonManagerScreen.kt`,
-`ui/screens/detail/DetailScreen.kt`, `app/src/test/java/com/novastream/app/StreamRankingTest.kt`,
+`ui/screens/detail/DetailScreen.kt`, `app/src/test/java/com/moovio/app/StreamRankingTest.kt`,
 `README.md`, `.gitignore`.
 
 ### Verification (2026-10-07)
@@ -3140,7 +3152,7 @@ bytes, signed), `dist/NovaStream.apk` refreshed (SHA-256 `91a44109…18BB`). Nee
 ### Files
 `data/adult/AdultSource.kt`, `data/hentai/HentaiRepository.kt`, `data/repo/MetadataRepository.kt`,
 `data/repo/CatalogRepository.kt`, `data/remote/JikanClient.kt`, `ui/vm/ViewModels.kt`,
-`app/src/test/java/com/novastream/app/TitleMatchTest.kt` (new).
+`app/src/test/java/com/moovio/app/TitleMatchTest.kt` (new).
 
 ### Verification
 `:app:compileDebugKotlin` ✅ (only pre-existing deprecation warnings) ·
@@ -3212,7 +3224,7 @@ results and only queries NSFW-flagged add-ons, and neither path uses the regular
 `data/repo/StreamRepository.kt`, `data/repo/CatalogRepository.kt`, `data/model/Models.kt`
 (`StreamSource.seeders`), `ui/vm/ViewModels.kt`, `ui/screens/detail/DetailScreen.kt`,
 `ui/screens/addons/AddonManagerScreen.kt`,
-`app/src/test/java/com/novastream/app/StreamRankingTest.kt` (new).
+`app/src/test/java/com/moovio/app/StreamRankingTest.kt` (new).
 
 ### Verification
 `:app:compileDebugKotlin` ✅ (only pre-existing deprecation warnings) ·
@@ -3266,7 +3278,7 @@ Status: **implemented and built** — `:app:compileDebugKotlin` ✅, `:app:testD
 `ui/player/PlaybackMath.kt` (new), `ui/player/PlayerActivity.kt`, `ui/player/MangaReaderActivity.kt`,
 `data/local/SettingsStore.kt`, `data/download/VideoDownloadManager.kt`, `ui/vm/ViewModels.kt`,
 `ui/screens/settings/SettingsScreen.kt`,
-`app/src/test/java/com/novastream/app/PlaybackMathTest.kt` (new).
+`app/src/test/java/com/moovio/app/PlaybackMathTest.kt` (new).
 
 ### Verification
 `:app:compileDebugKotlin` ✅ (only pre-existing deprecation warnings) ·
@@ -3337,7 +3349,7 @@ Status: **implemented and built** — `:app:compileDebugKotlin` ✅, `:app:testD
 `data/download/DownloadManagerProvider.kt`, `data/download/VideoDownloadManager.kt`,
 `ui/screens/detail/DetailScreen.kt`, `ui/player/PlayerActivity.kt`, `ui/vm/ViewModels.kt`,
 `ui/screens/settings/SettingsScreen.kt`,
-`app/src/test/java/com/novastream/app/DownloadMaintenanceTest.kt` (new).
+`app/src/test/java/com/moovio/app/DownloadMaintenanceTest.kt` (new).
 
 ### Verification
 `:app:compileDebugKotlin` ✅ (only pre-existing deprecation warnings) ·
@@ -3524,7 +3536,7 @@ ranking, the 10-minute TTL caches and `AdultHttp.verifyPlayable()` pre-flight au
 broken site still cannot take down the section**, and AniList metadata is untouched.
 
 ### Tests
-`app/src/test/java/com/novastream/app/HentaiSourcesExtraTest.kt` (new) — 10 cases: Hanime
+`app/src/test/java/com/moovio/app/HentaiSourcesExtraTest.kt` (new) — 10 cases: Hanime
 `hits` and `videos_manifest` parsing, Haho JSON parsing (incl. an item with no URL), the media-URL
 extractor (snapshot files ignored), stream tagging, the WordPress card parser (nested-`<img>`
 anchor), HStream permalink filtering, the episode/series helpers, `isContentLink`, and a registry
@@ -3644,7 +3656,7 @@ isolation (`NsfwViewModel.realErrors`), keyword-ranked search and stream pre-fli
 **one broken site still cannot take down the Real 18+ tab.**
 
 ### Tests
-`app/src/test/java/com/novastream/app/AdultSourcesExtraTest.kt` (new) — 11 cases: xHamster /
+`app/src/test/java/com/moovio/app/AdultSourcesExtraTest.kt` (new) — 11 cases: xHamster /
 YouPorn / RedTube / Jable / MissAV / HPJAV listing parsing, YouPorn `mediaDefinitions` → quality
 streams, `TubeMedia` protocol-relative + escaped-URL extraction with ordering, the Jable HLS stream,
 Avgle JSON list parsing (incl. zero-duration handling) and a registry sanity check (12 unique ids).
@@ -3705,7 +3717,7 @@ entire library.
 previously produced duplicate keys in one grid. (Compose 1.7 does not throw on duplicates —
 verified in the foundation sources — but it can reuse the wrong item state.)
 
-**Tests:** new `app/src/test/java/com/novastream/app/LibraryCodecTest.kt`, 15 cases covering
+**Tests:** new `app/src/test/java/com/moovio/app/LibraryCodecTest.kt`, 15 cases covering
 missing/unknown `type`, partial+malformed arrays, duplicate keys, null/garbage optional fields,
 genre/rating coercion, history with a missing `item`, hostile payloads, and a round trip.
 
@@ -3775,7 +3787,7 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
 `data/download/MangaDownloadManager.kt` (`MangaDownload.nsfw`),
 `ui/player/MangaReaderActivity.kt`, `ui/vm/ViewModels.kt`,
 `ui/screens/library/LibraryScreen.kt`, `ui/screens/detail/DetailScreen.kt`,
-`app/src/test/java/com/novastream/app/LibraryCodecTest.kt` (new).
+`app/src/test/java/com/moovio/app/LibraryCodecTest.kt` (new).
 
 ### Verification (done)
 - `gradlew :app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only the repo's pre-existing
@@ -3868,7 +3880,7 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
 `ui/screens/settings/HomeOrderScreen.kt` (new), `ui/screens/settings/SettingsScreen.kt`,
 `ui/screens/library/LibraryScreen.kt`, `ui/screens/home/HomeScreen.kt`, `ui/vm/ViewModels.kt`,
 `ui/nav/NovaNav.kt`, `ui/player/PlayerActivity.kt`, `AndroidManifest.xml`,
-`app/src/test/java/com/novastream/app/WatchStatsTest.kt` (new).
+`app/src/test/java/com/moovio/app/WatchStatsTest.kt` (new).
 
 ### Verification
 `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` → **37 tests / 0 failures** ✅ (3 new) ·
@@ -4111,7 +4123,7 @@ it now uses the app's standard 0.96 press shrink with a 32 dp minimum target.
 ### Files
 `ui/screens/browse/BrowseScreen.kt` (new), `ui/nav/NovaNav.kt`, `ui/screens/detail/DetailScreen.kt`,
 `ui/components/Components.kt`, `ui/screens/manga/MangaScreen.kt`, `ui/screens/nsfw/NsfwScreen.kt`,
-`data/local/SettingsStore.kt`, `app/src/test/java/com/novastream/app/ResolutionBadgeTest.kt` (new).
+`data/local/SettingsStore.kt`, `app/src/test/java/com/moovio/app/ResolutionBadgeTest.kt` (new).
 
 ### Verification
 `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` → **34 tests / 0 failures** ✅ ·
@@ -4494,6 +4506,9 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
 - ✅ Externalized signing credentials: `app/build.gradle.kts` now reads an untracked
   `keystore.properties` (created locally) or env vars `NOVASTREAM_STORE_PASSWORD` /
   `NOVASTREAM_KEY_ALIAS` / `NOVASTREAM_KEY_PASSWORD`. Password no longer in the build script.
+  — **superseded 2026-10-22:** the material now comes from `local.properties`
+  (`moovio.storeFile` / `moovio.storePassword` / `moovio.keyAlias` / `moovio.keyPassword`) or the
+  `MOOVIO_*` env vars, the key lives outside the repo and was rotated (§2ax).
 - ✅ Added a unit-test source set + `junit:junit:4.13.2`; 9 parser tests (Protobuf, gzip,
   Keiyoushi index, Stremio manifest, CloudStream provider).
 - ✅ **Keystore rotation — decided NOT to rotate** (see §8).
@@ -4532,6 +4547,101 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   2-line description, Play button) with animated dot indicators and a drag-aware 5 s auto-advance.
 - **Files:** `ui/screens/home/HomeScreen.kt`
 
+### 🟠 ISSUE-15 — Backup export writes tracker tokens and cookies in plain text
+- **Symptom:** the JSON backup contains the Trakt/AniList/MAL access tokens and the global
+  `Cookie` header, unencrypted, in a file the user picks anywhere on the device.
+- **Risk:** anyone with read access to the exported file (cloud backup, shared folder) gets
+  working tracker sessions.
+- **Fix:** encrypt the backup with a user-held key (or at minimum omit secrets and re-prompt for
+  them on restore), and warn in the export dialog.
+- **Files:** `data/integrations/BackupManager.kt`
+- **Status:** open — not part of the §2ax pipeline (it was reported there, not fixed there).
+
+### 🟠 ISSUE-16 — Scrobbling posts foreign ids to AniList / MAL / Kitsu
+- **Symptom:** a movie watched in the app is scrobbled with a TMDB id where the provider expects
+  its own id, so tracker history fills with wrong entries.
+- **Root cause:** `ScrobbleManager` sends the item's `tmdbId` to every provider; only Trakt
+  resolves a provider id.
+- **Fix:** resolve the provider's own id (or skip the provider) instead of sending the TMDB id.
+- **Files:** `data/integrations/ScrobbleManager.kt` (`:73`, `:131`, `:142`)
+
+### 🟠 ISSUE-17 — NSFW unlock survives a restart
+- **Symptom:** the NSFW area can be open on the next launch.
+- **Root cause:** the unlock flag is persisted in DataStore; the auto-lock only re-locks when
+  *all* activities stop, so a process death in the foreground leaves it open.
+- **Fix:** keep the unlock in memory (an `AppContainer` `MutableStateFlow`), persist only the
+  PIN/biometric preference.
+- **Files:** `data/local/SettingsStore.kt` (`:142`), `ui/screens/nsfw/NsfwHubScreen.kt`
+
+### 🟠 ISSUE-18 — HLS downloads cannot be exported to a custom folder
+- **Symptom:** "Copy downloads to folder" produces nothing for HLS titles.
+- **Root cause:** Media3 caches HLS segments under per-segment keys, but the exporter looks the
+  download up by the download id, so `getCachedSpans` is empty and the export bails out.
+- **Fix:** export HLS as a directory (playlist + segments) or remux with Media3's
+  `DownloadManager`; never concatenate segments into one unplayable file.
+- **Files:** `data/download/DownloadExporter.kt` (`:46`), `data/download/VideoDownloadManager.kt` (`:536`)
+
+### 🟡 ISSUE-19 — Manga download "pause" reports a failure
+- **Symptom:** pausing a chapter download shows "Download failed".
+- **Root cause:** `runCatching` swallows the `CancellationException` thrown by `pause()`, so the
+  cancelled job overwrites the `PAUSED` status with `FAILED`.
+- **Fix:** use the repo's `runCatchingCancellable` helper and check `isActive` before writing.
+- **Files:** `data/download/MangaDownloadManager.kt` (`:166`)
+
+### 🟡 ISSUE-20 — Player is released while the composition still holds it
+- **Symptom:** rare "player released" errors on exit; the 250 ms ticker and `PlayerView` can
+  touch a released `ExoPlayer`.
+- **Root cause:** `player?.release()` runs in `onDestroy`, but Compose disposes the composition
+  only after the decor view detaches.
+- **Fix:** detach `playerView.player` and release in `onStop`, or guard the ticker with a
+  `released` flag.
+- **Files:** `ui/player/PlayerActivity.kt` (`:1060`, `:1435`)
+
+### 🟡 ISSUE-21 — HTTP 429 backoff blocks OkHttp dispatcher threads
+- **Symptom:** up to 3 × 5 s of `Thread.sleep` per request on a shared dispatcher thread; a
+  cancelled coroutine still blocks it.
+- **Fix:** move the retry into the suspend layer (it already has a backoff loop) or use a
+  cancellable delay; keep the interceptor to a single attempt.
+- **Files:** `data/remote/Http.kt` (`:33`, `:48-66`)
+
+### 🟡 ISSUE-22 — The website's `npm run lint` cannot succeed
+- **Symptom:** `eslint` is not a dependency and no ESLint config exists, so the script always
+  fails; `next lint` is also removed in Next 16.
+- **Fix:** add `eslint` + `eslint-config-next` with a flat config, or replace the script with
+  `tsc --noEmit`.
+- **Files:** `website/package.json`, `website/`
+
+### 🟡 ISSUE-23 — The website references Tailwind colour tokens that do not exist
+- **Symptom:** the drag-rail progress fill has no background, arrow buttons get Tailwind's default
+  border, and the "Drag" label renders at full white.
+- **Root cause:** `border-ink`, `text-ink`, `bg-ink`, `text-mist` are not defined in
+  `tailwind.config.ts` (the palette is `void/paper/muted/faint/accent/signal/vermilion/…`).
+- **Fix:** map them to existing tokens or extend the theme.
+- **Files:** `website/components/ui/drag-rail.tsx` (`:279-308`), `website/components/PhoneMockup.tsx`,
+  `website/tailwind.config.ts`
+
+### 🟡 ISSUE-24 — The website is invisible without JavaScript
+- **Symptom:** every major section is `opacity: 0` until an `IntersectionObserver` adds
+  `is-shown`; any JS error leaves a blank page.
+- **Fix:** add a no-JS fallback (`<noscript>` style or `@media (scripting: none)`) and drive
+  visibility from CSS where possible.
+- **Files:** `website/app/globals.css` (`:208-223`)
+
+### 🟡 ISSUE-25 — `next.config.mjs` has no `output: "export"` although the README promises a static build
+- **Symptom:** `npm run build` produces a Node server bundle; a static host serves nothing.
+- **Fix:** add `output: "export"` + `images: { unoptimized: true }`, or correct the README and
+  document the Vercel/Node target.
+- **Files:** `website/next.config.mjs`, `website/README.md`
+
+### 🟡 ISSUE-26 — No CI, no `androidTest`, no instrumentation
+- **Symptom:** "292 tests, all green" is asserted, never enforced; nothing covers the Compose UI,
+  DataStore, WorkManager workers, the download stack, the extension engine or the CloudStream
+  shims (the highest-risk code in the repo has zero tests).
+- **Fix:** add a GitHub Actions workflow running `compileDebugKotlin` + `testDebugUnitTest` +
+  `assembleRelease` on every push, and grow the JVM-testable surface (the shims, `Http`,
+  `SettingsStore`, the download managers).
+- **Files:** `.github/workflows/`, `app/src/test/`
+
 ---
 
 ## 5. How to re-verify
@@ -4565,6 +4675,44 @@ curl -sIL "https://github.com/keiyoushi/extensions/raw/repo/index.pb" | head -1
 ```
 
 Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.properties` must point at SDK).
+
+### Build & sign locally (as of v1.10.0, §2ax)
+
+`local.properties` (untracked, git-ignored) needs a real `sdk.dir` — it used to point at a
+non-existent Linux path, which is why the build could not run on the dev machine:
+
+```properties
+sdk.dir=C:/Users/<you>/AppData/Local/Android/Sdk
+TMDB_API_KEY=…                 # optional; metadata falls back to the add-ons
+moovio.storeFile=C:/secure/moovio-release.jks
+moovio.storePassword=…
+moovio.keyAlias=moovio
+moovio.keyPassword=…
+```
+
+The signing values may instead come from `MOOVIO_STORE_FILE` / `MOOVIO_STORE_PASSWORD` /
+`MOOVIO_KEY_ALIAS` / `MOOVIO_KEY_PASSWORD` (the file wins). **The keystore must live outside the
+repository** — the previous one was committed once and had to be rotated (§8).
+
+```bash
+./gradlew :app:compileDebugKotlin      # compile
+./gradlew :app:testDebugUnitTest       # 292 unit tests
+./gradlew :app:assembleDebug           # debug APK
+./gradlew :app:assembleRelease         # signed release APK (needs the material above)
+
+# what the release actually is:
+$ANDROID_HOME/build-tools/34.0.0/aapt2 dump badging app/build/outputs/apk/release/app-release.apk | head -1
+#   package: name='com.moovio.app' versionCode='19' versionName='1.10.0' …
+$ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
+#   Signer #1 certificate SHA-256 digest: 2edb949b…351379
+
+# the published artifact, end to end:
+curl -sL -o /tmp/apk https://github.com/speckle-hub/nexusstream/releases/latest/download/app-release.apk
+sha256sum /tmp/apk   # ED8C54188C4512B020AC1BE18F19290EEA7B617438302723D172ECD35839D54F
+```
+
+Website: `cd website && npm run build` (Next.js 15 static export; 8/8 pages). `npm run lint` is
+currently **broken** — `eslint` is not a dependency and no config exists (see §4 ISSUE-15).
 
 ---
 
@@ -4690,7 +4838,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-06 | **Phase 20 — manga reader paging + Continue Reading (§2u):** `ZoomablePage` replaced `detectTransformGestures` (which consumed one-finger drags after the touch-slop threshold, so the parent `HorizontalPager` cancelled — RTL/LTR never advanced while Webtoon worked) with a hand-rolled `awaitEachGesture` that only claims real pinches or pans of an already-zoomed image; a single finger at 1× is left to the pager. The reader's `savePage` now also writes `WatchEntry(item, videoId = chapter, videoTitle, positionMs = pagesRead, durationMs = totalPages)` through `LibraryStore.recordWatch`, and `HomeViewModel`/`LibraryScreen` split the shared history on the new `MediaItem.isReadable` into **Continue Watching** and **Continue Reading** rows/sections for normal + NSFW manga. `ui/player/MangaReaderActivity.kt`, `ui/vm/ViewModels.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/library/LibraryScreen.kt`. |
 | 2026-10-06 | **Phase 20 verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **103 tests / 0 failures / 0 errors** ✅; `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,264,498 bytes**, SHA-256 `aae43aa3…eabd4`; new symbols `Continue Reading`, `collectSafely`, `isReadable` verified in the release dex). **Device pass pending — §7 item 30.** |
 | 2026-10-06 | **Phase 21 — NSFW/Browse card width aligned with Home (§2v):** `HomeScreen` passed `MediaRow(cardWidth = 150)` by hand while `NsfwScreen` and `MangaScreen` (both Browse segments) called `MediaRow` without a width and inherited its **132 dp** default — the same poster was therefore a different size on Home, Browse → Manga and Browse → NSFW, and the NSFW rails read as "narrow cards with wide side margins". New `AppSpacing.railCard` = **150 dp** is now the single source of rail card width and all three screens pass it explicitly; NSFW's remaining hardcoded 16 dp gutters moved to `AppSpacing.screen`. The results grid was verified to already fill the viewport (Compose 1.7.0 `GridCells.Adaptive` → `calculateCellsCrossAxisSizeImpl` distributes `availableSize − padding` evenly; no max-width clamp exists on either screen). `ui/theme/Tokens.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/manga/MangaScreen.kt`, `ui/screens/nsfw/NsfwScreen.kt`. |
-| 2026-10-06 | **Phase 21 — Sources dashboard crash root-caused and fixed (§2v):** Phase 20's early-`return@Column` theory was wrong (and is not a crash mechanism — `Column` hands a non-weighted child a bounded `mainAxisMax`, so `Column { header; Lazy*(fillMaxSize()) }` is safe). The real cause is a **Gson null-field decode**: `ExtensionStore.list()` used `Gson().fromJson(…, Array<ExtensionDescriptor>::class.java)`, and Gson instantiates Kotlin data classes through `Unsafe`, so a JSON entry missing a field yields a silent `null` in a **non-null** slot. `SourcesScreen` then hit the compiler's `checkNotNullParameter` NPE on `Text(desc.name)` and fed `LazyColumn` a null key. New `data/ext/ExtensionCodec.kt` decodes element-wise — drops entries missing `id`/`entryClass`/`apkPath`, defaults `name` to the id, keeps `version` optional, de-dupes ids, tolerates a bare object and any unparseable file, and never throws; `ExtensionStore.list()`/`save()` use it, `ExtensionRepository.installed()` is wrapped, and `SourcesScreen` reads through a `runCatching` fallback plus a blank-id filter/de-dupe. `data/ext/ExtensionCodec.kt` (new), `data/ext/ExtensionRepository.kt`, `ui/screens/sources/SourcesScreen.kt`, `app/src/test/java/com/novastream/app/ExtensionCodecTest.kt` (new, 8 cases). |
+| 2026-10-06 | **Phase 21 — Sources dashboard crash root-caused and fixed (§2v):** Phase 20's early-`return@Column` theory was wrong (and is not a crash mechanism — `Column` hands a non-weighted child a bounded `mainAxisMax`, so `Column { header; Lazy*(fillMaxSize()) }` is safe). The real cause is a **Gson null-field decode**: `ExtensionStore.list()` used `Gson().fromJson(…, Array<ExtensionDescriptor>::class.java)`, and Gson instantiates Kotlin data classes through `Unsafe`, so a JSON entry missing a field yields a silent `null` in a **non-null** slot. `SourcesScreen` then hit the compiler's `checkNotNullParameter` NPE on `Text(desc.name)` and fed `LazyColumn` a null key. New `data/ext/ExtensionCodec.kt` decodes element-wise — drops entries missing `id`/`entryClass`/`apkPath`, defaults `name` to the id, keeps `version` optional, de-dupes ids, tolerates a bare object and any unparseable file, and never throws; `ExtensionStore.list()`/`save()` use it, `ExtensionRepository.installed()` is wrapped, and `SourcesScreen` reads through a `runCatching` fallback plus a blank-id filter/de-dupe. `data/ext/ExtensionCodec.kt` (new), `data/ext/ExtensionRepository.kt`, `ui/screens/sources/SourcesScreen.kt`, `app/src/test/java/com/moovio/app/ExtensionCodecTest.kt` (new, 8 cases). |
 | 2026-10-06 | **Phase 21 verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **111 tests / 0 failures / 0 errors** ✅ (15 result files; +8 `ExtensionCodecTest`); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,264,498 bytes**, SHA-256 `a2007861…8c10`; `ExtensionCodec` / `railCard` / `SourcesScreen` verified in the release dex). **Device pass pending — §7 item 31** (no device or emulator was available: no AVDs installed and no `adb` target attached). |
 | 2026-10-06 | **Source hygiene — dead seeds fixed & dead hosts retired (§2w, from the §3 live probe):** `AddonStore.Defaults.repos` now seeds the live `JoeTinnySpace/cloudstream-extensions-hexated` mirror (the old `hexated/…` URL 404s on every branch) and a new `Defaults.retiredRepoUrls` + `AddonRepository.ensureDefaultRepos()` prunes the dead URL from existing installs. `HahoSource` was re-pointed from its two 404 paths to the live `GET /anime?q=`, parsing the `anime-loop` series cards and expanding each into `/anime/{slug}/{n}` episodes (in parallel, capped at 3 series); `HentaiTubes.mediaUrls` now also reads `<source … type="video/…">` tags so Haho's extension-less filegasm streams resolve (subtitle tracks excluded). Dead hosts removed: `HpjavSource` (hpjav.tv DNS-dead) and `AvgleSource` (api.avgle.com 520) from `AdultSources.all`, `HentaigasmSource` (timeouts) and `HanimeSource` (search API DNS-dead + JS-shell page) from `HentaiSources.all`; objects/tests retained. `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/hentai/HahoSource.kt`, `data/hentai/HentaiTubes.kt`, `data/adult/AdultSources.kt`, `data/hentai/HentaiSources.kt`, `AdultSourcesExtraTest.kt`, `HentaiSourcesExtraTest.kt`. |
 | 2026-10-06 | **Source hygiene verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **113 tests / 0 failures / 0 errors** ✅ (15 result files; +2 net — the Haho JSON test became two HTML tests and a new `mediaUrls` source-tag case); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,280,882 bytes**, SHA-256 `52cef604…2ec9d`; `JoeTinnySpace` / `retiredRepoUrls` verified in the release dex). Live-probed during the pass: hexated mirror 200 (old 404), Haho `/anime?q=` 200 with 2 series, its series page's 6 episodes, and the episode→`/embed`→`<source type="video/…">` filegasm URLs; hpjav.tv + search.htv-services.com DNS-dead, api.avgle.com down, hentaigasm.com timeout. **Device pass still required — §7 items 21/23/31.** |
@@ -4718,6 +4866,11 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-14 | **Source expansion (§2as):** 13 new built-in sources — NSFW Anime `HenVidsSource` (`/hentai/` cards) + `OhentaiSource` (`detail.php?vid=` + `tagsearch.php` search) + `HentaiTvSource` (`/api/search?q=` JSON, episode-level, nhplayer embeds) + `XAnimuSource` (confirmed `/?s=` + numeric-permalink filter); general `PornTrexSource` (KVS) + `SxyPrnSource` (aggregator, best-effort file-host streams) + `FullPornerSource` (`/watch/` hash) + `TxxxSource` (Aylo `media_definitions` mirror of YouPorn); JAV `JavMostSource` (WP) + `KissJavSource` (KVS `kissjav.li`) + `JavtifulSource` (`/video/{id}` codes) + `OpJavSource` (WP) + `SevenMmtvSource` (sx + tv-mirror fallback). Registries 15 → 24 adult / 9 → 13 hentai; isolation/progressive loading inherited. Added `MoreSourcesTest` (14 cases → **230 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **230/230 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-14 | **Phase 36 — Premium UI/UX Overhaul (§2at):** audit-first — hero carousel, poster palette, pill nav, NSFW vault, subtitle sheet + sync, PiP and stream ranking/badges verified existing. New: hero **Watchlist** pill (`HomeViewModel.favorites` + `toggleFavorite`, haptic), pill-nav **tab haptics**, Real 18+ **source-filter chips** (new pure `NsfwFilters.applySourceFilter`, `NsfwSection` options, source-aware empty state), subtitle **outline color** (`SubtitleStyle.outlineKey` + `SUB_OUTLINE` key, Settings + in-player sheet) and **100 ms sync steps** (`steps = 199`), next-episode **pre-fetch** inside 2 min (`shouldPrefetchNextEpisode`, `prefetchedIndex`, cache-warming resolve). Audio delay deliberately not built (no Media3 API — would be fake UI). Added `Phase36PremiumTest` (7 cases → **237 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **237/237 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-14 | **v1.8.0 released:** bundles Phase 36 (§2at) + §2as source expansion (13 new built-in sources) — `versionCode` 17 / `versionName` 1.8.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest --rerun-tasks` ✅ **237/237**, `:app:assembleRelease` ✅ (signed) → `dist/NexusStream.apk` + `dist/app-release.apk` (43,741,343 bytes, SHA-256 `F98D6590…008C00`; `output-metadata.json` verified); tagged `v1.8.0`; website hero/footer → v1.8.0, stats → 237 (`next build` ✅, 103 kB shared). **GitHub Release `NexusStream v1.8.0` published with `NexusStream.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.8.0. |
+| 2026-10-15 | **v1.9.0 released:** bundles the Moovio display-name rebrand + the Anime4K GPU shader engine (§2au) and the 14 built-in SFW sources with auto-play best source (§2av) — `versionCode` 18 / `versionName` 1.9.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **281/281**, `:app:assembleRelease` ✅ (signed) → `dist/Moovio.apk` + `dist/app-release.apk` (43,946,889 bytes, SHA-256 `4E4E6E60…8D8D64`); tagged `v1.9.0`; website hero/footer → Moovio v1.9.0, stats → 281 (`next build` ✅). **GitHub Release `Moovio v1.9.0` published with `Moovio.apk` + `app-release.apk` attached**, so the in-app updater + site CTA serve v1.9.0. |
+| 2026-10-22 | **Full rename to Moovio (§2aw):** `com.novastream.app` → `com.moovio.app` (namespace + `applicationId`, 1118 references across 193 files) and every brand token renamed (`MoovioApp`, `MoovioTheme`, `LocalMoovioColors`, `MoovioExtension`, `MoovioDownloadService`, `moovioViewModel`, `Ns*` → `Moovio*` colour tokens, `ns_*` XML colours); OAuth scheme `novastream://oauth` → `moovio://oauth`; `Theme.NovaStream` → `Theme.Moovio`; `rootProject.name` = Moovio; README rewritten (stale version/test-count/TMDB-key claims corrected); roadmap retitled; website package renamed `moovio-website`; **the OpenGraph wordmark still rendered "NexusStream" — now "Moovio"**; stale `dist/NexusStream.apk` + `dist/NovaStream.apk` deleted. Verified structurally (package/dir parity, import resolution, manifest/theme/resource references) — **and then compiled**: `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **281/281**, `:app:assembleDebug` ✅ (53,038,688 bytes) after `local.properties` was pointed at the real SDK (`sdk.dir` had pointed at a non-existent Linux path). |
+| 2026-10-22 | **Security / stability remediation (§2ax):** (1) **release key rotated** — a fresh 4096-bit RSA key (`alias moovio`) at `~/.moovio/moovio-release.jks` outside the repo; `keystore/novastream.jks` + `keystore.properties` deleted; `build.gradle.kts` reads the material only from `local.properties` / `MOOVIO_*` env vars and a release build without it now fails fast with an actionable message; (2) **OAuth state validation** — 128-bit random nonce in `state`, constant-time compare, one-shot consumption (a foreign app could previously push its own authorization code into the user's tracker list); (3) **updater signature check** — `installApk` verifies package + trusted signer before the system installer sees the file; (4) **CloudStream shims repaired** — app context published to `com.lagradost.api`, `CommonActivity` attached (provider toasts were no-ops), `CloudStreamApp.initialize` called at app start, provider settings now use a Jackson mapper configured like the library's (Gson dropped null fields → providers' inlined Jackson read failed and silently lost settings); (5) **download removal no longer starts a foreground service** (Android 12+ `ForegroundServiceStartNotAllowedException` was swallowed, so watched downloads were never reclaimed); (6) **saved manga reading position restored** (the pager captured its initial page before the position loaded → every chapter opened on page 1); (7) `FLAG_SECURE` applied to the player; (8) home-row order screen keys made unique (duplicate titles crashed the LazyColumn); (9) poster-palette extraction and extension JSON parsing moved off the main thread, detail-screen history collected once per screen instead of once per episode row. |
+| 2026-10-22 | **Git history purged of the old key:** `git filter-repo --path keystore --invert-paths`; `main` force-pushed with `--force-with-lease` pinned to the old head `a1b3f4a`; **all 16 release tags rewritten and force-pushed** (two of them still pointed into the pre-rewrite history and would have kept the key blob reachable); reflog expired, object store re-packed — blob `681a2046…` is no longer a valid object locally and no reachable ref on GitHub points at the old commits. GitHub still serves the orphaned blob by SHA until its own GC runs, which is why the key was rotated. Verified: `git diff origin/main HEAD` = exactly the 213-file change set (no content lost by the rewrite). |
+| 2026-10-22 | **v1.10.0 released (§2ay):** the first Moovio-named release — `versionCode` 19 / `versionName` 1.10.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **292/292** (281 + 11 new: `OAuthAndSignatureSecurityTest` 6, `ProviderSettingsCodecTest` 5), `:app:assembleDebug` ✅, `:app:assembleRelease` ✅ (signed with the **rotated** key — signer SHA-256 `2EDB949B…351379`, DN `CN=Moovio, OU=Release, O=Moovio, C=US`) → `dist/Moovio.apk` + `dist/app-release.apk` (43,946,885 bytes, SHA-256 `ED8C5418…39D54F`); archive verified in-place (`package com.moovio.app`, `versionCode 19`, `versionName 1.10.0`, minSdk 24 / targetSdk 34, label `Moovio`). Pushed (`main` + tag `v1.10.0`), **GitHub Release `Moovio v1.10.0` published with `app-release.apk` + `Moovio.apk` attached and marked Latest** — `releases/latest/download/app-release.apk` now serves v1.10.0 (re-downloaded and hash-matched end to end). Website hero/footer/nav → v1.10.0, stats → 292, install size → ≈44 MB (`next build` ✅, 8/8 static pages). **Upgrade note in the release body: v1.10.0 cannot be installed over v1.9.0** (package id *and* signing key changed) — old installs must be removed, and their settings/library/downloads do not carry over. |
 
 ---
 
@@ -4726,6 +4879,21 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 
 ## 7. Where to pick up next
 
+0. **Post-v1.10.0 follow-ups (new):**
+   - **Device pass on the renamed app.** `com.moovio.app` is a new app id: verify a *fresh* install
+     (no old data to lean on), that `MoovioApp` boots, the CloudStream provider list loads (the
+     repaired shims), a provider's toast is visible, and a provider's setting survives a restart
+     (the Jackson codec fix). Then verify the *upgrade* story is communicated: the old
+     `com.novastream.app` install cannot be updated in place, so the old app has to be uninstalled.
+   - **Rename the GitHub repo** (`speckle-hub/nexusstream` → `speckle-hub/moovio`) and update
+     `UpdateChecker.DEFAULT_REPO`, `website/lib/utils.ts` (`GITHUB_URL`, `APK_URL`,
+     `RELEASES_URL`) and the Trakt client-id fallback string. Until then the updater and the site
+     CTA still work, but the URLs contradict the brand.
+   - **Clear the open backlog** in §4: ISSUE-15 (plaintext backup secrets) and ISSUE-16 (wrong
+     tracker ids) are the two that touch user data; ISSUE-18 (HLS export) is the one users hit
+     most often.
+0b. **CI** — no workflow exists, so "292 tests, all green" is asserted rather than enforced
+   (ISSUE-26).
 1. **Manual verification pass** on a device/emulator:
    - Fresh install → Home populates; open a movie → stream sources listed (Torrentio / TPB+).
    - Settings → Add-ons → CloudStream repo → provider list is **no longer empty**.
@@ -4733,19 +4901,14 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
    - NSFW → NSFW Anime → search returns results (Jikan fallback or AniList).
    - Manga → open a licensed title (e.g. One Piece) → chapter list shows only readable chapters.
 2. Run the device pass in step 1, then archive a release build: `./gradlew :app:assembleRelease`
-   (signing now comes from `keystore.properties`).3. Test suites live in `app/src/test/java/com/novastream/app/` — **103 tests** across
-   `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11, new Real
-   18+ sources — §2k), `HentaiSourcesExtraTest.kt` (10, new hentai sources — §2m),
-   `StreamRankingTest.kt` (9, reliability-first stream ranking — §2r), `ParsersTest.kt` (9),
-   `DownloadMaintenanceTest.kt` (8, download headers + orphan detection — §2p),
-   `TitleMatchTest.kt` (7, NSFW title matching — §2s), `PlaybackMathTest.kt` (6, subtitle-sync cue
-   selection + stats formatting — §2q), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
-`MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3), `SearchCancellationTest.kt` (2),
-`UpdateCheckerTest.kt` (11, updater progress — §2ag) and `Phase26P0FixesTest.kt` (5).
-   If more clients need coverage (MangaDex chapter filtering, AniList query building), extract the
-   pure logic and add cases there.
-4. Optional later: flip `isMinifyEnabled = true`, smoke-test on a device, ship. Optional later:
-   rotate the keystore if the app is ever published.
+   (signing material comes from the untracked `local.properties` / `MOOVIO_*` env vars — §5).
+3. Test suites live in `app/src/test/java/com/moovio/app/` — **292 tests** across 33 files; the
+   full per-file breakdown is in §1. If more clients need coverage (the CloudStream shims, `Http`,
+   `SettingsStore`, the download managers, the extension engine), extract the pure logic and add
+   cases there — the shims are the highest-risk untested code in the repo.
+4. Optional later: flip `isMinifyEnabled = true`, smoke-test on a device, ship.
+   (The keystore was already rotated on 2026-10-22 — §2ax/§8 — and the old blob purged from the
+   history, so "rotate the keystore if the app is ever published" is done.)
 5. **Re-test Real 18+ search on a device** (see §2b/ISSUE-9): typing a word issues one request
    (no request storm), results are relevant to the query, and an empty search explains itself when
    sources are down instead of silently returning nothing.
@@ -5018,7 +5181,7 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
     16 dp start/end gutters match Home's, and rotate to landscape/tablet to confirm the results grid
     still grows columns and fills the width with no new side margins. **Sources dashboard** — with a
     **pre-existing malformed `extensions.json`** (the strongest reproduction: `adb shell` into
-    `/data/data/com.novastream.app/files/extensions.json` and delete the `"name"` key from one
+    `/data/data/com.moovio.app/files/extensions.json` and delete the `"name"` key from one
     entry, or drop its `"id"`) open Settings → Sources & Network → **Sources dashboard**: it must
     render the remaining extensions instead of crashing, the affected entry should show its id as
     the title, and toggling it off/on plus **Test** must still work. Also check the normal cases
@@ -5048,7 +5211,14 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 ## 8. Decisions log
 
 | Date | Decision | Rationale |
-|---|---|
+|---|---|---|
+| 2026-10-22 | **Rename the package too, not just the display name** (supersedes the 2026-10-01 "display name only" decision) | The product is Moovio; leaving `com.novastream.app` in the package, the OAuth scheme, the theme names and every brand token kept three names alive across the code, the docs, the site and the release assets. The rename is mechanical (1118 references, verified by package/dir parity + import resolution + a real compile), and the cost — losing in-place updates — is unavoidable *anyway*, because the signing key had to be rotated (§2ax). Doing both at once means one reinstall instead of two breaking changes. |
+| 2026-10-22 | **Rotate the release key and keep it out of the repository** (supersedes the 2026-09-30 "keep the existing keystore" decision) | The old key was committed in the first commit and stayed recoverable from the pack, so anyone with repo read access could mint an APK that Android accepts as an in-place update of this app — and the update dialog installs whatever the release asset says. The key now lives in `~/.moovio/`, the build reads it only from the untracked `local.properties`/`MOOVIO_*` env vars, and the blob was purged from the history. Cost: the next release cannot update an existing install in place. That is the right trade — a key that anyone can use to push code to every user's phone is worse than an inconvenience. |
+| 2026-10-22 | **Sign the updater's APK before handing it to the system installer** | Android's own installer refuses a foreign-signed package, but only *after* the user has been shown an install prompt for it, and the release-asset URL is a single point of compromise. Verifying package + signer first turns "the release account was hijacked" from "every user gets an install prompt" into "the update is refused with a visible reason". |
+| 2026-10-22 | **The OAuth redirect carries a one-shot random nonce** | `moovio://oauth` is a custom scheme, so any app on the device can fire it. Without a nonce, a hostile app could hand the callback its own authorization code and have the resulting token written into the user's tracker list. The nonce is generated with `SecureRandom`, stored in DataStore before the browser hop, compared with `MessageDigest.isEqual` and consumed on use. |
+| 2026-10-22 | **Provider settings are stored with the CloudStream library's own Jackson configuration** | The provider dexes carry upstream's *read* path inlined, and upstream reads with Jackson. The shim wrote with the app's Gson, which omits null fields — a Jackson/Kotlin read then fails with `MissingKotlinParameterException` and the provider's setting is silently lost. The library's mapper is not public API, so an equivalent instance (Kotlin module + `FAIL_ON_UNKNOWN_PROPERTIES` off) is built in `ProviderSettingsCodec`; Gson stays as a fallback. |
+| 2026-10-22 | **Download removal goes through `DownloadManager.removeDownload`, not a foreground service start** | `DownloadService.sendRemoveDownload(..., foreground = true)` has to *start* the download service, which Android 12+ refuses from the background — and the auto-delete path runs exactly there (player `onPause`/`onStop`). The exception was swallowed, so watched downloads were never reclaimed. The manager API needs no service start and the cached bytes are released explicitly. |
+| 2026-10-22 | **The `applicationId` change is accepted rather than reverted** | Keeping `com.novastream.app` would preserve in-place updates, but the name is the product's identity and the key rotation had already broken that path. A reinstall is a one-time cost; a permanent mismatch between the app's name and its package is a permanent cost. The release notes state the upgrade requirement up front. |
 | 2026-10-07 | **Ship source-neutral for the public repo: no preinstalled stream providers or provider repos** | A public app that auto-installs Torrentio/TPB+ and points at piracy-provider repos is a DMCA/takedown magnet and arguably facilitates infringement; the same app with a neutral add-on *manager* is precedented (Kodi, CloudStream's repo-less distribution). Only legal seeds remain (Cinemeta metadata, OpenSubtitles). Cost: out-of-box playback needs one user-installed stream add-on, so the Detail empty-state and Add-on Manager now explain that path; the provider tabs gained a real add-repo UI since seeds no longer exist. Player/extension/torrent *protocol* support stays — neutral technology, same posture as VLC/ffmpeg. Removed seeds are pruned from existing installs via the retired-lists so an upgraded install matches a fresh one. |
 | 2026-10-07 | **Website lives in `website/` inside the app repo, deployed to Vercel (not GitHub Pages or a second repo)** | One repo = one place for issues, releases and the site; Vercel's root-directory deploy builds only `website/` and redeploys on every push to `main`, and Next.js is the native stack of the requested component libraries (Aceternity/HeroUI/ThreeUI are React). A separate repo would only buy independent history the project doesn't need. |
 | 2026-10-07 | **HeroUI pinned to `~2.7.11` with Tailwind v3.4** | HeroUI 2.8 bundles Tailwind v4 types (the build fails type-checking the `heroui()` plugin) and its runtime targets the TW4 CSS-first config. The Aceternity-style components and the existing config are TW3-style (`tailwind.config.ts`), so the site stays on the last TW3-native HeroUI line. Revisit when the Aceternity ports are migrated to CSS-first config. |
@@ -5069,9 +5239,9 @@ Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.prop
 | 2026-10-04 | **Phase 14: keep the media cache in app-private storage, with external/cache dirs as fallbacks** | SimpleCache is constructed once against a fixed directory, so flipping the default to `getExternalFilesDir` would silently discard every existing download on upgrade (and leave the old internal cache unreachable by the new orphan cleaner — the opposite of the cleanup goal). The writability chain therefore tries the historic `filesDir/downloads/media` first and degrades to external/internal-cache only when that location can't be written. The SAF tree stays scoped to exports. |
 | 2026-10-04 | **Phase 15: subtitle sync is a client-side cue overlay, not a player API** | Media3 1.3 ships no subtitle-offset method (and upgrading the whole Media3 stack just for it is risky). Instead the player records `Player.Listener.onCues` into a bounded timeline and, when an offset is set, hides the native `SubtitleView` and re-renders the cue set active at `position - offset`. Trade-off: the offset overlay ignores per-cue positioning/animation from the caption file (it renders centred text with the user's colour/size/opacity), while offset 0 keeps the full native renderer. |
 | 2026-10-02 | **Phase 11: Cast/DLNA + auto-crop + audio boost are best-effort, not framework integrations** | A real Cast integration needs `androidx.mediarouter` + the Cast SDK, and true white-border cropping needs per-bitmap pixel scanning — both are heavy new dependencies/IO for the payoff. The Cast button opens the system route chooser, crop is a 6% scale-and-clip, and boost/normalize are `LoudnessEnhancer` gain presets. Called out in §2h so they aren't mistaken for full implementations. |
-| 2026-09-30 | **Keep the existing release keystore** (do not rotate) | The `.jks` + password are public (README/history), so the key is already "burned" — but the keystore is *deliberately* shipped so the repo builds a signed APK out of the box, and rotating would change the signing identity and break in-place updates for any installed build. Password is now read from untracked `keystore.properties` or env vars. If this is ever distributed publicly, rotate then. |
+| 2026-09-30 | **Keep the existing release keystore** (do not rotate) — **SUPERSEDED 2026-10-22, see above** | The `.jks` + password are public (README/history), so the key is already "burned" — but the keystore is *deliberately* shipped so the repo builds a signed APK out of the box, and rotating would change the signing identity and break in-place updates for any installed build. Password is now read from untracked `keystore.properties` or env vars. If this is ever distributed publicly, rotate then. |
 | 2026-10-01 | **Extension engine trust model** | Loaded extensions run in-process with app privileges; this is **not** a security sandbox. Loading is restricted to app-private storage and failures are contained per extension. Only load user-installed, trusted extensions; a real sandbox would need a separate process + restricted classloader. |
-| 2026-10-01 | **Rename: display name only** | The app is NexusStream in the UI, but the Kotlin package and `applicationId` stay `com.novastream.app`, so the signing identity and in-place updates are preserved. Renaming the package later would change the app identity. |
+| 2026-10-01 | **Rename: display name only** — **SUPERSEDED 2026-10-22, see above** | The app is NexusStream in the UI, but the Kotlin package and `applicationId` stay `com.novastream.app`, so the signing identity and in-place updates are preserved. Renaming the package later would change the app identity. |
 | 2026-09-30 | **Keep R8 minify OFF** (`isMinifyEnabled = false`) | Shrinking reflection/JNI paths (Gson models, Media3, jlibtorrent) fails only at runtime, and no device was available to verify. A larger APK is preferable to a release that might crash. `proguard-rules.pro` was expanded with the needed keeps, so enabling is a one-line change once a device smoke-test is possible. |
 | 2026-10-01 | **Use Media3 `DownloadManager`/`DownloadService` for video downloads** (replacing the hand-rolled WorkManager HLS downloader) | Complex HLS is hard to get right by hand: alternate audio renditions, byte-range segments and `#EXT-X-KEY` encryption all defeat a naive "download master → pick highest variant → concatenate segments" approach. Media3 ships a maintained HLS downloader that shares the playback demuxer, plus a persistent download index, requirement scheduling, a foreground service base class and notification helpers. Cost: an `@UnstableApi` surface and a single shared `SimpleCache` that the player must also read through (constructed once in `DownloadManagerProvider`). |
 
@@ -5179,18 +5349,18 @@ data/adult/
 > §2k; device pass is §7 item 21.
 
 ### Tests
-`app/src/test/java/com/novastream/app/AdultSourcesTest.kt` — 13 tests over trimmed **real** markup
+`app/src/test/java/com/moovio/app/AdultSourcesTest.kt` — 13 tests over trimmed **real** markup
 (Pornhub list ×2 + streams ×2 incl. headers/get_media-skip, XV list + streams, XNXX list, HQporner
 list ×2 + embed/iframe, `adultAbsoluteUrl`, duration/quality helpers).
 
-`app/src/test/java/com/novastream/app/AdultSourcesExtraTest.kt` (new, 11 tests) — parser coverage
+`app/src/test/java/com/moovio/app/AdultSourcesExtraTest.kt` (new, 11 tests) — parser coverage
 for the seven added sources plus `TubeMedia` and the registry (§2k).
 
-`app/src/test/java/com/novastream/app/ExpandedSourcesTest.kt` (new, 10 tests — §2aq) —
+`app/src/test/java/com/moovio/app/ExpandedSourcesTest.kt` (new, 10 tests — §2aq) —
 fixture coverage for Eporner (API + listing), Beeg (API + file-map streams), JavGuru, SupJav,
 VJAV, Rule34Video and AnimeIdHentai, plus the expanded registry uniqueness guards.
 
-`app/src/test/java/com/novastream/app/MoreSourcesTest.kt` (new, 14 tests — §2as) —
+`app/src/test/java/com/moovio/app/MoreSourcesTest.kt` (new, 14 tests — §2as) —
 fixture coverage for HenVids, Ohentai, Hentai.tv (JSON), XAnimu, PornTrex, SxyPrn,
 FullPorner, TXXX, JavMost, KissJAV, Javtiful, OpJav and 7MMTV, plus the expanded
 registry uniqueness guards.
