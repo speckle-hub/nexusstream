@@ -1,5 +1,5 @@
 # Gson data classes are populated by reflection — keep every field.
--keep class com.novastream.app.data.model.** { *; }
+-keep class com.moovio.app.data.model.** { *; }
 -keepattributes Signature
 -keepattributes *Annotation*
 -dontwarn okhttp3.**

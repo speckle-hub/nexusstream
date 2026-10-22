@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
-        android:name=".NovaApp"
+        android:name=".MoovioApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -24,14 +24,14 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.NovaStream"
+        android:theme="@style/Theme.Moovio"
         tools:targetApi="34">
 
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
-            android:theme="@style/Theme.NovaStream">
+            android:theme="@style/Theme.Moovio">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -43,15 +43,15 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:supportsPictureInPicture="true"
-            android:theme="@style/Theme.NovaStream.Player" />
+            android:theme="@style/Theme.Moovio.Player" />
 
         <activity
             android:name=".ui.player.MangaReaderActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
-            android:theme="@style/Theme.NovaStream.Player" />
+            android:theme="@style/Theme.Moovio.Player" />
 
-        <!-- Tracker OAuth redirect target (Phase 30): novastream://oauth?code=…&state=…. -->
+        <!-- Tracker OAuth redirect target (Phase 30): moovio://oauth?code=…&state=…. -->
         <activity
             android:name=".ui.player.OAuthCallbackActivity"
             android:exported="true"
@@ -60,13 +60,13 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="novastream" android:host="oauth" />
+                <data android:scheme="moovio" android:host="oauth" />
             </intent-filter>
         </activity>
 
         <!-- Media3 download service: foreground job that owns the offline download queue. -->
         <service
-            android:name=".data.download.NovaDownloadService"
+            android:name=".data.download.MoovioDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
@@ -83,6 +83,6 @@
         <!-- Chromecast sender options (Phase 30): Default Media Receiver, no custom app id. -->
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="com.novastream.app.ui.player.NovaCastOptionsProvider" />
+            android:value="com.moovio.app.ui.player.MoovioCastOptionsProvider" />
     </application>
 </manifest>

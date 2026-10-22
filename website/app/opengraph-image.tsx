@@ -61,7 +61,7 @@ export default function OgImage() {
             marginBottom: 16,
           }}
         >
-          Nexus
+          Moovio
           <span
             style={{
               background: "linear-gradient(120deg, #B9A8FF, #7C5CFF 45%, #4F8DFF)",
@@ -69,7 +69,7 @@ export default function OgImage() {
               color: "transparent",
             }}
           >
-            Stream
+            .
           </span>
         </div>
         <div style={{ fontSize: 34, color: "#8A8A9C" }}>Every stream. One app.</div>

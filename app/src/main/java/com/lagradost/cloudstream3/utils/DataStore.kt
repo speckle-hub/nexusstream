@@ -2,7 +2,8 @@ package com.lagradost.cloudstream3.utils
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.novastream.app.data.remote.Http
+import com.fasterxml.jackson.databind.json.JsonMapper
+import com.moovio.app.data.remote.Http
 
 /**
  * Minimal re-implementation of CloudStream's app-module `DataStore`.
@@ -13,9 +14,14 @@ import com.novastream.app.data.remote.Http
  * `com.lagradost.cloudstream3.utils.DataStore` must exist at runtime for the provider to link.
  *
  * This shim mirrors the upstream public surface (the parts providers actually call) and backs it
- * with a SharedPreferences file, so settings a provider writes survive across launches. Values are
- * (de)serialized with the app's Gson instance rather than upstream's Jackson, which only affects
- * providers that read back a value they earlier wrote.
+ * with a SharedPreferences file, so settings a provider writes survive across launches.
+ *
+ * **Codec:** values are serialized with a Jackson mapper configured exactly like the CloudStream
+ * library's own (Kotlin module registered, unknown properties ignored). That matters: the
+ * provider's dex has the *upstream* read path inlined, and upstream reads with Jackson, so a value
+ * written with a different codec (the app's Gson) can be unreadable to the provider — Gson omits
+ * null fields, which makes a Jackson/Kotlin read fail with `MissingKotlinParameterException` and
+ * silently drop the provider's setting. Gson stays as a fallback for values Jackson cannot handle.
  */
 object DataStore {
 
@@ -62,9 +68,35 @@ object DataStore {
 
     fun Context.containsKey(folder: String, path: String): Boolean = containsKey(getFolderName(folder, path))
 
+    /**
+     * The codec used for provider settings.
+     *
+     * It mirrors the CloudStream library's own mapper exactly: a [JsonMapper] with the Kotlin
+     * module registered and `FAIL_ON_UNKNOWN_PROPERTIES` disabled — the same configuration the
+     * upstream library builds in `MainAPI.getMapper()`. The library's mapper is not public API, so
+     * the equivalent instance is built here instead of reaching into it.
+     */
+    private val mapper: JsonMapper = ProviderSettingsCodec.mapper
+
+    /** Serializes with the upstream-compatible Jackson mapper, falling back to Gson. */
+    @PublishedApi
+    internal fun encode(value: Any?): String = runCatching {
+        mapper.writeValueAsString(value)
+    }.getOrElse {
+        runCatching { Http.gson.toJson(value) }.getOrElse { "null" }
+    }
+
+    /** Reads back with the upstream-compatible Jackson mapper, falling back to Gson. */
+    @PublishedApi
+    internal fun <T> decode(json: String, valueType: Class<T>): T? = runCatching {
+        mapper.readValue(json, valueType)
+    }.getOrElse {
+        runCatching { Http.gson.fromJson(json, valueType) }.getOrNull()
+    }
+
     fun <T> Context.setKey(path: String, value: T) {
         runCatching {
-            getSharedPrefs().edit().putString(path, Http.gson.toJson(value)).apply()
+            getSharedPrefs().edit().putString(path, encode(value)).apply()
         }
     }
 
@@ -72,12 +104,12 @@ object DataStore {
 
     fun <T : Any> Context.getKey(path: String, valueType: Class<T>): T? = runCatching {
         val json: String = getSharedPrefs().getString(path, null) ?: return null
-        Http.gson.fromJson(json, valueType)
+        decode(json, valueType)
     }.getOrNull()
 
     inline fun <reified T : Any> Context.getKey(path: String, defVal: T?): T? = try {
         val json: String = getSharedPrefs().getString(path, null) ?: return defVal
-        Http.gson.fromJson(json, T::class.java)
+        decode(json, T::class.java)
     } catch (_: Exception) {
         null
     }

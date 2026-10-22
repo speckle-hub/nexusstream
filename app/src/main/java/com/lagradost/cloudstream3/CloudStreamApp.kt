@@ -18,7 +18,7 @@ import java.lang.ref.WeakReference
  * Returning a null-ish but *present* implementation means a provider that persists its own
  * settings keeps working instead of dying with `NoClassDefFoundError`.
  *
- * Call [initialize] once at app start (`NovaApp`) to give the inlined preference helpers a context.
+ * Call [initialize] once at app start (`MoovioApp`) to give the inlined preference helpers a context.
  */
 class CloudStreamApp {
 
@@ -40,9 +40,20 @@ class CloudStreamApp {
                 _context = value?.let { WeakReference(it) }
             }
 
-        /** Bind the process context so provider preference reads/writes have somewhere to go. */
+        /**
+         * Bind the process context so provider preference reads/writes have somewhere to go.
+         *
+         * The context is also published to `com.lagradost.api`, which is where the CloudStream
+         * library looks it up: `WebViewResolver` (the JS/WebView extractor fallback many providers
+         * use) reads `ContextHelper_androidKt.getContext()`. Upstream's own `CloudStreamApp` does
+         * exactly this, and without it those extractors run with a null context.
+         */
         fun initialize(ctx: Context) {
-            context = ctx.applicationContext
+            val appContext = ctx.applicationContext
+            context = appContext
+            runCatching {
+                com.lagradost.api.setContext(WeakReference<Any>(appContext))
+            }
         }
 
         fun <T : Any> getKeyClass(path: String, valueType: Class<T>): T? =

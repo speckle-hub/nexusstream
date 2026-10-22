@@ -1,8 +1,19 @@
-# NexusStream — Roadmap & Working Notes
+# Moovio — Roadmap & Working Notes
 
+> **Branding:** the product is **Moovio**. It was released as *NovaStream* (v1.0–v1.6) and
+> *NexusStream* (v1.6–v1.9); the package / `applicationId` is now `com.moovio.app` (was
+> `com.novastream.app`) and the OAuth redirect scheme is `moovio://oauth` (was `novastream://oauth`).
+> Historical entries below keep the names that were current at the time — read "NexusStream" /
+> "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
+>
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-15 — **v1.9.0 released.** Bundles
-> the Moovio rebrand (§2au: display name), the Anime4K GPU shader engine (§2au) and the
+> resume exactly where it left off. Last updated: 2026-10-22 — **Moovio rename (§2aw) + security /
+> stability remediation (§2ax).** The package is now `com.moovio.app`, the release key was rotated
+> and moved out of the repo, the OAuth redirect validates a state nonce, the updater verifies the
+> APK signature, the CloudStream shims were repaired and the heavy main-thread work was removed.
+> `:app:compileDebugKotlin` + `:app:testDebugUnitTest` green (292 tests).
+>
+> Previous release: **v1.9.0** — bundles the Moovio rebrand (§2au: display name), the Anime4K GPU shader engine (§2au) and the
 > 14 built-in SFW sources + auto-play best source (§2av). `versionCode` 18 /
 > `versionName` 1.9.0; signed release built → `dist/Moovio.apk` (43,946,889 bytes, SHA-256
 > `4E4E6E60…8D8D64`; `versionCode` 18 / `versionName` 1.9.0 verified in
@@ -350,12 +361,15 @@
 >
 > **Name change:** the app is now **NexusStream** (display name only — the Kotlin package and
 > `applicationId` remain `com.novastream.app` so existing installs update in place; see §8).
+>
+> **Superseded:** the product is now **Moovio** and the package / `applicationId` are
+> `com.moovio.app` — existing installs no longer update in place (see §2aw).
 
 ---
 
 ## 1. What this project is
 
-Android streaming app (`com.novastream.app`) unifying Stremio add-ons, CloudStream extensions,
+Android streaming app (`com.moovio.app`) unifying Stremio add-ons, CloudStream extensions,
 Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Jetpack Compose
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
@@ -383,7 +397,17 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: v1.9.0 released** — bundles the Moovio rebrand + Anime4K engine (§2au) and the
+**Topic: security / stability remediation pipeline (§2ax).** The release key was rotated and moved
+out of the repo, the OAuth redirect now validates a random state nonce, the in-app updater verifies
+the APK signature before installing, the CloudStream shims were repaired, the background download
+removal was made Android 12+-safe, the saved manga reading position is restored again, list keys are
+stable, and the heavy main-thread work (poster palette, extension JSON, per-row history
+collections) is gone. `:app:compileDebugKotlin` + `:app:testDebugUnitTest` are green (292 tests).
+The rename to Moovio (§2aw) is in place as well.
+
+Next up: none — roadmap is the working doc for whatever comes next.
+
+Previous focus: **v1.9.0 released** — bundles the Moovio rebrand + Anime4K engine (§2au) and the
 14 built-in SFW sources + auto-play best source (§2av). `versionCode` 18 /
 `versionName` 1.9.0, signed APK built (`dist/Moovio.apk`, 43,946,889 bytes, SHA-256
 `4E4E6E60…8D8D64`), source tagged + pushed, website at Moovio v1.9.0 / 281 tests, and the
@@ -843,6 +867,116 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
   app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
+
+---
+
+## 2ax. Security / stability remediation pipeline (2026-10-22)
+
+**Topic:** Phase 1 (security & signing), Phase 2 (stability & extension fixes) and Phase 3 (UI &
+performance) of the remediation pipeline, on top of the Moovio rename (§2aw).
+
+### Phase 1 — Security & signing
+- **Key rotation.** The release keystore was committed in the first commit and is still recoverable
+  from the pack, so anyone with repo read access could mint APKs Android accepts as in-place
+  updates. A fresh 4096-bit RSA key (`alias moovio`) now lives **outside** the repository at
+  `~/.moovio/moovio-release.jks`; the old key and `keystore.properties` are deleted.
+  `build.gradle.kts` now reads the signing material **only** from the untracked `local.properties`
+  (`moovio.storeFile` / `moovio.storePassword` / `moovio.keyAlias` / `moovio.keyPassword`) or the
+  `MOOVIO_*` environment variables, and a release build without them fails fast with an actionable
+  message instead of AGP's cryptic one.
+- **OAuth state validation.** `moovio://oauth` uses a custom scheme, so any app on the device could
+  fire it and have a foreign authorization code written into the user's tracker list. The connect
+  flow now stores a 128-bit random nonce, carries it in `state` (`trakt:<nonce>`), and the callback
+  compares it in constant time (`MessageDigest.isEqual`) and consumes it once — a redirect without a
+  matching nonce is rejected.
+- **Updater signature check.** `installApk` verifies the downloaded archive before handing it to the
+  system installer: same package name, signed by a key the installed app trusts (current signer +
+  signing lineage). A foreign-signed APK is refused with a visible "Update rejected" message.
+  `ApkSignature.kt` holds the pure fingerprint/trust logic (unit-tested).
+
+### Phase 2 — Stability & extensions
+- **CloudStream shims repaired.** `CloudStreamApp.initialize` now also publishes the app context to
+  `com.lagradost.api` (the library's WebView resolver read a null context before) and is called
+  from `MoovioApp.onCreate` instead of only when a plugin is installed; `CommonActivity` is attached
+  to `MainActivity`/`PlayerActivity` so provider toasts are no longer silent no-ops (and its
+  `displayMetrics` now come from the Activity's window); the provider-settings shim now uses a
+  Jackson mapper configured exactly like the library's own — the old Gson codec dropped null
+  fields, which made the providers' inlined Jackson read fail and silently lose their settings.
+- **Foreground-service rules.** "Auto-delete watched downloads" called
+  `DownloadService.sendRemoveDownload(..., foreground = true)` from the background, which Android 12+
+  refuses (`ForegroundServiceStartNotAllowedException`, swallowed) — it now goes through
+  `DownloadManager.removeDownload` and releases the cached bytes directly.
+- **Manga reading position restored.** The saved page was loaded *after* the pager had captured its
+  initial index, so every chapter opened on page 1. The position is now loaded before the reader is
+  composed and applied explicitly to the pager/list state.
+- **Stable list keys.** `HomeOrderScreen` keyed its rows by title, but two add-ons can contribute a
+  row with the same name — duplicate keys crash a `LazyColumn`. Titles are de-duplicated and the key
+  is now `index::title`.
+- **Player screen protection.** `FLAG_SECURE` was only applied in `MainActivity`, leaving the
+  player (where the NSFW content plays) recordable. The player now honours the setting.
+
+### Phase 3 — UI & performance
+- Poster palette extraction (CPU-bound quantization) moved to `Dispatchers.Default`.
+- The Sources dashboard no longer parses `extensions.json` on the main thread during composition and
+  re-reads it on resume; a failed probe can no longer leave a row stuck on "Testing…".
+- `DetailScreen` collected the cold history flow **per episode row** (one DataStore subscription and
+  one full decode per row). It is now collected once at screen level and indexed by video id.
+
+### Verification
+`:app:compileDebugKotlin` and `:app:testDebugUnitTest` are green — **292 tests** (281 existing + 11
+new for the OAuth nonce/state, the signature trust rules and the provider-settings codec).
+
+**Still open:** the git history still contains the old key blob (`keystore/novastream.jks`, added in
+`e58eba1`). It has to be purged with `git filter-repo --path keystore --invert-paths` and the branch
+force-pushed — see §2aw note 2. Because the key was rotated, the next release cannot be installed
+over the currently published one: existing users have to reinstall.
+
+---
+
+## 2aw. Full rename to Moovio (2026-10-22)
+
+**Topic:** the product name is **Moovio** everywhere — code, package, docs and site. Previously the
+app shipped as *NovaStream* (v1.0–v1.6) and *NexusStream* (v1.6–v1.9) with the package
+`com.novastream.app`, and the three names had drifted apart (launcher label "Moovio", README
+"NexusStream", project "NovaStream", APK assets named all three).
+
+**What changed**
+- **Package / identity.** `namespace` and `applicationId` → `com.moovio.app`; source tree moved to
+  `app/src/main/java/com/moovio/app/` (and `app/src/test/java/com/moovio/app/`). 1118 references
+  updated across 193 files. The CloudStream compatibility shim stays in `com.lagradost.cloudstream3`
+  because provider dexes resolve those classes by name.
+- **Brand tokens.** `NovaApp`→`MoovioApp`, `NovaStreamTheme`→`MoovioTheme`, `NovaColors`→
+  `MoovioColors`, `LocalNovaColors`→`LocalMoovioColors`, `NovaTypography`→`MoovioTypography`,
+  `NovaSwitch`→`MoovioSwitch`, `NovaDownloadService`→`MoovioDownloadService`,
+  `NovaCastOptionsProvider`→`MoovioCastOptionsProvider`, `NexusExtension`→`MoovioExtension`,
+  `novaViewModel`→`moovioViewModel`, `nova_settings`→`moovio_settings`, `Ns*` colour tokens→
+  `Moovio*`, `ns_*` XML colours→`moovio_*`. Files renamed to match.
+- **OAuth.** Redirect scheme `novastream://oauth` → `moovio://oauth` (manifest + `TrackerOAuth`).
+- **Build/docs/site.** `rootProject.name` = `Moovio`; signing env vars `NOVASTREAM_*` →
+  `MOOVIO_*`; `keystore/novastream.jks` → `keystore/moovio.jks`; README rewritten (and its stale
+  version/test-count/TMDB-key claims corrected); website package renamed to `moovio-website`; the
+  OpenGraph wordmark now reads "Moovio" (it still rendered "NexusStream").
+
+**Consequences to close out before the next release**
+1. **The app installs as a new package.** Existing `com.novastream.app` installs are *not* updated
+   in place by the in-app updater — the APK has a different `applicationId`. Users must uninstall
+   the old app (losing their library/settings, which live in the old app's sandbox) or ship a
+   "keep `com.novastream.app`" build instead.
+2. **Release signing key was replaced (§2ax).** `keystore/novastream.jks` was committed in the first
+   commit and removed later, but the blob is still recoverable from the pack — anyone with repo
+   read access can mint APKs Android accepts as in-place updates. The key has been rotated (new
+   4096-bit RSA key outside the repo, `alias moovio`) and the build now reads the material only
+   from `local.properties` / the `MOOVIO_*` env vars. The blob still has to be purged from history
+   with `git filter-repo --path keystore --invert-paths` + a force-push. Because the key changed,
+   the next release cannot be installed over the published one — existing users reinstall.
+3. **GitHub repo still `speckle-hub/nexusstream`.** `UpdateChecker.DEFAULT_REPO` and the site's
+   `GITHUB_URL`/`APK_URL` point at it; rename the repo (or update those constants) so the in-app
+   updater and the download CTA keep working.
+4. **Verify on a machine with the SDK.** `local.properties` currently points `sdk.dir` at a
+   non-existent path, so `:app:compileDebugKotlin` and `:app:testDebugUnitTest` could not be run
+   here. The rename was verified structurally instead: package/directory parity (0 mismatches),
+   every `com.moovio.*` import resolving to a declared symbol, manifest class/theme references
+   resolving, and no `com.novastream` / `NovaStream` token left in `app/src`.
 
 ---
 

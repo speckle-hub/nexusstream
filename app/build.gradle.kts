@@ -6,32 +6,42 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Release signing credentials live outside the build script. Provide them via an untracked
-// `keystore.properties` at the repo root, or via environment variables. Never hard-code them here.
-val keystoreProps = Properties().apply {
-    val f = rootProject.file("keystore.properties")
+/**
+ * Release signing material is never read from a tracked file and never hard-coded here.
+ *
+ * It comes from the untracked, git-ignored `local.properties` at the repo root:
+ *
+ *     moovio.storeFile=C:/secure/moovio-release.jks
+ *     moovio.storePassword=…
+ *     moovio.keyAlias=moovio
+ *     moovio.keyPassword=…
+ *
+ * or from the `MOOVIO_STORE_FILE` / `MOOVIO_STORE_PASSWORD` / `MOOVIO_KEY_ALIAS` /
+ * `MOOVIO_KEY_PASSWORD` environment variables (the file wins when both are set).
+ *
+ * The key itself deliberately lives outside the repository: the previous release key was
+ * committed once and is still recoverable from git history, so it must never be trusted again.
+ */
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
 fun signingCredential(propKey: String, envKey: String): String? =
-    keystoreProps.getProperty(propKey) ?: System.getenv(envKey)
+    (localProps.getProperty(propKey) ?: System.getenv(envKey))?.trim()?.takeIf { it.isNotEmpty() }
 
 android {
-    namespace = "com.novastream.app"
+    namespace = "com.moovio.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.novastream.app"
+        applicationId = "com.moovio.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 18
         versionName = "1.9.0"
         vectorDrawables { useSupportLibrary = true }
         // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
-        val localProps = Properties().apply {
-            val f = rootProject.file("local.properties")
-            if (f.exists()) f.inputStream().use { load(it) }
-        }
         buildConfigField(
             "String",
             "TMDB_API_KEY",
@@ -45,10 +55,11 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file(keystoreProps.getProperty("storeFile") ?: "keystore/novastream.jks")
-            storePassword = signingCredential("storePassword", "NOVASTREAM_STORE_PASSWORD")
-            keyAlias = signingCredential("keyAlias", "NOVASTREAM_KEY_ALIAS")
-            keyPassword = signingCredential("keyPassword", "NOVASTREAM_KEY_PASSWORD")
+            val store = signingCredential("moovio.storeFile", "MOOVIO_STORE_FILE")
+            if (store != null) storeFile = file(store)
+            storePassword = signingCredential("moovio.storePassword", "MOOVIO_STORE_PASSWORD")
+            keyAlias = signingCredential("moovio.keyAlias", "MOOVIO_KEY_ALIAS")
+            keyPassword = signingCredential("moovio.keyPassword", "MOOVIO_KEY_PASSWORD")
         }
     }
 
@@ -150,4 +161,37 @@ dependencies {
 
     // CloudStream provider runtime: lets .cs3 extensions load in-process (see data/cloudstream).
     implementation("com.github.recloudstream.cloudstream:library:4.7.0")
+    // The library declares Jackson as a *runtime* dependency, but the provider-settings shim needs
+    // the very same mapper on the compile classpath (it is the codec upstream providers read with).
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
+}
+
+/**
+ * Fail fast — and with an actionable message — when a release task runs without signing material.
+ *
+ * AGP's own error ("SigningConfig 'release' is missing required property storePassword") does not
+ * say where the credentials are supposed to come from, which made a release build fail late and
+ * cryptically. This check runs only when a release packaging task is actually in the graph, so
+ * `assembleDebug` and the unit tests stay unaffected.
+ */
+gradle.taskGraph.whenReady {
+    val releaseRequested = allTasks.any { it.name.endsWith("Release") && it.name.startsWith("package") }
+    if (releaseRequested) {
+        val release = android.signingConfigs.getByName("release")
+        val missing = buildList {
+            if (release.storeFile == null || !release.storeFile!!.exists()) add("moovio.storeFile")
+            if (release.storePassword == null) add("moovio.storePassword")
+            if (release.keyAlias == null) add("moovio.keyAlias")
+            if (release.keyPassword == null) add("moovio.keyPassword")
+        }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Missing release signing material: ${missing.joinToString()}. " +
+                    "Add them to the untracked local.properties at the repo root " +
+                    "(moovio.storeFile / moovio.storePassword / moovio.keyAlias / moovio.keyPassword) " +
+                    "or export MOOVIO_STORE_FILE / MOOVIO_STORE_PASSWORD / MOOVIO_KEY_ALIAS / " +
+                    "MOOVIO_KEY_PASSWORD.",
+            )
+        }
+    }
 }

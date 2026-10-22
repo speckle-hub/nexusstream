@@ -26,7 +26,15 @@ object CommonActivity {
             _activity = value?.let { WeakReference(it) }
         }
 
-    val displayMetrics: DisplayMetrics = Resources.getSystem().displayMetrics
+    /**
+     * Metrics of the attached Activity's window.
+     *
+     * Upstream exposes the *system* metrics, which are wrong on scaled displays and in
+     * multi-window mode, so the Activity's own resources are preferred when one is attached and
+     * the system metrics remain the fallback.
+     */
+    val displayMetrics: DisplayMetrics
+        get() = activity?.resources?.displayMetrics ?: Resources.getSystem().displayMetrics
 
     @MainThread
     fun setActivityInstance(newActivity: Activity?) {

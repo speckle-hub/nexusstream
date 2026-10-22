@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ns_background">#FF0A0A0F</color>
-    <color name="ns_surface">#FF12121A</color>
-    <color name="ns_accent">#FF7C5CFF</color>
+    <color name="moovio_background">#FF0A0A0F</color>
+    <color name="moovio_surface">#FF12121A</color>
+    <color name="moovio_accent">#FF7C5CFF</color>
     <!-- Solid Moovio brand purple for the adaptive-icon background (Phase 28 branding). -->
     <color name="ic_launcher_background">#FF7C5CFF</color>
 </resources>
