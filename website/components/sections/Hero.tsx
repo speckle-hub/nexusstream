@@ -11,7 +11,7 @@ const SPRING = { type: "spring", bounce: 0, duration: 0.5 } as const;
 
 const proof = [
   ["Android", "7.0+"],
-  ["Install", "≈42 MB"],
+  ["Install", "≈44 MB"],
   ["Account", "None"],
   ["Ads / tracking", "None"],
 ];
@@ -44,7 +44,7 @@ export function Hero() {
                 className="eyebrow mb-8 inline-flex items-center gap-2.5 rounded-full border border-rule bg-white/[0.04] py-2 pl-3 pr-4 text-muted"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse-soft" />
-                v1.9.0 — free &amp; open source
+                v1.10.0 — free &amp; open source
               </span>,
 
               <h1 key="h1" className="display text-paper" style={{ fontSize: "clamp(2.75rem, 7vw, 5.75rem)" }}>
@@ -85,7 +85,7 @@ export function Hero() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Star className="h-3.5 w-3.5 text-accent-soft" />
-                  281 unit tests, all green
+                  292 unit tests, all green
                 </span>
               </div>,
 

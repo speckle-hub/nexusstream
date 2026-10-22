@@ -7,11 +7,14 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-22 — **Moovio rename (§2aw) + security /
-> stability remediation (§2ax).** The package is now `com.moovio.app`, the release key was rotated
-> and moved out of the repo, the OAuth redirect validates a state nonce, the updater verifies the
-> APK signature, the CloudStream shims were repaired and the heavy main-thread work was removed.
-> `:app:compileDebugKotlin` + `:app:testDebugUnitTest` green (292 tests).
+> resume exactly where it left off. Last updated: 2026-10-22 — **v1.10.0 released.** Bundles the
+> Moovio rename (§2aw) and the security / stability remediation (§2ax): package `com.moovio.app`,
+> rotated signing key, OAuth state nonce, updater signature check, repaired CloudStream shims and
+> the main-thread work removed. `versionCode` 19 / `versionName` 1.10.0; signed release built →
+> `dist/Moovio.apk` + `dist/app-release.apk` (43,946,885 bytes, SHA-256 `ED8C5418…39D54F`, signer
+> SHA-256 `2EDB949B…351379`); pushed (`main` + tag `v1.10.0`) and published as a GitHub Release.
+> Website hero/footer/nav bumped to v1.10.0, stats to 292 (`next build` ✓). 292/292 unit tests
+> green.
 >
 > Previous release: **v1.9.0** — bundles the Moovio rebrand (§2au: display name), the Anime4K GPU shader engine (§2au) and the
 > 14 built-in SFW sources + auto-play best source (§2av). `versionCode` 18 /
@@ -397,13 +400,12 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 
 ## 2. Current focus
 
-**Topic: security / stability remediation pipeline (§2ax).** The release key was rotated and moved
-out of the repo, the OAuth redirect now validates a random state nonce, the in-app updater verifies
-the APK signature before installing, the CloudStream shims were repaired, the background download
-removal was made Android 12+-safe, the saved manga reading position is restored again, list keys are
-stable, and the heavy main-thread work (poster palette, extension JSON, per-row history
-collections) is gone. `:app:compileDebugKotlin` + `:app:testDebugUnitTest` are green (292 tests).
-The rename to Moovio (§2aw) is in place as well.
+**Topic: v1.10.0 released (§2ay).** The first Moovio-named release: package `com.moovio.app`, the
+rotated signing key, the OAuth state nonce, the updater signature check, the repaired CloudStream
+shims and the removed main-thread work. `versionCode` 19 / `versionName` 1.10.0; signed release
+built → `dist/Moovio.apk` + `dist/app-release.apk` (43,946,885 bytes); pushed (`main` + tag
+`v1.10.0`) and published as a GitHub Release. Website bumped to v1.10.0 / 292 tests. 292/292 unit
+tests green.
 
 Next up: none — roadmap is the working doc for whatever comes next.
 
@@ -867,6 +869,35 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
   app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
+
+---
+
+## 2ay. v1.10.0 released (2026-10-22)
+
+**Topic:** the first release under the **Moovio** name, bundling the rename (§2aw) and the security /
+stability remediation (§2ax).
+
+**Build**
+- `versionCode` 19 / `versionName` 1.10.0 (`app/build.gradle.kts`).
+- Signed with the **rotated** key: `~/.moovio/moovio-release.jks` (alias `moovio`), signer SHA-256
+  `2EDB949B325BF13B6B5CA695FF3E3068F9DA5F24C4873BA0F12D2A7D99351379`, DN `CN=Moovio, OU=Release,
+  O=Moovio, C=US`.
+- APK: 43,946,885 bytes, SHA-256 `ED8C54188C4512B020AC1BE18F19290EEA7B617438302723D172ECD35839D54F`.
+  Verified in the archive: `package com.moovio.app`, `versionCode 19`, `versionName 1.10.0`,
+  `minSdk 24`, `targetSdk 34`, `application-label 'Moovio'`.
+- Artifacts: `dist/app-release.apk` + `dist/Moovio.apk`, attached to the GitHub Release (the site CTA
+  fetches `releases/latest/download/app-release.apk`, so that exact asset name has to exist).
+
+**⚠️ Upgrade note for users:** this build **cannot be installed over v1.9.0**. The package id
+changed (`com.novastream.app` → `com.moovio.app`) *and* the signing key was rotated, so Android
+treats it as a different app — the old install has to be removed first. Settings, library and
+downloads live in the old app's sandbox and do not carry over.
+
+**Site:** hero/footer/nav badge → v1.10.0, stats → 292 unit tests, install size → ≈44 MB (the
+previous "≈42 MB" hero claim never matched the artifact). `npm run build` ✓ (8/8 static pages).
+
+**Verification:** `:app:compileDebugKotlin` ✓ · `:app:assembleDebug` ✓ · `:app:assembleRelease` ✓
+· `:app:testDebugUnitTest` ✓ **292/292** (281 existing + 11 new).
 
 ---
 
