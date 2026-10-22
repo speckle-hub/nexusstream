@@ -925,11 +925,20 @@ performance) of the remediation pipeline, on top of the Moovio rename (§2aw).
 ### Verification
 `:app:compileDebugKotlin` and `:app:testDebugUnitTest` are green — **292 tests** (281 existing + 11
 new for the OAuth nonce/state, the signature trust rules and the provider-settings codec).
+`assembleDebug` builds a working APK.
 
-**Still open:** the git history still contains the old key blob (`keystore/novastream.jks`, added in
-`e58eba1`). It has to be purged with `git filter-repo --path keystore --invert-paths` and the branch
-force-pushed — see §2aw note 2. Because the key was rotated, the next release cannot be installed
-over the currently published one: existing users have to reinstall.
+### Git history
+The old key blob was purged with `git filter-repo --path keystore --invert-paths`: `main` and all 16
+release tags were rewritten and force-pushed (branch with `--force-with-lease` pinned to the old
+head `a1b3f4a`), the reflog was expired and the object store re-packed — the blob
+`681a2046…` is no longer a valid object locally and no reachable ref on GitHub points at the old
+commits. GitHub still serves the orphaned blob by SHA from its own object store until its garbage
+collection runs, so the key was rotated as well: the published one can no longer sign an update
+that Android accepts.
+
+**Consequence:** because the signing key changed, the next release cannot be installed over the
+currently published one — existing users have to reinstall (and the app id changed to
+`com.moovio.app` in §2aw anyway, so it installs as a new app regardless).
 
 ---
 
@@ -963,12 +972,12 @@ app shipped as *NovaStream* (v1.0–v1.6) and *NexusStream* (v1.6–v1.9) with t
    the old app (losing their library/settings, which live in the old app's sandbox) or ship a
    "keep `com.novastream.app`" build instead.
 2. **Release signing key was replaced (§2ax).** `keystore/novastream.jks` was committed in the first
-   commit and removed later, but the blob is still recoverable from the pack — anyone with repo
-   read access can mint APKs Android accepts as in-place updates. The key has been rotated (new
+   commit and removed later, but the blob was recoverable from the pack — anyone with repo read
+   access could mint APKs Android accepts as in-place updates. The key has been rotated (new
    4096-bit RSA key outside the repo, `alias moovio`) and the build now reads the material only
-   from `local.properties` / the `MOOVIO_*` env vars. The blob still has to be purged from history
-   with `git filter-repo --path keystore --invert-paths` + a force-push. Because the key changed,
-   the next release cannot be installed over the published one — existing users reinstall.
+   from `local.properties` / the `MOOVIO_*` env vars. The blob was purged from the history as well
+   (§2ax, `git filter-repo` + force-push of `main` and all tags). Because the key changed, the next
+   release cannot be installed over the published one — existing users reinstall.
 3. **GitHub repo still `speckle-hub/nexusstream`.** `UpdateChecker.DEFAULT_REPO` and the site's
    `GITHUB_URL`/`APK_URL` point at it; rename the repo (or update those constants) so the in-app
    updater and the download CTA keep working.
