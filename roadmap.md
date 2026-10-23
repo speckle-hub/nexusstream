@@ -7,7 +7,17 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-22 — **v1.10.0 released.** Bundles the
+> resume exactly where it left off. Last updated: 2026-10-23 — **v1.10.1 patch fixes implemented
+> (§2az), not yet released.** Closes the P0/P1 items in `TEST_REPORT.md` against v1.10.0: the Cast
+> button no longer throws inside the player (`ThemeOverlay.Moovio.CastButton` gives
+> `MediaRouteButton` an opaque AppCompat context), NSFW Manga chapter feeds ask for the non-safe
+> MangaDex ratings (with one widening retry) instead of a filter that returns HTTP 200 + empty
+> `data`, and torrent preparation has a 20 s watchdog that cancels and offers **Retry**. Bumped to
+> `versionCode` 20 / `versionName` 1.10.1. Verified `:app:compileDebugKotlin` ✓,
+> `:app:testDebugUnitTest` ✓ **301/301** (+9 `Patch1101Test`), `:app:assembleDebug` ✓. No signed
+> release APK, tag or push this session; device pass needed (see §7 item 33).
+>
+> Previous, Last updated: 2026-10-22 — **v1.10.0 released.** Bundles the
 > Moovio rename (§2aw) and the security / stability remediation (§2ax): package `com.moovio.app`,
 > rotated signing key, OAuth state nonce, updater signature check, repaired CloudStream shims and
 > the main-thread work removed. `versionCode` 19 / `versionName` 1.10.0; signed release built →
@@ -378,8 +388,8 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~29,600 LOC across 165 Kotlin source files in a single `:app` module (+33 test files). Unit tests
-(292 cases):
+~29,600 LOC across 165 Kotlin source files in a single `:app` module (+34 test files). Unit tests
+(301 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -397,7 +407,8 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 `OAuthAndSignatureSecurityTest.kt` (6, OAuth state nonce + APK signature trust — §2ax),
 `ProviderSettingsCodecTest.kt` (5, provider-settings JSON codec — §2ax),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
-`MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3) and `SearchCancellationTest.kt` (2).
+`MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3), `SearchCancellationTest.kt` (2) and
+`Patch1101Test.kt` (9, MangaDex rating policy + torrent watchdog — §2az).
 
 **Identity & signing (as of v1.10.0, §2aw/§2ax):** the package / `applicationId` is
 `com.moovio.app`, the OAuth redirect scheme is `moovio://oauth`, and the release signing key was
@@ -412,14 +423,23 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: v1.10.0 released (§2ay).** The first Moovio-named release: package `com.moovio.app`, the
-rotated signing key, the OAuth state nonce, the updater signature check, the repaired CloudStream
-shims and the removed main-thread work. `versionCode` 19 / `versionName` 1.10.0; signed release
-built → `dist/Moovio.apk` + `dist/app-release.apk` (43,946,885 bytes); pushed (`main` + tag
-`v1.10.0`) and published as a GitHub Release. Website bumped to v1.10.0 / 292 tests. 292/292 unit
-tests green.
+**Topic: v1.10.1 patch fixes (§2az), implemented and unit-verified — release not cut yet.** The
+`TEST_REPORT.md` P0/P1 items against v1.10.0 are fixed: the player's `MediaRouteButton` gets an
+opaque theme instead of throwing `background can not be translucent: #0`, the NSFW Manga chapter
+feed no longer asks MangaDex for `safe` ratings (which it answers with HTTP 200 + empty `data`),
+and torrent preparation is cancelled after 20 s with a retry dialog instead of hanging on
+"Preparing stream…" forever. `versionCode` 20 / `versionName` 1.10.1; `:app:compileDebugKotlin` ✓,
+`:app:testDebugUnitTest` ✓ **301/301** (+9 `Patch1101Test`), `:app:assembleDebug` ✓.
 
-Next up: none — roadmap is the working doc for whatever comes next.
+Next up: run §7 item 33 on hardware, then build/sign/tag `v1.10.1` and publish the GitHub Release
+(the site CTA reads `releases/latest/download/app-release.apk`, so the asset name matters).
+
+Previous focus: **v1.10.0 released (§2ay).** The first Moovio-named release: package
+`com.moovio.app`, the rotated signing key, the OAuth state nonce, the updater signature check, the
+repaired CloudStream shims and the removed main-thread work. `versionCode` 19 /
+`versionName` 1.10.0; signed release built → `dist/Moovio.apk` + `dist/app-release.apk`
+(43,946,885 bytes); pushed (`main` + tag `v1.10.0`) and published as a GitHub Release. Website
+bumped to v1.10.0 / 292 tests. 292/292 unit tests green.
 
 Previous focus: **v1.9.0 released** — bundles the Moovio rebrand + Anime4K engine (§2au) and the
 14 built-in SFW sources + auto-play best source (§2av). `versionCode` 18 /
@@ -910,6 +930,78 @@ previous "≈42 MB" hero claim never matched the artifact). `npm run build` ✓ 
 
 **Verification:** `:app:compileDebugKotlin` ✓ · `:app:assembleDebug` ✓ · `:app:assembleRelease` ✓
 · `:app:testDebugUnitTest` ✓ **292/292** (281 existing + 11 new).
+
+---
+
+## 2az. v1.10.1 patch fixes — ADB test-report P0/P1 (2026-10-23)
+
+**Topic:** close the two P0s and the P1 in `TEST_REPORT.md` (the v1.10.0 pass on a OnePlus
+CPH2487 / Android 16). All three are implemented and unit-verified; **no signed release was built,
+tagged or pushed** this session.
+
+### 1. Player `MediaRouteButton` exception (P0)
+- **Symptom:** `IllegalArgumentException: background can not be translucent: #0` at
+  `ColorUtils.calculateContrast`, thrown from `MediaRouterThemeHelper.createThemedButtonContext`
+  on every cast-button construction; the player then stopped recomposing (`uiautomator` saw 0
+  nodes) until a relaunch or rotation.
+- **Actual mechanism:** the report blamed the exception escaping into Compose's frame dispatch,
+  but the `AndroidView` factory already wrapped construction in `runCatching` and returned a
+  hidden `View` on failure — nothing propagated. The real cause is the *context*: the player runs
+  on `Theme.Moovio.Player` (a platform `android:Theme.Material` descendant, no AppCompat
+  attributes) over a transparent Compose window, so `android:colorBackground` resolved to `#0`
+  and `calculateContrast` threw before the button could exist. The button was therefore never
+  created (only the fallback icon showed), and the frame that caught it was left half-built.
+- **Fix:** new `ThemeOverlay.Moovio.CastButton` (`Theme.AppCompat.NoActionBar`) with an **opaque**
+  `android:colorBackground` / `android:windowBackground` (`@android:color/black`) plus
+  `colorPrimary` / `colorPrimaryDark` / `colorAccent`; `PlayerActivity` now builds the button with
+  `ContextThemeWrapper(ctx, R.style.ThemeOverlay_Moovio_CastButton)` and keeps the `runCatching`
+  fallback (a failed init degrades to the cast-settings icon instead of a dead frame).
+- Verified structurally: `aapt2 dump resources` on the built APK shows the style with both
+  background attributes bound to `@android:color/black` (opaque). Hardware confirmation is §7
+  item 33.
+
+### 2. NSFW Manga chapters permanently empty (P0)
+- **Symptom:** NSFW Hub → NSFW Manga listed series (MangaDex search worked) but every chapter list
+  was empty; HTTP 200 with an empty `data` array.
+- **Root cause (measured live, 2026-10-23):** MangaDex's `/manga/{id}/feed` returns **0 chapters
+  for an adult series when the request asks for `contentRating[]=safe`**, and — the part that is
+  easy to get wrong — **also 0 when no `contentRating[]` is supplied at all** (an unfiltered feed
+  behaves like the SFW set). The same feed with `suggestive` + `erotica` + `pornographic` returns
+  the chapters. `MangaDexClient.chapters()` picked its rating set from
+  `item.type == MediaType.NSFW_MANGA`, so any adult item whose type was not `NSFW_MANGA` (older
+  library/history entries, list items rebuilt from a metadata fallback) was queried with the safe
+  set and could never produce chapters.
+- **Fix:** new pure `MangaDexQuery` object owns the rating rules — `NSFW` (catalogue: erotica +
+  pornographic), `NSFW_FEED` (feed: suggestive + erotica + pornographic, **never** `safe`),
+  `ratings()` / `feedRatings()` / `ratingParams()` and `feedAttempts()`. `chapters()` now tries the
+  attempt list and stops at the first non-empty answer; a SFW title that comes back empty is
+  retried **once** with the NSFW set (recovers an adult series that lost its NSFW type), and there
+  is deliberately no "retry without the filter" path, because that request is equivalent to the
+  safe query that caused the bug.
+
+### 3. Torrent preparation hung forever (P1)
+- **Symptom:** with trackers unreachable, "Preparing stream…" never resolved and there was no
+  timeout or cancel.
+- **Fix:** new `TorrentWatchdog` (pure policy: `TIMEOUT_MS = 20_000`, `expired()`,
+  `message()`). `TorrentStreamer.stream()` arms a main-thread watchdog when preparation starts;
+  on expiry it stops the torrent, clears the pending callback and reports a retryable failure. The
+  watchdog is re-armed (not fired) if the handler runs early, and is cancelled by `onStreamReady`
+  / `onStreamError` / `startStream` failure / `stop()`. `DetailScreen` replaces the old
+  fire-and-forget error path (toast + auto-launch of an external torrent app) with an
+  `AlertDialog`: the failure reason, **Retry** (re-streams the same source), **Torrent app** (only
+  when the source has a magnet) and **Cancel**.
+
+### Files
+`app/src/main/res/values/themes.xml` (cast overlay), `ui/player/PlayerActivity.kt`,
+`data/remote/MangaDexQuery.kt` (new), `data/remote/MangaDexClient.kt`,
+`data/remote/TorrentWatchdog.kt` (new), `data/remote/TorrentStreamer.kt`,
+`ui/screens/detail/DetailScreen.kt`, `app/build.gradle.kts` (`versionCode` 20 / `1.10.1`),
+`app/src/test/java/com/moovio/app/Patch1101Test.kt` (new, 9 cases).
+
+### Verification (2026-10-23)
+`:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **301/301** (292 existing + 9 new) ·
+`:app:assembleDebug` ✓ (`com.moovio.app.debug`, `versionCode` 20, `versionName` 1.10.1) ·
+`aapt2 dump resources` confirms the cast style's opaque background attributes.
 
 ---
 
@@ -5200,6 +5292,18 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
     bottom **quality badge** shows the stream quality (hidden when the source reports
     none); every interaction (seek, slider, speed, boost) restarts the countdown.
 
+33. **Re-test the v1.10.1 patch fixes on a device** (see §2az) — all three were verified by
+    compile + unit tests only, so hardware is the confirmation: **Cast** — open any video and tap
+    the cast button: `logcat` must show **no** `background can not be translucent` / "init failed"
+    line, the real route picker must open (or report "no devices"), and the player must keep
+    recomposing afterwards (open the Quality sheet after tapping cast). **NSFW Manga** — NSFW Hub →
+    NSFW Manga → open a title: the chapter list must fill (it was empty in the v1.10.0 report) and
+    a chapter must read; also open a *normal* manga to confirm no NSFW chapters leak into its
+    list. **Torrent timeout** — on a network that blocks trackers, play a torrent stream: after
+    ~20 s the spinner must close and the failure dialog must appear with **Retry**; Retry must
+    restart preparation (spinner returns) and Cancel must leave the page usable; with trackers
+    reachable, normal torrent playback must be unaffected.
+
 > **Repo note:** this directory is now a git repository. Commits so far: initial snapshot, player
 > autoplay/gestures/reader modes, WorkManager repo sync, and the extension engine.
 >
@@ -5212,6 +5316,8 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-10-23 | **The NSFW chapter feed asks for the non-safe MangaDex ratings and never falls back to an unfiltered request** | Probed live: `/manga/{id}/feed` on a pornographic series returns 0 chapters for `contentRating[]=safe` **and** 0 with no `contentRating[]` at all (the API defaults to the SFW set), while `suggestive`+`erotica`+`pornographic` returns them. The report's suggested fallback ("retry without the filter") therefore cannot work — it re-asks the safe question. The feed asks for `NSFW_FEED` (never `safe`) and a SFW title that comes back empty is widened once to that same set, which recovers an adult series whose `MediaItem` lost its `NSFW_MANGA` type. |
+| 2026-10-23 | **`MediaRouteButton` gets its own opaque theme instead of another try/catch** | The v1.10.0 report read the exception as escaping the Compose frame loop; the factory already caught it. The throw happens *before* a button exists, because `MediaRouterThemeHelper` computes a contrast ratio against `android:colorBackground`, which is transparent in this player (platform Material theme + transparent Compose window). Catching it kept the cast button permanently dead; giving the button an AppCompat-based theme with an opaque background fixes the cause and the `runCatching` stays as the last line of defence. |
 | 2026-10-22 | **Rename the package too, not just the display name** (supersedes the 2026-10-01 "display name only" decision) | The product is Moovio; leaving `com.novastream.app` in the package, the OAuth scheme, the theme names and every brand token kept three names alive across the code, the docs, the site and the release assets. The rename is mechanical (1118 references, verified by package/dir parity + import resolution + a real compile), and the cost — losing in-place updates — is unavoidable *anyway*, because the signing key had to be rotated (§2ax). Doing both at once means one reinstall instead of two breaking changes. |
 | 2026-10-22 | **Rotate the release key and keep it out of the repository** (supersedes the 2026-09-30 "keep the existing keystore" decision) | The old key was committed in the first commit and stayed recoverable from the pack, so anyone with repo read access could mint an APK that Android accepts as an in-place update of this app — and the update dialog installs whatever the release asset says. The key now lives in `~/.moovio/`, the build reads it only from the untracked `local.properties`/`MOOVIO_*` env vars, and the blob was purged from the history. Cost: the next release cannot update an existing install in place. That is the right trade — a key that anyone can use to push code to every user's phone is worse than an inconvenience. |
 | 2026-10-22 | **Sign the updater's APK before handing it to the system installer** | Android's own installer refuses a foreign-signed package, but only *after* the user has been shown an install prompt for it, and the release-asset URL is a single point of compromise. Verifying package + signer first turns "the release account was hijacked" from "every user gets an install prompt" into "the update is refused with a visible reason". |

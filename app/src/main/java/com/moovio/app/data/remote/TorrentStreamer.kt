@@ -3,6 +3,7 @@ package com.moovio.app.data.remote
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.github.se_bastiaan.torrentstream.StreamStatus
 import com.github.se_bastiaan.torrentstream.Torrent
 import com.github.se_bastiaan.torrentstream.TorrentOptions
@@ -31,6 +32,28 @@ object TorrentStreamer {
     )
 
     @Volatile private var pending: Pending? = null
+
+    /** `SystemClock.elapsedRealtime()` when the current preparation started. */
+    @Volatile private var startedAt = 0L
+
+    /**
+     * Cancels a preparation that never turns into a stream. A magnet with no reachable tracker
+     * emits neither `onStreamReady` nor `onStreamError`, so without this the UI waits forever.
+     */
+    private val prepareTimeout = object : Runnable {
+        override fun run() {
+            val p = pending ?: return
+            // Re-arm if the handler fired a touch early rather than cancelling a live stream.
+            val elapsed = SystemClock.elapsedRealtime() - startedAt
+            if (!TorrentWatchdog.expired(startedAt, SystemClock.elapsedRealtime())) {
+                main.postDelayed(this, (TorrentWatchdog.TIMEOUT_MS - elapsed).coerceAtLeast(1L))
+                return
+            }
+            pending = null
+            runCatching { engine?.stopStream() }
+            main.post { p.onError(TorrentWatchdog.message()) }
+        }
+    }
 
     /** True once the native engine has been initialised successfully. */
     @Volatile var available: Boolean = false
@@ -81,30 +104,37 @@ object TorrentStreamer {
         }
         val e = engine ?: run { onError("Torrent engine unavailable."); return }
         pending = Pending(onReady, onError, onProgress)
+        startedAt = SystemClock.elapsedRealtime()
+        main.removeCallbacks(prepareTimeout)
+        main.postDelayed(prepareTimeout, TorrentWatchdog.TIMEOUT_MS)
         // The listener is a singleton, so drop any previous registration before re-adding it —
         // otherwise every playback leaks another copy and callbacks fire N times.
         runCatching { e.removeListener(listener) }
         e.addListener(listener)
         runCatching { e.startStream(magnet) }.onFailure {
             pending = null
+            main.removeCallbacks(prepareTimeout)
             onError(it.message ?: "Couldn't start the torrent.")
         }
     }
 
     fun stop() {
         pending = null
+        main.removeCallbacks(prepareTimeout)
         runCatching { engine?.stopStream() }
     }
 
     private fun postReady(url: String) {
         val p = pending ?: return
         pending = null
+        main.removeCallbacks(prepareTimeout)
         main.post { p.onReady(url) }
     }
 
     private fun postError(msg: String) {
         val p = pending ?: return
         pending = null
+        main.removeCallbacks(prepareTimeout)
         main.post { p.onError(msg) }
     }
 

@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.SmartDisplay
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,6 +61,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -144,6 +146,10 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
     val container = LocalContainer.current
     val external by container.settings.playerExternal.collectAsStateSafe()
     var torrentPreparing by remember { mutableStateOf(false) }
+    // A preparation that fails or times out parks here: the overlay closes and this drives the
+    // retry dialog, so a dead swarm can't leave the page stuck on "Preparing stream…".
+    var torrentError by remember { mutableStateOf<String?>(null) }
+    var torrentRetrySource by remember { mutableStateOf<StreamSource?>(null) }
     // Resume progress, scoped to this title only — recomposing on every history tick used to
     // rebuild the whole detail page each time playback advanced (~every 5 s).
     val resumeEntry by remember(item.key) {
@@ -297,11 +303,14 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
         // 3) A torrent / P2P stream (the norm for Real 18+ add-ons) — stream it in-app.
         if (source.infoHash != null) {
             torrentPreparing = true
+            torrentError = null
+            torrentRetrySource = source
             TorrentStreamer.stream(
                 context = context,
                 source = source,
                 onReady = { url ->
                     torrentPreparing = false
+                    torrentRetrySource = null
                     val playable = source.copy(url = url)
                     if (external) openExternal(playable)
                     else context.startActivity(
@@ -310,11 +319,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                 },
                 onError = { msg ->
                     torrentPreparing = false
-                    Toast.makeText(context, "Torrent playback failed: $msg", Toast.LENGTH_LONG).show()
-                    // Last-resort: hand the magnet link to an external torrent app, if any.
-                    source.magnetUri?.let { m ->
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(m))) }
-                    }
+                    // Reported by the retry dialog below, not a toast: the failure is actionable
+                    // (retry / pick another stream / hand the magnet to a torrent app).
+                    torrentError = msg
                 },
             )
             return
@@ -646,6 +653,34 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                     }
                 }
             }
+        }
+
+        // ---- Torrent failure (timeout watchdog or engine error) ----------------
+        torrentError?.let { message ->
+            AlertDialog(
+                onDismissRequest = { torrentError = null; torrentRetrySource = null },
+                title = { Text("Torrent stream failed", fontWeight = FontWeight.SemiBold) },
+                text = { Text(message) },
+                confirmButton = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        torrentRetrySource?.magnetUri?.let { magnet ->
+                            TextButton(onClick = {
+                                torrentError = null
+                                torrentRetrySource = null
+                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(magnet))) }
+                            }) { Text("Torrent app") }
+                        }
+                        TextButton(onClick = {
+                            val retry = torrentRetrySource
+                            torrentError = null
+                            if (retry != null) play(retry)
+                        }) { Text("Retry") }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { torrentError = null; torrentRetrySource = null }) { Text("Cancel") }
+                },
+            )
         }
 
         // ---- Stream picker (Phase 13) ---------------------------------------

@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.util.Rational
+import android.view.ContextThemeWrapper
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -97,6 +98,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import com.moovio.app.MoovioApp
+import com.moovio.app.R
 import com.lagradost.cloudstream3.CommonActivity
 import com.moovio.app.data.download.DownloadManagerProvider
 import com.moovio.app.data.integrations.ScrobbleEvent
@@ -1638,8 +1640,18 @@ private fun PlayerScreen(
                     } else {
                         AndroidView(
                             factory = { ctx ->
+                                // The button derives its router theme from colorPrimary/colorBackground
+                                // and passes that background to ColorUtils.calculateContrast, which
+                                // throws "background can not be translucent" for a transparent
+                                // value. The player window is transparent, so the raw activity
+                                // context resolved android:colorBackground to #0 and construction
+                                // threw on every AndroidView pass; give it the opaque overlay theme.
+                                // runCatching keeps any remaining failure inside the factory instead
+                                // of letting it reach Compose's frame dispatch.
                                 runCatching {
-                                    MediaRouteButton(ctx).apply {
+                                    MediaRouteButton(
+                                        ContextThemeWrapper(ctx, R.style.ThemeOverlay_Moovio_CastButton)
+                                    ).apply {
                                         routeSelector = MediaRouteSelector.Builder()
                                             .addControlCategory(CastMediaControlIntent.categoryForCast(CAST_RECEIVER_APP_ID))
                                             .build()

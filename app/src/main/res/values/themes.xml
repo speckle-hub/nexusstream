@@ -11,4 +11,21 @@
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:windowNoTitle">true</item>
     </style>
+
+    <!--
+        Cast route picker context. MediaRouteButton derives its router theme from
+        colorPrimary/colorBackground and hands that background to
+        ColorUtils.calculateContrast, which throws "background can not be translucent" for any
+        transparency. The player runs on the platform Material theme (no AppCompat attributes) over
+        a transparent Compose window, so android:colorBackground resolved to #0 and every
+        construction threw inside the AndroidView factory. This overlay gives the button its own
+        opaque, AppCompat-backed context instead.
+    -->
+    <style name="ThemeOverlay.Moovio.CastButton" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">@android:color/black</item>
+        <item name="colorPrimary">@android:color/white</item>
+        <item name="colorPrimaryDark">@android:color/black</item>
+        <item name="colorAccent">@android:color/white</item>
+    </style>
 </resources>

@@ -11,9 +11,6 @@ object MangaDexClient {
     private const val BASE = "https://api.mangadex.org"
     private const val UPLOADS = "https://uploads.mangadex.org"
 
-    private val SAFE = listOf("safe", "suggestive")
-    private val NSFW = listOf("erotica", "pornographic")
-
     private suspend fun get(path: String, params: List<Pair<String, String>>): JsonObject {
         val q = params.joinToString("&") { "${java.net.URLEncoder.encode(it.first, "UTF-8")}=${java.net.URLEncoder.encode(it.second, "UTF-8")}" }
         return parseJson(httpGetCached("$BASE$path?$q")).asJsonObject
@@ -77,7 +74,7 @@ object MangaDexClient {
     )
 
     suspend fun search(query: String, nsfw: Boolean = false, limit: Int = 30): List<MediaItem> {
-        val ratings = if (nsfw) NSFW else SAFE
+        val ratings = MangaDexQuery.ratings(nsfw)
         val params = mutableListOf(
             "title" to query,
             "limit" to limit.toString(),
@@ -88,7 +85,7 @@ object MangaDexClient {
     }
 
     suspend fun byGenre(tagId: String, nsfw: Boolean = false, limit: Int = 30): List<MediaItem> {
-        val ratings = if (nsfw) NSFW else SAFE
+        val ratings = MangaDexQuery.ratings(nsfw)
         val params = mutableListOf(
             "limit" to limit.toString(),
             "includes[]" to "cover_art",
@@ -107,7 +104,7 @@ object MangaDexClient {
             "includes[]" to "cover_art",
             "order[$order]" to "desc",
         )
-        NSFW.forEach { params.add("contentRating[]" to it) }
+        MangaDexQuery.ratingParams(MangaDexQuery.NSFW).forEach { params.add(it) }
         if (!tagId.isNullOrBlank()) params.add("includedTags[]" to tagId)
         return parseList(get("/manga", params), nsfw = true)
     }
@@ -178,16 +175,31 @@ object MangaDexClient {
         )
     }
 
-    /** Chapters feed. */
+    /**
+     * Chapters feed.
+     *
+     * MangaDex reports "no chapters match this [contentRating] filter" as **HTTP 200 with an
+     * empty `data` array** and defaults an unfiltered feed to the SFW ratings, so a mis-set
+     * filter surfaces as a permanently empty chapter list on NSFW manga. The rating sets come
+     * from [MangaDexQuery.feedAttempts]: the NSFW set (never `safe`) first, and for a SFW title
+     * that returns nothing, one widening retry with the same NSFW set.
+     */
     suspend fun chapters(mangaId: String, nsfw: Boolean = false): List<Video> {
-        val params = mutableListOf(
+        val base = mutableListOf(
             "limit" to "100",
             "translatedLanguage[]" to "en",
             "order[chapter]" to "asc",
             "includes[]" to "scanlation_group",
         )
-        val ratings = if (nsfw) NSFW else SAFE
-        ratings.forEach { params.add("contentRating[]" to it) }
+        for (ratings in MangaDexQuery.feedAttempts(nsfw)) {
+            val chapters = feedChapters(mangaId, base + MangaDexQuery.ratingParams(ratings))
+            if (chapters.isNotEmpty()) return chapters
+        }
+        return emptyList()
+    }
+
+    /** One `/manga/{id}/feed` request. */
+    private suspend fun feedChapters(mangaId: String, params: List<Pair<String, String>>): List<Video> {
         val q = params.joinToString("&") { "${it.first}=${java.net.URLEncoder.encode(it.second, "UTF-8")}" }
         val root = parseJson(httpGet("$BASE/manga/$mangaId/feed?$q")).asJsonObject
         val arr = root.getAsJsonArray("data") ?: return emptyList()
