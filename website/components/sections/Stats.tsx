@@ -2,7 +2,7 @@ import { PopNumber } from "../ui/pop-number";
 import { Stagger } from "../ui/reveal";
 
 const stats = [
-  { value: "292", label: "Unit tests", note: "all green" },
+  { value: "301", label: "Unit tests", note: "all green" },
   { value: "4", label: "Ecosystems", note: "Stremio · CloudStream · Aniyomi · Mihon" },
   { value: "25k", label: "Lines of Kotlin", note: "no wrapper, no WebView" },
   { value: "2X", label: "Hold-for-2X", note: "player speed, on a press" },
