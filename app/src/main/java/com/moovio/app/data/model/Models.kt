@@ -239,18 +239,33 @@ data class CloudStreamExt(
     val internalName: String? = null,
     val status: Int = 1,
     val tvTypes: List<String> = emptyList(),
+    /** True when this provider came from an adult repository (e.g. CXXX) — kept out of SFW search. */
+    val nsfw: Boolean = false,
 )
 
 /** Aniyomi / Mihon extension descriptor. */
 data class MangaExt(
     val name: String,
     val pkg: String,
+    /** Absolute APK URL, resolved against the repository directory by the index parsers. */
     val apk: String,
     val icon: String? = null,
     val version: String? = null,
     val lang: String? = null,
     val nsfw: Boolean = false,
     val sources: List<MangaSource> = emptyList(),
+    /** Upstream version code from the index; used to detect updates. */
+    val versionCode: Long? = null,
+    /** Repository this entry was listed by, so an update re-resolves the same index. */
+    val repoUrl: String? = null,
+    /** Absolute path of the downloaded APK in app-private storage (null until installed). */
+    val apkPath: String? = null,
+    /**
+     * Stored as the *negative* flag: Gson bypasses constructors, so a missing JSON field decodes
+     * to the JVM default (`false`) — which here means "enabled", the safe state. Storing
+     * `enabled` instead would silently disable every extension written before the field existed.
+     */
+    val disabled: Boolean = false,
 )
 
 data class MangaSource(
@@ -265,6 +280,8 @@ data class RemoteRepo(
     val name: String,
     val url: String,
     val kind: AddonKind,
+    /** An adult repository: everything from it is NSFW, whatever the per-entry flags say. */
+    val nsfw: Boolean = false,
 )
 
 /** Row of content (a catalog result) for the home / section screens. */

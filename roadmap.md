@@ -7,7 +7,18 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-23 — **v1.10.1 released.** Closes the
+> resume exactly where it left off. Last updated: 2026-10-23 (later) — **extension repositories
+> pre-seeded, parsed and installable (§2ba).** Phisher98, **CXXX 18+**, Yuzono and Keiyoushi are
+> seeded by default; the Keiyoushi index is parsed from its real repository-wrapper protobuf
+> (1425 extensions, 389 NSFW) and Aniyomi APK URLs resolve to `…/repo/apk/…` (250 entries, 72
+> NSFW); Aniyomi/Mihon extensions now download, install, enable/disable and update into
+> app-private storage, and every `nsfw = 1` entry is gated behind the new “Show NSFW extensions”
+> switch. Adult CloudStream plugins (CXXX) run through the existing runtime and are wired into
+> Real 18+ search only. **Still missing: executing Aniyomi/Mihon extensions** — NSFW Anime/Manga
+> from those repos does not play/read yet (§2ba “What still does not work”, next phase). Verified
+> `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **309/309** (+8 `RepoIndexTest`).
+>
+> Previous, Last updated: 2026-10-23 — **v1.10.1 released.** Closes the
 > P0/P1 items in `TEST_REPORT.md` against v1.10.0: the Cast button no longer throws inside the
 > player (`ThemeOverlay.Moovio.CastButton` gives `MediaRouteButton` an opaque AppCompat context),
 > NSFW Manga chapter feeds ask for the non-safe MangaDex ratings (with one widening retry) instead
@@ -393,8 +404,8 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~29,600 LOC across 165 Kotlin source files in a single `:app` module (+34 test files). Unit tests
-(301 cases):
+~29,600 LOC across 165 Kotlin source files in a single `:app` module (+35 test files). Unit tests
+(309 cases):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -413,7 +424,8 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 `ProviderSettingsCodecTest.kt` (5, provider-settings JSON codec — §2ax),
 `PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
 `MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3), `SearchCancellationTest.kt` (2) and
-`Patch1101Test.kt` (9, MangaDex rating policy + torrent watchdog — §2az).
+`Patch1101Test.kt` (9, MangaDex rating policy + torrent watchdog — §2az) and
+`RepoIndexTest.kt` (8, Aniyomi APK resolution + Keiyoushi protobuf + update policy — §2ba).
 
 **Identity & signing (as of v1.10.0, §2aw/§2ax):** the package / `applicationId` is
 `com.moovio.app`, the OAuth redirect scheme is `moovio://oauth`, and the release signing key was
@@ -428,17 +440,25 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: v1.10.1 released (§2az).** The ADB test-report P0/P1 fixes shipped: the player's
-`MediaRouteButton` gets an opaque theme instead of throwing `background can not be translucent:
-#0`, the NSFW Manga chapter feed no longer asks MangaDex for `safe` ratings (which it answers with
-HTTP 200 + empty `data`), and torrent preparation is cancelled after 20 s with a retry dialog
-instead of hanging on "Preparing stream…" forever. `versionCode` 20 / `versionName` 1.10.1;
-signed APK 43,947,037 bytes; tag `v1.10.1` pushed and the **GitHub Release published with
-`app-release.apk` + `Moovio.apk` attached**, so the in-app updater and the site CTA serve v1.10.1.
-Website at v1.10.1 / 301 tests. 301/301 unit tests green.
+**Topic: extension repositories (§2ba).** The four requested repos are pre-seeded and NSFW-aware,
+Keiyoushi's real protobuf index is parsed (1425 extensions, 389 NSFW), Aniyomi APK URLs resolve,
+and Aniyomi/Mihon extensions install/enable/update into app-private storage with an `nsfw = 1`
+gate. Adult CloudStream plugins (CXXX) already run and are wired into Real 18+ search.
 
-Next up: §7 item 33 on hardware (cast picker, NSFW Manga chapters, torrent timeout on a
-blocked-tracker network) — the release is otherwise complete.
+**Next up (blocking NSFW Anime/Manga content): the Aniyomi + Mihon source runtime** — load the
+installed APKs against the extension libs (`com.github.mihonapp:extensions-lib:1.6.0`,
+`com.github.komikku-app:aniyomi-extensions-lib:13`), adapt sources into chapters/pages and
+episodes/streams, then verify on hardware. Nothing from those two repos contributes content until
+that lands (see §2ba).
+
+Previous focus: **v1.10.1 released (§2az).** The ADB test-report P0/P1 fixes shipped: the
+player's `MediaRouteButton` gets an opaque theme instead of throwing `background can not be
+translucent: #0`, the NSFW Manga chapter feed no longer asks MangaDex for `safe` ratings (which it
+answers with HTTP 200 + empty `data`), and torrent preparation is cancelled after 20 s with a
+retry dialog instead of hanging on "Preparing stream…" forever. `versionCode` 20 /
+`versionName` 1.10.1; signed APK 43,947,037 bytes; tag `v1.10.1` pushed and the **GitHub Release
+published with `app-release.apk` + `Moovio.apk` attached**, so the in-app updater and the site CTA
+serve v1.10.1. Website at v1.10.1 / 301 tests.
 
 Previous focus: **v1.10.0 released (§2ay).** The first Moovio-named release: package
 `com.moovio.app`, the rotated signing key, the OAuth state nonce, the updater signature check, the
@@ -936,6 +956,112 @@ previous "≈42 MB" hero claim never matched the artifact). `npm run build` ✓ 
 
 **Verification:** `:app:compileDebugKotlin` ✓ · `:app:assembleDebug` ✓ · `:app:assembleRelease` ✓
 · `:app:testDebugUnitTest` ✓ **292/292** (281 existing + 11 new).
+
+---
+
+## 2ba. Extension repositories — pre-seeded, parsed, installable (2026-10-23)
+
+**Topic:** make the four requested extension repositories real in the Add-on Manager, NSFW-aware,
+and get as far as the current architecture allows. **Status: repository layer done and verified;
+extension *execution* (Aniyomi/Mihon source runtime) is the one piece still missing** — see
+“What still does not work” below, which is the honest limit of this session.
+
+### What was wrong (measured, not assumed)
+| Repo | Before |
+|---|---|
+| phisher98 CloudStream | ✅ 86 providers parse and `.cs3` install/load works (existing runtime) — but **0** NSFW providers, so no adult content from it |
+| CXXX (adult CloudStream) | not configured anywhere |
+| yuzono Aniyomi | 251 entries parsed, 72 `nsfw`, but every `apk` is a **bare file name** and the files live at `<repo dir>/apk/<name>` — the stored value 404s, and install only wrote metadata |
+| Keiyoushi Mihon | the `index.min.json` mirror is a **2-entry stub** and was preferred over the `.pb`; the `.pb` itself is a **Repository wrapper** (`extensions = field 101`, `apk` a nested message, `nsfw` an enum at field 7 where `3` = adult), so the old flat parser produced a handful of junk rows instead of 1425 extensions |
+
+Nothing from Aniyomi/Mihon could ever run: their extensions implement `eu.kanade.tachiyomi.*`
+source APIs and the app's extension host only knows its own `MoovioExtension` interface (CloudStream
+`.cs3` is the only execution engine).
+
+### What now works
+1. **Pre-seeded repositories** (`AddonStore.Defaults.repos`): Phisher98 (movies/TV), **CXXX 18+**
+   (`RemoteRepo.nsfw = true`), Yuzono (anime), Keiyoushi (manga). The 2026-10-07 source-neutral
+   shipping decision is superseded at the user's request; the repos still install nothing by
+   themselves. `ensureDefaultRepos()` merges them into existing installs and still prunes retired
+   URLs.
+2. **Keiyoushi parser rewritten** (`data/remote/KeiyoushiRepo.kt`): repository wrapper
+   (`field 101`), nested `apk.url`, `nsfw == 7 enum 3`, `sources = field 8 {id,name,lang,baseUrl}`,
+   version + version code, legacy flat index still supported. `fetch()` follows the URL (`.pb` →
+   protobuf before the JSON stub) instead of preferring `index.min.json`.
+3. **Aniyomi parser resolves download URLs** (`AniyomiRepo.resolveApk`): relative
+   `aniyomi-all.x-v14.4.apk` → `…/repo/apk/aniyomi-all.x-v14.4.apk`; absolute URLs pass through.
+   Version code (`code`) and the source repo are stored on each entry.
+4. **Install / enable / update** (`data/repo/MangaExtensionRepository.kt`): downloads the APK into
+   app-private `files/manga-ext/<pkg>.apk` (≥2 KB sanity check, package name sanitised), persists
+   the descriptor (`apkPath`, `versionCode`, `nsfw`, `repoUrl`), toggles enabled state and detects
+   updates (`versionCode` strictly greater; no guessing from version strings). Stored as
+   `disabled` rather than `enabled`, because Gson bypasses constructors and a missing field must
+   decode to the safe default (“enabled”) instead of silently disabling every old row.
+5. **NSFW gating** (`RemoteRepo.nsfw`, `MangaExt.nsfw`, `CloudStreamExt.nsfw`, new
+   `settings.showNsfwExtensions` default **off**): the Add-on Manager lists `nsfw = 1` extensions
+   only after the “Show NSFW extensions” switch is on, and shows how many are hidden. Everything
+   browsed from CXXX is stamped NSFW even though its plugin entries carry no flag.
+6. **Real 18+ uses CXXX**: `CloudStreamRepository.providers(includeNsfw)` splits runnable providers
+   by the plugin's repo flag; `CatalogRepository.cloudStreamSearch` excludes adult providers from
+   general search and `searchRealProgressive` queries them as a Real 18+ fallback (results retyped
+   `MediaType.REAL`). Adult CloudStream plugins therefore *play* today through the existing
+   runtime.
+
+### What still does not work (next phase)
+- **NSFW Anime / NSFW Manga content from Yuzono/Keiyoushi does not play or read yet.** The APKs
+  install, enable and update, but nothing executes their `AnimeSource` / `CatalogueSource` code,
+  so they contribute no catalogues, chapters or streams. Implemented state = “downloaded and
+  known”, not “running”.
+- Runtime plan (sized as one axis at a time, manga first):
+  1. add the extension libraries as dependencies — **not usable as-is, see the reality check below:**
+     `com.github.mihonapp:extensions-lib:1.6.0` (Mihon/tachiyomi sources) and
+     `com.github.komikku-app/aniyomi-extensions-lib:13` (Aniyomi anime sources) — the same pattern
+     as the CloudStream `library` + shims (§2al);
+  2. load an installed APK with a `PathClassLoader` whose parent is the app loader, scan its dex
+     for `CatalogueSource` / `AnimeCatalogueSource` implementations, instantiate them;
+  3. adapt sources into the existing seams (`nsfwMangaRows`/`search` → chapters → pages;
+     NSFW-anime episodes → stream resolution), gated by `nsfw` exactly like today;
+  4. verify on hardware. An AVD exists in this environment (`framed_test`), but the Emulator and a
+     physical device were not exercised for this change, and extension execution is the kind of
+     code that only fails on device (DexClassLoader, per-extension reflection, Jsoup/OkHttp
+     runtimes).
+- **Reality check (measured 2026-10-23, overriding the plan above):** step 1 is not available
+  today. `com.github.mihonapp:extensions-lib:1.6.0` fails `:app:checkDebugAarMetadata` (requires
+  `compileSdk 37`; this build is AGP 8.5.0 / `compileSdk 34`) and pulls `kotlin-stdlib 2.4.0`,
+  `okhttp 5.4.0`, `rxjava 1.3.8`, `jsoup 1.22.2`. `com.github.komikku-app:aniyomi-extensions-lib:13`
+  is the **stubs** lib only (45 classes, no host implementation), and no full Aniyomi API is
+  published as an artifact. The APKs don't carry the API either: `dexdump` shows a real Keiyoushi
+  extension (44 classes) defines no `HttpSource`, and a real Yuzono one (33 classes) defines no
+  `SEpisode`/`Video` — both only reference them (and `injekt`). So the runtime starts with a
+  toolchain migration (AGP ≥ 8.9, `compileSdk` 36/37, Gradle, Kotlin 2.1–2.4 incl. the
+  Compose-compiler move, OkHttp 5) plus an Aniyomi API source.
+- **Alternatives:** (a) do the toolchain migration and land Mihon first, then Aniyomi; (b) skip
+  the APK runtime and add native NSFW scrapers for the top Yuzono/Keiyoushi sites in the existing
+  `data/hentai` + `data/manga` pattern — smaller, but only for hand-implemented sites. Nothing was
+  released for this: the feature does not work yet, so a version bump would claim otherwise.
+
+### Files
+`data/model/Models.kt` (`RemoteRepo.nsfw`, `MangaExt.{versionCode,repoUrl,apkPath,disabled}`,
+`CloudStreamExt.nsfw`), `data/local/AddonStore.kt` (four seeds + comments),
+`data/remote/AniyomiRepo.kt`, `data/remote/KeiyoushiRepo.kt` (rewritten),
+`data/cloudstream/CloudStreamRuntime.kt` (`CloudStreamInstalled.nsfw`),
+`data/repo/CloudStreamRepository.kt` (`providers(includeNsfw)`),
+`data/repo/MangaExtensionRepository.kt` (new), `data/repo/AddonRepository.kt`
+(`setMangaExtEnabled`), `data/repo/CatalogRepository.kt` (NSFW-aware provider search),
+`data/local/SettingsStore.kt` (`showNsfwExtensions`), `di/AppContainer.kt`,
+`ui/vm/ViewModels.kt`, `ui/screens/addons/AddonManagerScreen.kt`,
+`test/…/RepoIndexTest.kt` (new, 8 cases), `test/…/CloudStreamSupportTest.kt` (seed policy test).
+
+### Verification (2026-10-23)
+`:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **309/309** (301 + 8 new) — the suite went
+red on the two tests that encoded the *old* policy (`default repos must stay empty`, the legacy
+index shape) and both were updated to the new contract, not skipped. Live parse of the real
+indexes through the shipped Kotlin parsers (temporary probe, then deleted): Keiyoushi **1425
+extensions, 389 NSFW, 1425/1425 absolute APK URLs**; Yuzono **250 entries, 72 NSFW, 250/250
+resolved to `…/repo/apk/…`**.
+
+Not verified: anything requiring execution of an Aniyomi/Mihon extension, and the Add-on Manager
+UI on a device.
 
 ---
 
@@ -5338,6 +5464,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-10-23 | **Pre-seed the provider repositories, including an adult one (CXXX)** (supersedes the 2026-10-07 "ship source-neutral" decision) | The user asked for the four repositories to be usable out of the box, so `Defaults.repos` now carries Phisher98, CXXX, Yuzono and Keiyoushi. Nothing is auto-installed from them and the adult repo is flagged `nsfw`, so its providers are reachable only from the NSFW area. Cost: a public build now ships links to repositories that host unlicensed and adult sources — the same posture the user accepted when asking for them by URL, but it is a deliberate reversal of the neutrality rule, not an oversight. |
 | 2026-10-23 | **The NSFW chapter feed asks for the non-safe MangaDex ratings and never falls back to an unfiltered request** | Probed live: `/manga/{id}/feed` on a pornographic series returns 0 chapters for `contentRating[]=safe` **and** 0 with no `contentRating[]` at all (the API defaults to the SFW set), while `suggestive`+`erotica`+`pornographic` returns them. The report's suggested fallback ("retry without the filter") therefore cannot work — it re-asks the safe question. The feed asks for `NSFW_FEED` (never `safe`) and a SFW title that comes back empty is widened once to that same set, which recovers an adult series whose `MediaItem` lost its `NSFW_MANGA` type. |
 | 2026-10-23 | **`MediaRouteButton` gets its own opaque theme instead of another try/catch** | The v1.10.0 report read the exception as escaping the Compose frame loop; the factory already caught it. The throw happens *before* a button exists, because `MediaRouterThemeHelper` computes a contrast ratio against `android:colorBackground`, which is transparent in this player (platform Material theme + transparent Compose window). Catching it kept the cast button permanently dead; giving the button an AppCompat-based theme with an opaque background fixes the cause and the `runCatching` stays as the last line of defence. |
 | 2026-10-22 | **Rename the package too, not just the display name** (supersedes the 2026-10-01 "display name only" decision) | The product is Moovio; leaving `com.novastream.app` in the package, the OAuth scheme, the theme names and every brand token kept three names alive across the code, the docs, the site and the release assets. The rename is mechanical (1118 references, verified by package/dir parity + import resolution + a real compile), and the cost — losing in-place updates — is unavoidable *anyway*, because the signing key had to be rotated (§2ax). Doing both at once means one reinstall instead of two breaking changes. |

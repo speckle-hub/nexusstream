@@ -18,6 +18,8 @@ data class CloudStreamInstalled(
     val internalName: String? = null,
     /** Absolute path to the downloaded `.cs3` inside app-private storage. */
     val filePath: String? = null,
+    /** Came from an adult repository (CXXX) — its providers stay out of SFW search. */
+    val nsfw: Boolean = false,
 )
 
 /**

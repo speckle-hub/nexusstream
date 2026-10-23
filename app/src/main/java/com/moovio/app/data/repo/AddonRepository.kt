@@ -228,6 +228,20 @@ class AddonRepository(private val store: AddonStore) {
         }
     }
 
+    /** Enable / disable an installed Aniyomi/Mihon extension (persisted in the descriptor). */
+    suspend fun setMangaExtEnabled(pkg: String, enabled: Boolean) {
+        runCatching {
+            mutationMutex.withLock {
+                val list = runCatching { store.mangaInstalled.first() }.getOrDefault(emptyList()).toMutableList()
+                val idx = list.indexOfFirst { runCatching { it.pkg == pkg }.getOrDefault(false) }
+                if (idx >= 0) {
+                    list[idx] = list[idx].copy(disabled = !enabled)
+                    store.saveMangaExt(list.toList())
+                }
+            }
+        }
+    }
+
     suspend fun uninstallMangaExt(pkg: String) {
         runCatching {
             mutationMutex.withLock {

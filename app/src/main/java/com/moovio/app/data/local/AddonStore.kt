@@ -51,33 +51,49 @@ class AddonStore(private val context: Context) {
 
     object Defaults {
         /**
-         * The app ships source-neutral: no provider repositories and no stream providers are
-         * preinstalled. Only legal metadata (Cinemeta) and subtitle (OpenSubtitles) add-ons are
-         * seeded; users add their own repositories and add-ons in the Add-on Manager.
+         * **Extended provider repositories are pre-seeded** (this supersedes the 2026-10-07
+         * "source-neutral shipping" decision, at the user's request): one CloudStream movie/TV
+         * repo, one adult CloudStream repo, the Aniyomi anime repo and the Mihon/Keiyoushi manga
+         * repo. Nothing is installed from them automatically — the Add-on Manager lists their
+         * extensions and the user installs what they want.
+         *
+         * `CXXX` is marked [RemoteRepo.nsfw]: every provider from it is treated as adult, so it is
+         * usable from the NSFW area and never leaks into general search.
          */
-        val repos: List<RemoteRepo> = emptyList()
-
-        /**
-         * Well-known provider repositories offered as one-tap adds in the Add-on Manager. They are
-         * deliberately **not** seeded (the app still ships source-neutral): the user opts in by
-         * tapping Add, which is a single stored URL.
-         */
-        val recommendedRepos: List<Pair<String, RemoteRepo>> = listOf(
-            "Phisher98 — Movies & TV (CloudStream)" to RemoteRepo(
-                "Phisher98",
+        val repos: List<RemoteRepo> = listOf(
+            RemoteRepo(
+                "Phisher98 — Movies & TV",
                 "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/builds/repo.json",
                 AddonKind.CLOUDSTREAM,
             ),
-            "Yuzono — Anime (Aniyomi)" to RemoteRepo(
-                "Yuzono",
+            RemoteRepo(
+                "CXXX — 18+ (CloudStream)",
+                "https://raw.githubusercontent.com/phisher98/CXXX/builds/CXXX.json",
+                AddonKind.CLOUDSTREAM,
+                nsfw = true,
+            ),
+            RemoteRepo(
+                "Yuzono — Anime",
                 "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
                 AddonKind.ANIYOMI,
             ),
-            "Keiyoushi — Manga (Mihon)" to RemoteRepo(
-                "Keiyoushi",
+            RemoteRepo(
+                "Keiyoushi — Manga",
                 "https://github.com/keiyoushi/extensions/raw/repo/index.pb",
                 AddonKind.KEIYOUSHI,
             ),
+        )
+
+        /**
+         * Well-known provider repositories offered as one-tap (re)adds. The seeded repos above are
+         * filtered out of this list while they are still present, so it only matters after a
+         * user removes one.
+         */
+        val recommendedRepos: List<Pair<String, RemoteRepo>> = listOf(
+            "Phisher98 — Movies & TV (CloudStream)" to repos[0],
+            "CXXX — 18+ (CloudStream)" to repos[1],
+            "Yuzono — Anime (Aniyomi)" to repos[2],
+            "Keiyoushi — Manga (Mihon)" to repos[3],
         )
 
         /** Metadata catalogs (posters, descriptions, episode lists). */

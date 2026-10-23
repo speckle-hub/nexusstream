@@ -49,19 +49,25 @@ class CloudStreamSupportTest {
     }
 
     @Test
-    fun `the three provider repositories are recommended but never seeded`() {
-        // The app still ships source-neutral: nothing is preinstalled...
-        assertTrue("default repos must stay empty", AddonStore.Defaults.repos.isEmpty())
-
-        val recommended = AddonStore.Defaults.recommendedRepos
-        val urls = recommended.map { it.second.url }
+    fun `the four provider repositories are seeded and offered for re-adding`() {
+        // v1.10.2 pre-seeds the repositories (supersedes the 2026-10-07 source-neutral shipping),
+        // so the Add-on Manager opens with everything the user asked for already listed.
+        val seeded = AddonStore.Defaults.repos
+        assertEquals(4, seeded.size)
+        val urls = seeded.map { it.url }
         assertTrue(urls.any { it.contains("phisher98/cloudstream-extensions-phisher") })
+        assertTrue(urls.any { it.contains("phisher98/CXXX") })
         assertTrue(urls.any { it.contains("yuzono/anime-repo") })
         assertTrue(urls.any { it.contains("keiyoushi/extensions") })
 
-        // ...but they are offered as one-tap adds, so they must NOT be pruned as "retired".
+        // The adult CloudStream repo is flagged, which is what keeps its providers out of SFW search.
+        assertEquals(1, seeded.count { it.nsfw })
+        assertTrue(seeded.first { it.nsfw }.url.contains("CXXX"))
+
+        val recommended = AddonStore.Defaults.recommendedRepos
+        assertEquals(4, recommended.size)
         assertTrue(
-            "recommended repos must not be on the retired list",
+            "seeded repos must not be on the retired list",
             recommended.none { r -> AddonStore.Defaults.retiredRepoUrls.contains(r.second.url) },
         )
     }

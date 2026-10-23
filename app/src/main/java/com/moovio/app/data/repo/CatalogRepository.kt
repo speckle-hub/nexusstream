@@ -29,14 +29,27 @@ class CatalogRepository(
 ) {
 
     /** Search every loaded CloudStream provider, bounded and failure-isolated per provider. */
-    private suspend fun cloudStreamSearch(query: String): List<MediaItem> = coroutineScope {
-        val providers = runCatching { cloudStreamRepo.providers() }.getOrDefault(emptyList()).take(15)
+    /**
+     * Search the installed CloudStream providers.
+     *
+     * [includeNsfw] is the content gate: providers installed from an adult repository (CXXX) are
+     * skipped unless the caller is the NSFW/Real 18+ path, so adult results never reach general
+     * search. Their results are retyped as [MediaType.REAL] when surfaced through the NSFW path so
+     * the rest of the app treats them as adult content.
+     */
+    private suspend fun cloudStreamSearch(query: String, includeNsfw: Boolean = false): List<MediaItem> = coroutineScope {
+        val providers = runCatching { cloudStreamRepo.providers(includeNsfw) }
+            .getOrDefault(emptyList())
+            .take(MAX_CLOUDSTREAM_PROVIDERS)
         providers.map { provider ->
             async {
                 ScraperRace.raceResult(ADDON_TIMEOUT_MS) { CloudStreamSources.search(provider, query) }
                     .getOrDefault(emptyList())
             }
-        }.flatMap { it.await() }
+        }.flatMap { it.await() }.let { items ->
+            if (includeNsfw) items.map { if (it.type == MediaType.MOVIE || it.type == MediaType.SERIES) it.copy(type = MediaType.REAL) else it }
+            else items
+        }
     }
 
     private suspend fun safeRow(title: String, type: MediaType, block: suspend () -> List<MediaItem>): CatalogRow? =
@@ -253,11 +266,14 @@ class CatalogRepository(
         if (builtIn.items.isNotEmpty()) return@coroutineScope builtIn
 
         val autoNsfw = settings.autoNsfwFromAddons.first()
+        // Adult CloudStream providers (CXXX) are a first-class Real 18+ source; they are only
+        // consulted here, never from general search.
+        val plugins = runCatching { cloudStreamSearch(query, includeNsfw = true) }.getOrDefault(emptyList())
         val stremio = if (!autoNsfw) emptyList() else runCatching {
             addonSearch(query, MediaType.REAL, nsfwOnly = true)
         }.getOrDefault(emptyList())
 
-        val items = stremio.filter { it.type == MediaType.REAL }.distinctBy { it.key }
+        val items = (plugins + stremio.filter { it.type == MediaType.REAL }).distinctBy { it.key }
         onUpdate(items, builtIn.errors)
         AdultRepository.Search(items = items, errors = builtIn.errors)
     }
@@ -408,6 +424,9 @@ class CatalogRepository(
 
         /** Caps a Stremio catalog-row fetch; a hung add-on is dropped rather than blocking Home. */
         const val CATALOG_TIMEOUT_MS = 5_000L
+
+        /** CloudStream providers queried per search (each is a full scrape of its own site). */
+        const val MAX_CLOUDSTREAM_PROVIDERS = 15
 
         /**
          * Caps one built-in home row (NSFW anime). Every row fetch used to be unbounded, so the

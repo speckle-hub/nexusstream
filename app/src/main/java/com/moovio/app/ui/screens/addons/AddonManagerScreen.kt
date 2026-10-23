@@ -183,8 +183,17 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
     val busy by vm.busy.collectAsStateSafe()
     val csInstalled by vm.cloudStreamInstalled.collectAsStateSafe()
     val mangaInstalled by vm.mangaInstalled.collectAsStateSafe()
+    val showNsfw by vm.showNsfwExtensions.collectAsStateSafe()
+    val mangaUpdates by vm.mangaUpdates.collectAsStateSafe()
     val myRepos = repos.filter { it.kind == kind }
     var newRepoUrl by rememberSaveable(kind) { mutableStateOf("") }
+    // `nsfw = 1` entries are hidden unless the user opted in here, so the manager stays SFW by
+    // default and adult extensions can only be reached deliberately.
+    fun visible(entry: Any): Boolean = when (entry) {
+        is CloudStreamExt -> showNsfw || !entry.nsfw
+        is MangaExt -> showNsfw || !entry.nsfw
+        else -> true
+    }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // No repositories are preinstalled — the user adds their own by URL.
@@ -234,6 +243,24 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
             }
         }
 
+        // Content gate: extensions and repositories flagged `nsfw` (or coming from an adult repo
+        // such as CXXX) are listed only when this is on.
+        item {
+            GlassSurface(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Show NSFW extensions", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
+                        Text(
+                            "Adult sources stay hidden from this list until enabled",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = moovio.textTertiary,
+                        )
+                    }
+                    MoovioSwitch(checked = showNsfw, onCheckedChange = { vm.setShowNsfwExtensions(it) })
+                }
+            }
+        }
+
         item { Text("Repositories", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
         if (myRepos.isEmpty()) item { EmptyState("No repositories added", "Paste a repository URL above to browse its extensions.") }
         items(myRepos) { repo ->
@@ -255,12 +282,25 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
             }
         }
 
-        if (catalog.isNotEmpty()) {
-            item { Text("Available extensions (${catalog.size})", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
-            items(catalog) { any ->
+        val shown = catalog.filter { visible(it) }
+        if (shown.isNotEmpty()) {
+            val hidden = catalog.size - shown.size
+            item { Text("Available extensions (${shown.size})", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
+            if (hidden > 0) item {
+                Text(
+                    "$hidden adult extension${if (hidden == 1) "" else "s"} hidden — enable “Show NSFW extensions” below",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = moovio.textTertiary,
+                )
+            }
+            items(shown) { any ->
                 when (any) {
-                    is CloudStreamExt -> ExtRow(any.name, any.version, any.language, any.description) { vm.installCloudStream(any) }
-                    is MangaExt -> ExtRow(any.name, any.version, any.lang, "${any.sources.size} sources") { vm.installMangaExt(any) }
+                    is CloudStreamExt -> ExtRow(any.name, any.version, any.language, any.description, any.nsfw) {
+                        vm.installCloudStream(any)
+                    }
+                    is MangaExt -> ExtRow(any.name, any.version, any.lang, "${any.sources.size} sources", any.nsfw) {
+                        vm.installMangaExt(any)
+                    }
                     else -> {}
                 }
             }
@@ -272,7 +312,18 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
                 InstalledRow(ext.name, ext.version, ext.language) { vm.uninstallCloudStream(ext.url) }
             }
             items(mangaInstalled) { ext ->
-                InstalledRow(ext.name, ext.version, ext.lang) { vm.uninstallMangaExt(ext.pkg) }
+                val update = mangaUpdates[ext.pkg]
+                InstalledExtRow(
+                    name = ext.name,
+                    version = ext.version,
+                    detail = listOfNotNull(ext.lang, ext.sources.firstOrNull()?.name).joinToString(" · "),
+                    nsfw = ext.nsfw,
+                    enabled = !ext.disabled,
+                    updateAvailable = update != null,
+                    onToggle = { vm.setMangaExtEnabled(ext.pkg, it) },
+                    onUpdate = { update?.let { vm.installMangaExt(it) } },
+                    onRemove = { vm.uninstallMangaExt(ext.pkg) },
+                )
             }
         }
     }
@@ -301,15 +352,49 @@ private fun MetaChip(text: String) {
 }
 
 @Composable
-private fun ExtRow(name: String, version: String?, lang: String?, desc: String?, onInstall: () -> Unit) {
+private fun ExtRow(name: String, version: String?, lang: String?, desc: String?, nsfw: Boolean = false, onInstall: () -> Unit) {
     val moovio = LocalMoovioColors.current
     GlassSurface(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (nsfw) MetaChip("18+")
+                }
                 Text(listOfNotNull(version, lang, desc).joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = moovio.textTertiary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = onInstall) { Icon(Icons.Filled.Download, "Install", tint = moovio.accent) }
+        }
+    }
+}
+
+/** Installed Aniyomi/Mihon extension: enable switch, update action, remove. */
+@Composable
+private fun InstalledExtRow(
+    name: String,
+    version: String?,
+    detail: String?,
+    nsfw: Boolean,
+    enabled: Boolean,
+    updateAvailable: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onUpdate: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val moovio = LocalMoovioColors.current
+    GlassSurface(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (nsfw) MetaChip("18+")
+                    if (updateAvailable) MetaChip("Update")
+                }
+                Text(listOfNotNull(version, detail).joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = moovio.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (updateAvailable) TextButton(onClick = onUpdate) { Text("Update", color = moovio.accent) }
+            MoovioSwitch(checked = enabled, onCheckedChange = onToggle)
+            TextButton(onClick = onRemove) { Text("Remove", color = moovio.accent) }
         }
     }
 }

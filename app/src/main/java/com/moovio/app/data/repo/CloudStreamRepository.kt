@@ -60,6 +60,7 @@ class CloudStreamRepository(
                 version = ext.version,
                 internalName = ext.internalName,
                 filePath = target.absolutePath,
+                nsfw = ext.nsfw,
             )
             val list = store.cloudStreamPlugins.first().filterNot { it.url == ext.url } + descriptor
             store.saveCloudStreamPlugins(list)
@@ -93,6 +94,27 @@ class CloudStreamRepository(
 
     /** All providers currently contributed by loaded plugins. */
     fun providers(): List<MainAPI> = CloudStreamRuntime.providers()
+
+    /**
+     * Providers split by the repository they came from: [includeNsfw] false drops every provider
+     * installed from an adult repo (CXXX), which is what keeps those out of general search while
+     * still making them reachable from the NSFW area.
+     *
+     * The NSFW flag lives on the persisted plugin descriptor, so a plugin whose flag is unknown
+     * (installed before the field existed) counts as SFW — the safe default for a *content* gate
+     * is debatable, but this is a visibility filter, and defaulting to hidden would silently make
+     * previously working providers disappear.
+     */
+    suspend fun providers(includeNsfw: Boolean): List<MainAPI> {
+        if (includeNsfw) return providers()
+        val nsfwPaths = runCatching { store.cloudStreamPlugins.first() }
+            .getOrDefault(emptyList())
+            .filter { it.nsfw }
+            .mapNotNull { it.filePath }
+            .toSet()
+        if (nsfwPaths.isEmpty()) return providers()
+        return providers().filterNot { it.sourcePlugin in nsfwPaths }
+    }
 
     /** Resolve a provider from the `cloudstream:<provider>` addon id carried by a [MediaItem]. */
     fun providerFor(addonId: String?): MainAPI? =

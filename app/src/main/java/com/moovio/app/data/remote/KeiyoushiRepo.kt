@@ -4,102 +4,139 @@ import com.moovio.app.data.model.MangaExt
 import com.moovio.app.data.model.MangaSource
 
 /**
- * Parser for the Mihon / Keiyoushi extension index (`index.pb`).
+ * Parser for the Mihon / Keiyoushi extension index.
  *
- * The file is a protobuf `ExtensionIndex { repeated Extension extensions = 1 }`.
- * Each Extension carries name/pkg/apk/lang/code/version/nsfw/icon/sources. We decode
- * generically and apply light heuristics so the client keeps working even if the
- * upstream schema gains fields.
+ * ### Wire format (verified live 2026-10-23)
+ * `index.pb` is gzip-compressed and decodes as a **repository** message, not a bare list:
+ *
+ * ```
+ * Repository {                     // Keiyoushi's current format
+ *   name = 1, shortCode = 2, signingKeyFingerprint = 3, website/discord = 4,
+ *   repeated Extension extensions = 101
+ * }
+ * Extension {
+ *   name = 1, pkg = 2,
+ *   apk = 3 { url = 1, ... }        // nested message, NOT a bare string
+ *   versionLib = 4, code = 5, version = 6,
+ *   nsfw = 7 (enum: 3 == adult)     // 1/2 are SFW ratings, 3 is the adult catalogue
+ *   repeated Source sources = 8 { id = 1, name = 2, lang = 3, baseUrl = 4 }
+ * }
+ * ```
+ *
+ * The previous implementation treated every top-level length-delimited field as an extension, so
+ * the real index (1425 extensions) produced a handful of junk rows (the repo name, the key
+ * fingerprint, the website blob and the whole extension array). The legacy shape — a bare list of
+ * extensions at the top level — is still accepted, because the `ParsersTest` fixture uses it and
+ * older mirrors may too.
+ *
+ * `index.min.json` in the Keiyoushi repo is a **stub** (2 "Outdated App" records), and the old
+ * client preferred it whenever it parsed non-empty, so the tab showed nothing usable. The `fetch`
+ * path is now driven by the URL: `.pb` → protobuf, anything else → JSON.
  */
 object KeiyoushiRepo {
 
+    /** `nsfw` enum value that marks an extension as adult in the current index format. */
+    private const val NSFW_ENUM_ADULT = 3L
+
     suspend fun fetch(repoUrl: String): List<MangaExt> {
-        // Prefer the JSON mirror when present (cheaper + exact); fall back to the .pb.
-        val jsonUrl = repoUrl.replace("index.pb", "index.min.json")
-        if (jsonUrl != repoUrl) {
-            try {
-                val list = AniyomiRepo.fetch(jsonUrl)
-                if (list.isNotEmpty()) return list
-            } catch (_: Exception) { /* fall through to pb */ }
-        }
+        val isPb = repoUrl.contains("index.pb", ignoreCase = true)
+        if (!isPb) return AniyomiRepo.fetch(repoUrl)
         // index.pb is served gzip-compressed; inflate it before decoding the wire format.
         val bytes = maybeGunzip(httpGetBytes(repoUrl))
-        return parsePb(bytes)
+        val parsed = parsePb(bytes, repoUrl)
+        if (parsed.isNotEmpty()) return parsed
+        // A mislabelled repo: fall back to the JSON mirror only when the protobuf path yields
+        // nothing at all (the published JSON is a stub, so it is a last resort, not a preference).
+        val jsonUrl = repoUrl.replace("index.pb", "index.min.json")
+        return if (jsonUrl != repoUrl) AniyomiRepo.fetch(jsonUrl) else emptyList()
     }
 
-    fun parsePb(bytes: ByteArray): List<MangaExt> {
+    fun parsePb(bytes: ByteArray, repoUrl: String? = null): List<MangaExt> {
         val top = Protobuf.decode(bytes)
-        val out = ArrayList<MangaExt>()
-        for (f in top) {
-            if (f.wireType == 2 && f.bytes != null) {
-                // field 1 = extensions (repeated). Accept any length-delimited entry.
-                val ext = parseExtension(f.bytes)
-                if (ext != null) out.add(ext)
-            }
-        }
-        // Some builds wrap in a single nested message; retry one level if nothing found.
-        if (out.isEmpty()) {
-            for (f in top) {
-                if (f.wireType == 2 && f.bytes != null) {
-                    val inner = Protobuf.decode(f.bytes)
-                    for (g in inner) {
-                        if (g.wireType == 2 && g.bytes != null) parseExtension(g.bytes)?.let { out.add(it) }
-                    }
-                }
-            }
-        }
-        return out
+        // Current format: the extensions live in the repository wrapper at field 101.
+        val wrapped = top
+            .filter { it.number == 101 && it.wireType == 2 && it.bytes != null }
+            .flatMap { field -> parseExtensionList(field.bytes!!, repoUrl) }
+        if (wrapped.isNotEmpty()) return wrapped
+
+        // Legacy format: a bare `repeated Extension extensions = 1`.
+        val legacy = parseExtensionList(bytes, repoUrl)
+        if (legacy.isNotEmpty()) return legacy
+
+        // Some builds wrap in a single nested message; retry one level down.
+        return top
+            .filter { it.wireType == 2 && it.bytes != null }
+            .flatMap { field -> parseExtensionList(field.bytes!!, repoUrl) }
     }
 
-    private fun parseExtension(bytes: ByteArray): MangaExt? {
+    /** Decode a `repeated Extension` payload, keeping only entries that look like extensions. */
+    private fun parseExtensionList(bytes: ByteArray, repoUrl: String?): List<MangaExt> =
+        Protobuf.decode(bytes).mapNotNull { field ->
+            if (field.wireType != 2 || field.bytes == null) null
+            else parseExtension(field.bytes!!, repoUrl)
+        }
+
+    private fun parseExtension(bytes: ByteArray, repoUrl: String?): MangaExt? {
         val fields = Protobuf.decode(bytes)
         val strings = LinkedHashMap<Int, String>()
         var code = 0L
-        var nsfw = false
+        var nsfwEnum = 0L
+        var nestedApk: String? = null
         val sources = ArrayList<MangaSource>()
 
         for (f in fields) {
             when (f.wireType) {
                 2 -> {
-                    val s = f.asString ?: continue
-                    if (f.number == 9 || (f.number > 8 && looksLikeNestedSource(f.bytes))) {
-                        parseSource(f.bytes!!)?.let { sources.add(it) }
-                    } else {
-                        strings[f.number] = s
+                    val raw = f.bytes ?: continue
+                    when (f.number) {
+                        // apk is a nested message whose field 1 is the download URL.
+                        3 -> nestedApk = firstHttpUrl(raw) ?: f.asString
+                        // sources: repeated nested Source messages (8 current, 9 legacy). In the
+                        // legacy shape field 8 was the icon URL, so keep the string when the
+                        // payload does not decode as a Source.
+                        8, 9 -> parseSource(raw)?.let { sources.add(it) }
+                            ?: f.asString?.let { strings[f.number] = it }
+                        else -> f.asString?.let { strings[f.number] = it }
                     }
                 }
                 0 -> when (f.number) {
                     5 -> code = f.varint
-                    7 -> nsfw = f.asBool
+                    7 -> nsfwEnum = f.varint
                 }
             }
         }
 
-        val name = strings[1] ?: strings.values.firstOrNull { it.isNotBlank() && !it.startsWith("http") } ?: return null
-        val pkg = strings[2] ?: strings.values.firstOrNull { it.contains(".") && !it.startsWith("http") } ?: ""
-        var apk = strings[3] ?: strings.values.firstOrNull { it.startsWith("http") && it.endsWith(".apk") } ?: ""
-        if (apk.isBlank()) apk = strings.values.firstOrNull { it.startsWith("http") } ?: ""
-        val lang = strings[4]
-        val version = strings[6] ?: strings.values.firstOrNull { it.matches(Regex("\\d+\\.\\d+.*")) }
+        val name = strings[1]?.takeIf { it.isNotBlank() } ?: return null
+        val pkg = strings[2]?.takeIf { it.contains('.') } ?: ""
+        // Field 4 is the extension-lib version in the current format ("1.6") and the language
+        // code in the legacy one ("en", "all"); a short lowercase token is a language.
+        val legacyLang = strings[4]?.takeIf { it.length <= 3 && it.all { c -> c.isLetter() } }
+        val apk = nestedApk?.takeIf { it.startsWith("http") }
+            ?: strings.values.firstOrNull { it.startsWith("http") && it.endsWith(".apk") }
+            ?: strings[3]?.takeIf { it.startsWith("http") }
+            ?: ""
 
         return MangaExt(
             name = name,
             pkg = pkg,
             apk = apk,
-            icon = strings[8],
-            version = version,
-            lang = lang,
-            nsfw = nsfw || StremioClient.isNsfw(name, null, pkg),
+            icon = strings[10]?.takeIf { it.startsWith("http") }
+                ?: strings[8]?.takeIf { it.startsWith("http") }
+                ?: strings.values.firstOrNull { it.startsWith("http") && !it.endsWith(".apk") },
+            version = strings[6] ?: strings[4]?.takeIf { it.contains('.') },
+            lang = sources.firstOrNull()?.lang ?: legacyLang,
+            nsfw = nsfwEnum == NSFW_ENUM_ADULT || StremioClient.isNsfw(name, null, pkg),
             sources = sources,
+            versionCode = code.takeIf { it > 0 },
+            repoUrl = repoUrl,
         )
     }
 
-    private fun looksLikeNestedSource(bytes: ByteArray?): Boolean {
-        if (bytes == null || bytes.size < 3) return false
-        val inner = Protobuf.decode(bytes)
-        return inner.any { it.wireType == 2 && it.asString?.startsWith("http") == true } ||
-            inner.any { it.number == 2 && it.wireType == 2 }
-    }
+    /** First `http…` string inside a nested message (used for the apk URL and icons). */
+    private fun firstHttpUrl(bytes: ByteArray): String? =
+        Protobuf.decode(bytes)
+            .firstOrNull { it.wireType == 2 && it.asString?.startsWith("http") == true }
+            ?.asString
 
     private fun parseSource(bytes: ByteArray): MangaSource? {
         val fields = Protobuf.decode(bytes)

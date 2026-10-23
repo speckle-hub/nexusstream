@@ -14,6 +14,7 @@ import com.moovio.app.data.local.SettingsStore
 import com.moovio.app.data.repo.AddonRepository
 import com.moovio.app.data.repo.CatalogRepository
 import com.moovio.app.data.repo.CloudStreamRepository
+import com.moovio.app.data.repo.MangaExtensionRepository
 import com.moovio.app.data.repo.MetadataRepository
 import com.moovio.app.data.repo.StreamRepository
 
@@ -36,6 +37,10 @@ class AppContainer(context: Context) {
 
     // Runs real CloudStream .cs3 provider plugins in-process (see data/cloudstream).
     val cloudStreamRepository = CloudStreamRepository(addonStore, context.applicationContext)
+
+    // Downloads Aniyomi / Mihon extension APKs (runtime for those sources is the next phase).
+    val mangaExtensionRepository =
+        MangaExtensionRepository(context.applicationContext, addonStore, addonRepository)
 
     val catalogRepository = CatalogRepository(addonRepository, settings, cloudStreamRepository)
     val metadataRepository = MetadataRepository(addonRepository, cloudStreamRepository)

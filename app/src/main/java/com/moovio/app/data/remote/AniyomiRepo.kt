@@ -14,10 +14,29 @@ object AniyomiRepo {
             root.isJsonObject -> root.asJsonObject.getAsJsonArray("extensions")
             else -> null
         } ?: return emptyList()
-        return arr.mapNotNull { if (it.isJsonObject) parse(it.asJsonObject) else null }
+        return arr.mapNotNull { if (it.isJsonObject) parse(it.asJsonObject, repoUrl) else null }
     }
 
-    private fun parse(o: JsonObject): MangaExt? {
+    /**
+     * Resolve an index `apk` value to a download URL.
+     *
+     * Aniyomi/Mihon indices carry the APK as a **file name**: `aniyomi-all.x-v14.4.apk`. The files
+     * live next to the index in `<repo dir>/apk/`, e.g.
+     * `https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json` →
+     * `…/anime-repo/repo/apk/aniyomi-all.x-v14.4.apk`. Using the raw value as a URL (what happened
+     * before) 404s on every download, and resolving it against the index directory also 404s —
+     * both were verified live on 2026-10-23.
+     */
+    internal fun resolveApk(repoUrl: String, apk: String): String {
+        val value = apk.trim()
+        if (value.isBlank()) return ""
+        if (value.startsWith("http://") || value.startsWith("https://")) return value
+        val dir = repoUrl.substringBeforeLast('/', missingDelimiterValue = "")
+            .ifBlank { return value }
+        return "$dir/apk/$value"
+    }
+
+    private fun parse(o: JsonObject, repoUrl: String): MangaExt? {
         val name = o.get("name")?.asString ?: return null
         val pkg = o.get("pkg")?.asString ?: o.get("packageName")?.asString ?: return null
         val apk = o.get("apk")?.asString ?: o.get("url")?.asString ?: return null
@@ -44,12 +63,14 @@ object AniyomiRepo {
         return MangaExt(
             name = name,
             pkg = pkg,
-            apk = apk,
+            apk = resolveApk(repoUrl, apk),
             icon = o.get("icon")?.asString,
             version = o.get("version")?.takeIf { it.isJsonPrimitive }?.asString,
             lang = o.get("lang")?.asString,
             nsfw = nsfw,
             sources = sources,
+            versionCode = o.get("code")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong,
+            repoUrl = repoUrl,
         )
     }
 }

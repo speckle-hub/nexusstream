@@ -952,6 +952,17 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
     /** Number of live providers contributed by loaded CloudStream plugins. */
     fun loadedProviderCount(): Int = runCatching { container.cloudStreamRepository.providers().size }.getOrDefault(0)
 
+    /** Add-on Manager: whether `nsfw = 1` extensions/repos are listed (off = SFW-only manager). */
+    val showNsfwExtensions: StateFlow<Boolean> = container.settings.showNsfwExtensions
+
+    fun setShowNsfwExtensions(v: Boolean) {
+        viewModelScope.launch { container.settings.setShowNsfwExtensions(v) }
+    }
+
+    /** package -> newer catalogue entry, computed whenever a manga/anime index is browsed. */
+    private val _mangaUpdates = MutableStateFlow<Map<String, MangaExt>>(emptyMap())
+    val mangaUpdates: StateFlow<Map<String, MangaExt>> = _mangaUpdates
+
     val message = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
     val catalog = MutableStateFlow<List<Any>>(emptyList())
@@ -1007,7 +1018,12 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
     fun browseCloudStream(url: String) {
         viewModelScope.launch {
             busy.value = true
+            // Everything from an adult repository (CXXX) is NSFW even though its plugin entries
+            // carry no per-provider flag, so the repo flag is stamped onto each entry here.
+            val repoNsfw = container.addonRepository.repos.first()
+                .firstOrNull { it.url == url }?.nsfw == true
             catalog.value = container.addonRepository.fetchCloudStream(url)
+                .map { if (repoNsfw && !it.nsfw) it.copy(nsfw = true) else it }
             if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
             busy.value = false
         }
@@ -1017,14 +1033,27 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
             busy.value = true
             catalog.value = container.addonRepository.fetchAniyomi(url)
             if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
+            recomputeMangaUpdates()
             busy.value = false
         }
+    }
+
+    /** Recompute which installed extensions have a newer entry in the browsed catalogue. */
+    private fun recomputeMangaUpdates() {
+        val installed = mangaInstalled.value.associateBy { it.pkg }
+        val updates = (catalog.value.filterIsInstance<MangaExt>()).mapNotNull { candidate ->
+            val current = installed[candidate.pkg] ?: return@mapNotNull null
+            if (container.mangaExtensionRepository.updateAvailable(current, candidate))
+                candidate.pkg to candidate else null
+        }.toMap()
+        _mangaUpdates.value = updates
     }
     fun browseKeiyoushi(url: String) {
         viewModelScope.launch {
             busy.value = true
             catalog.value = container.addonRepository.fetchKeiyoushi(url)
             if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
+            recomputeMangaUpdates()
             busy.value = false
         }
     }
@@ -1041,14 +1070,40 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
             busy.value = false
         }
     }
-    fun installMangaExt(ext: MangaExt) { viewModelScope.launch { container.addonRepository.installMangaExt(ext); message.value = "Added ${ext.name}" } }
+    /**
+     * Download the extension APK and record it as installed (this is also the update path — it
+     * replaces the file and descriptor for the same package).
+     */
+    fun installMangaExt(ext: MangaExt) {
+        viewModelScope.launch {
+            busy.value = true
+            container.mangaExtensionRepository.install(ext)
+                .onSuccess {
+                    message.value = "Installed ${it.name}"
+                    recomputeMangaUpdates()
+                }
+                .onFailure { message.value = "Install failed: ${it.message}" }
+            busy.value = false
+        }
+    }
+
+    fun setMangaExtEnabled(pkg: String, enabled: Boolean) {
+        viewModelScope.launch { container.mangaExtensionRepository.setEnabled(pkg, enabled) }
+    }
+
+    fun uninstallMangaExt(pkg: String) {
+        viewModelScope.launch {
+            container.mangaExtensionRepository.uninstall(pkg)
+            _mangaUpdates.value = _mangaUpdates.value - pkg
+        }
+    }
     fun uninstallCloudStream(url: String) {
         viewModelScope.launch {
             container.cloudStreamRepository.uninstall(url)
             container.addonRepository.uninstallCloudStream(url)
         }
     }
-    fun uninstallMangaExt(pkg: String) { viewModelScope.launch { container.addonRepository.uninstallMangaExt(pkg) } }
+
     fun clearMessage() { message.value = null }
 }
 
