@@ -8,6 +8,7 @@ package com.moovio.app.data.adult
  * CDN and exposes it as an `.m3u8` on the video page, so streams are resolved with [TubeMedia].
  */
 object MissavSource : AdultSource {
+    override val experimental = true
 
     override val id = "missav"
     override val name = "MissAV"

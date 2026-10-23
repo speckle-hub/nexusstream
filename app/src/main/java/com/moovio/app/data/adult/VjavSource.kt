@@ -12,6 +12,7 @@ package com.moovio.app.data.adult
  * [TubeMedia].
  */
 object VjavSource : AdultSource {
+    override val experimental = true
 
     override val id = "vjav"
     override val name = "VJAV"

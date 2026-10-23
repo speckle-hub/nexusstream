@@ -10,6 +10,7 @@ package com.moovio.app.data.adult
  * `/category/{slug}`. Streams come from the video page via [TubeMedia].
  */
 object JavtifulSource : AdultSource {
+    override val experimental = true
 
     override val id = "javtiful"
     override val name = "Javtiful"

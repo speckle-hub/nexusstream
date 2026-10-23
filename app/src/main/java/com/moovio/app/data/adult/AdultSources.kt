@@ -5,39 +5,39 @@ package com.moovio.app.data.adult
  */
 object AdultSources {
 
-    val all: List<AdultSource> = listOf(
-        // General tube sites.
-        PornhubSource,
-        XvideosSource,
-        XnxxSource,
-        HqpornerSource,
-        SpankbangSource,
-        XhamsterSource,
-        YouPornSource,
-        RedTubeSource,
+    /** Sources confirmed to return real listings and/or playable streams (at least intermittently). */
+    private val verified = listOf(
+        PornhubSource,      // ⚠️ intermittent — rate-limited from build env, but returns real data
+        XvideosSource,      // ⚠️ partial — /tags works, search sometimes times out
+        XnxxSource,         // ✅ working — listing + search verified live
+        HqpornerSource,     // ⚠️ partial — third-party embed (mydaddy.cc), best-effort
+    )
+
+    /** Sources never probed live — adult endpoints blocked from build environment.
+     * Kept in the registry but flagged experimental; they degrade per-source and never block the tab. */
+    private val experimental = listOf(
         EpornerSource,
         BeegSource,
-        // Expansion (§2as): KVS + aggregator + full-length + Aylo-family general tubes.
         PornTrexSource,
         SxyPrnSource,
         FullPornerSource,
-        TxxxSource,
-        // JAV / Japanese adult video sources.
         MissavSource,
-        JableSource,
+        XhamsterSource,
         JavGuruSource,
         SupJavSource,
         VjavSource,
-        // Expansion (§2as): KVS + catalogue + WP-style + mirror-fallback JAV tubes.
-        JavMostSource,
         KissJavSource,
         JavtifulSource,
-        OpJavSource,
-        SevenMmtvSource,
-        // NOTE: HpjavSource and AvgleSource are intentionally unregistered — hpjav.tv no longer
-        // resolves (DNS) and api.avgle.com is down (520), so they only produced per-source error
-        // notices. Their objects/tests remain should either site come back.
     )
+
+    val all: List<AdultSource> = verified + experimental
+
+    /** Sources removed from the active registry because they consistently fail:
+     *  Jable (Cloudflare 403), YouPorn (broken stub), RedTube (blocked/timeout),
+     *  SpankBang (Cloudflare 403), TXXX (unreachable), JavMost (blocked),
+     *  OpJav (blocked 403), 7MMTV (unreachable).
+     *  HPJAV (DNS-dead), Avgle (520), Hanime (DNS-dead), Hentaigasm (timeouts) were retired earlier.
+     *  Their source objects/tests remain should a host return. */
 
     fun byId(id: String?): AdultSource? = id?.let { key -> all.firstOrNull { it.id == key } }
 

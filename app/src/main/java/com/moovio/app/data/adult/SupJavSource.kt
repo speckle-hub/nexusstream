@@ -9,6 +9,7 @@ package com.moovio.app.data.adult
  * (maker/director/studio/tag/category/page); streams come from the post page via [TubeMedia].
  */
 object SupJavSource : AdultSource {
+    override val experimental = true
 
     override val id = "supjav"
     override val name = "SupJav"

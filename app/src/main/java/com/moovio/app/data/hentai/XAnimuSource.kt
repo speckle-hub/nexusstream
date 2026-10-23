@@ -16,6 +16,7 @@ import java.net.URLEncoder
  * [HentaiTubes.resolvedStreams].
  */
 object XAnimuSource : HentaiSource {
+    override val experimental = true
 
     override val id = "xanimu"
     override val name = "XAnimu"

@@ -10,6 +10,7 @@ package com.moovio.app.data.adult
  * taxonomy/chrome paths; streams come from the post page via [TubeMedia].
  */
 object JavGuruSource : AdultSource {
+    override val experimental = true
 
     override val id = "javguru"
     override val name = "JavGuru"

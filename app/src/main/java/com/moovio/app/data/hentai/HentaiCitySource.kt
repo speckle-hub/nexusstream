@@ -9,6 +9,7 @@ import java.net.URLEncoder
  * MP4/HLS on the page or an embedded player. Streams resolve through [HentaiTubes].
  */
 object HentaiCitySource : HentaiSource {
+    override val experimental = true
 
     override val id = "hentaicity"
     override val name = "HentaiCity"

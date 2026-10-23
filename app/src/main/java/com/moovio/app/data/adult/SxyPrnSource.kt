@@ -17,6 +17,7 @@ import com.moovio.app.data.model.StreamSource
  * yields no streams and the tab's per-source isolation keeps the rest working.
  */
 object SxyPrnSource : AdultSource {
+    override val experimental = true
 
     override val id = "sxyprn"
     override val name = "SxyPrn"

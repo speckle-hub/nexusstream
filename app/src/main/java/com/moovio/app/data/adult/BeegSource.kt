@@ -16,6 +16,7 @@ import com.moovio.app.data.remote.str
  * failure.
  */
 object BeegSource : AdultSource {
+    override val experimental = true
 
     override val id = "beeg"
     override val name = "Beeg"

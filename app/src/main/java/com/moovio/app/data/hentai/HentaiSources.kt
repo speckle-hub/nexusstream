@@ -6,30 +6,34 @@ package com.moovio.app.data.hentai
  */
 object HentaiSources {
 
-    val all: List<HentaiSource> = listOf(
-        // Original pair.
-        HentaiMamaSource,
-        HentaiPlaySource,
-        // Priority additions.
+    /** Sources verified to return real episode listings and/or playable streams. */
+    private val verified = listOf(
+        HentaiMamaSource,   // ✅ probed live — series + episodes + direct MP4/HLS
+        HentaiPlaySource,   // ✅ probed live — direct MP4, no Referer required
+        HahoSource,         // ✅ probed live 2026-10-06 — series + episodes + filegasm streams
+    )
+
+    /** Sources never probed live against a real response (adult/Cloudflare endpoints blocked
+     * from the build environment). Kept in the registry but flagged experimental; they degrade
+     * per-source and never block the NSFW Anime tab. */
+    private val experimental = listOf(
         HentaiHavenSource,
         HStreamSource,
-        // Secondary additions.
         MuchoHentaiSource,
         HentaiCitySource,
-        HahoSource,
-        // Expansion (§2aq): tube + index sources for broader NSFW-anime coverage.
         Rule34VideoSource,
         AnimeIdHentaiSource,
-        // Expansion (§2as): series tube + classic PHP tube + JSON-API tube + Rule34 tube.
         HenVidsSource,
         OhentaiSource,
         HentaiTvSource,
         XAnimuSource,
-        // NOTE: HanimeSource and HentaigasmSource are intentionally unregistered — Hanime's
-        // search API (search.htv-services.com) is DNS-dead and its HTML page is a JS shell, and
-        // hentaigasm.com times out, so both only produced per-source error notices. Their
-        // objects/tests remain should either site come back.
     )
+
+    val all: List<HentaiSource> = verified + experimental
+
+    /** Sources removed from the active registry:
+     *  Hanime (search API DNS-dead + JS-shell page), Hentaigasm (30 s timeouts).
+     *  Their objects and parser tests remain should a host return. */
 
     fun byId(id: String?): HentaiSource? = id?.let { key -> all.firstOrNull { it.id == key } }
 

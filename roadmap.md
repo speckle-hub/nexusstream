@@ -15,6 +15,16 @@
 > 309 tests (`22c26a4`, `next build` ✓). **Aniyomi/Mihon extensions still do not execute** — this
 > release ships the repositories, install/enable/update and NSFW gating only (§2ba).
 >
+> **Source hygiene pass (this session):** Hard-failing adult sources removed from the active
+> registry (Jable, YouPorn, RedTube, SpankBang, TXXX, JavMost, OpJav, 7MMTV — all consistently
+> 403/blocked/unreachable); never-probed-live sources flagged `experimental` (Eporner, Beeg,
+> PornTrex, SxyPrn, FullPorner, Missav, Xhamster, JavGuru, SupJav, Vjav, KissJav, Javtiful);
+> verified/partial sources kept (Pornhub, XVideos, Xnxx, HQporner). Same treatment for NSFW Anime:
+> dead hosts retired (Hanime, Hentaigasm), unproven sources flagged `experimental` (HentaiHaven,
+> HStream, MuchoHentai, HentaiCity, Rule34Video, AnimeIdHentai, HenVids, Ohentai, HentaiTv,
+> XAnimu), verified sources kept (HentaiMama, HentaiPlay, Haho). One dead source never blocks the
+> tab — per-source error isolation degrades gracefully.
+>
 > Previous, 2026-10-23 — **extension repositories pre-seeded, parsed and installable (§2ba).** Phisher98, **CXXX 18+**, Yuzono and Keiyoushi are
 > seeded by default; the Keiyoushi index is parsed from its real repository-wrapper protobuf
 > (1425 extensions, 389 NSFW) and Aniyomi APK URLs resolve to `…/repo/apk/…` (250 entries, 72
@@ -5754,3 +5764,41 @@ data/hentai/
 - Device pass still outstanding: does HentaiMama's `gdvid.info` MP4 actually play in ExoPlayer, and
   do the Stremio NSFW fallback entries still appear alongside the built-in ones — plus reachability
   of the seven new sources (§7 item 23).
+
+---
+
+## Outstanding items (post-source-hygiene pass)
+
+### Fixed in this session
+
+| Item | What was done |
+|------|---------------|
+| Real 18+ hard-failing sources | Removed Jable, YouPorn, RedTube, SpankBang, TXXX, JavMost, OpJav, 7MMTV from `AdultSources.all`. Their source objects/tests remain. |
+| Real 18+ experimental sources | Flagged `experimental = true` on Eporner, Beeg, PornTrex, SxyPrn, FullPorner, Missav, Xhamster, JavGuru, SupJav, Vjav, KissJav, Javtiful. |
+| Real 8+ verified/partial sources | Kept Pornhub (intermittent), XVideos (partial), Xnxx (working), HQporner (partial, third-party embed). |
+| NSFW Anime dead hosts | Hanime and Hentaigasm already unregistered (DNS-dead / timeouts). |
+| NSFW Anime experimental sources | Flagged `experimental = true` on HentaiHaven, HStream, MuchoHentai, HentaiCity, Rule34Video, AnimeIdHentai, HenVids, Ohentai, HentaiTv, XAnimu. |
+| NSFW Anime verified sources | Kept HentaiMama, HentaiPlay, Haho. |
+| AdultSource / HentaiSource interfaces | Added `val experimental: Boolean = false` property for UI to flag unverified sources. |
+| Per-source error isolation | Already in `AdultRepository` / `HentaiRepository` — one dead source never blocks the tab. |
+
+### Still outstanding (next session)
+
+| # | Item | Status | Plan |
+|---|------|--------|------|
+| 1 | **Aniyomi / Mihon extension execution** | Blocked | APKs install/enable/update but do not execute. Toolchain migration (AGP ≥ 8.9, compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) required to load `com.github.mihonapp:extensions-lib:1.6.0` / `com.github.komikku-app:aniyomi-extensions-lib:13`. **Do not ship a fake runtime.** UI already honest: extensions show as "installed/toggled" only, no "play" claim. |
+| 2 | Device pass (§7 items 20–31) | Outstanding | Real-device verification of: HentaiMama `gdvid.info` MP4 playback, Stremio NSFW fallback entries alongside built-ins, reachability of remaining sources, seeded repos, Add-on Manager NSFW switch, extension install/enable/update, CXXX Real 18+ search. |
+| 3 | Torrent watchdog edge case | Mitigated | 20 s watchdog with Retry dialog added in v1.10.1. Still can't connect on networks without tracker access (expected). |
+| 4 | Clipboard overlay (P2) | Not fixed | Android system clipboard toast sometimes swallows taps on Settings → Backup & Updates. No app-level clipboard code exists; likely system-level. Documented as known limitation. |
+| 5 | Check for updates / Export backup | Not tested | Deferred to post-release QA (TEST_REPORT P2). |
+| 6 | Cast / MediaRouteButton | Fixed | v1.10.1: `ThemeOverlay.Moovio.CastButton` opaque theme + `runCatching` guard. Already in code. |
+| 7 | MangaDex empty NSFW feed | Fixed | v1.10.1: NSFW feed asks for non-safe ratings only. Already in code. |
+
+### Version note
+
+Bumped with the source-hygiene rebuild: `versionCode` 22 / `versionName` 1.10.3 — signed
+`dist/app-release.apk` + `dist/Moovio.apk` rebuilt (43,963,421 bytes, SHA-256
+`5656EFA1…AFBA447`, signer `2EDB949B…351379`, verified with `apksigner`);
+`:app:testDebugUnitTest` ✓ **309/309** (two registry tests updated for the removed sources).
+Not tagged and **not** published as a GitHub Release — `releases/latest` still serves v1.10.2;
+tag/publish when ready so the in-app updater and site CTA move together.

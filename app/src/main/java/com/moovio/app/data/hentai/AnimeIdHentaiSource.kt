@@ -14,6 +14,7 @@ import java.net.URLEncoder
  * through [HentaiTubes.resolvedStreams].
  */
 object AnimeIdHentaiSource : HentaiSource {
+    override val experimental = true
 
     override val id = "animeidhentai"
     override val name = "AnimeIdHentai"

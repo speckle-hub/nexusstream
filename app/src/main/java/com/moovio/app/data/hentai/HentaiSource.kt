@@ -22,6 +22,12 @@ interface HentaiSource {
     /** Human-readable name shown in the stream list. */
     val name: String
 
+    /** True when this source has not been verified against a live response (adult/Cloudflare
+     * endpoints are blocked from the build environment). The UI should show a clear "source
+     * unavailable" notice when it fails, and it must never block the NSFW Anime tab. */
+    val experimental: Boolean
+        get() = false
+
     /**
      * Episode-level results for [query], most relevant first.
      *

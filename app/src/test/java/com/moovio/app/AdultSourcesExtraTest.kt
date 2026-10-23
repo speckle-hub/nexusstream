@@ -213,10 +213,10 @@ class AdultSourcesExtraTest {
         val ids = AdultSources.all.map { it.id }
         assertEquals(ids.size, ids.distinct().size)
         listOf(
-            "pornhub", "xvideos", "xnxx", "hqporner", "spankbang",
-            "xhamster", "youporn", "redtube",
+            "pornhub", "xvideos", "xnxx", "hqporner",
+            "xhamster",
             "eporner", "beeg",
-            "missav", "jable", "javguru", "supjav", "vjav",
+            "missav", "javguru", "supjav", "vjav",
         ).forEach { id ->
             assertTrue("missing source: $id", AdultSources.byId(id) != null)
         }
@@ -225,5 +225,11 @@ class AdultSourcesExtraTest {
         // so neither is registered any more — a regression that re-adds one should fail here.
         assertNull(AdultSources.byId("hpjav"))
         assertNull(AdultSources.byId("avgle"))
+        // Source hygiene pass: removed from the active registry (consistently 403/blocked/
+        // unreachable — see AdultSources). Their source objects/parser tests remain, but a
+        // regression that re-registers one should fail here.
+        listOf("spankbang", "youporn", "redtube", "jable").forEach { id ->
+            assertNull("removed source re-registered: $id", AdultSources.byId(id))
+        }
     }
 }

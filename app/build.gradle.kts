@@ -32,14 +32,14 @@ fun signingCredential(propKey: String, envKey: String): String? =
 
 android {
     namespace = "com.moovio.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.moovio.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 21
-        versionName = "1.10.2"
+        versionCode = 22
+        versionName = "1.10.3"
         vectorDrawables { useSupportLibrary = true }
         // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
         buildConfigField(
@@ -164,6 +164,14 @@ dependencies {
     // The library declares Jackson as a *runtime* dependency, but the provider-settings shim needs
     // the very same mapper on the compile classpath (it is the codec upstream providers read with).
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
+    // === Aniyomi/Mihon extension runtime (§2ba, NEXT PHASE — toolchain migration required) ===
+    // These libraries cannot be compiled with AGP 8.5.0 / compileSdk 36:
+    //  - com.github.mihonapp:extensions-lib:1.6.0 → requires compileSdk 37+, AGP ≥ 8.9
+    //  - com.github.komikku-app:aniyomi-extensions-lib:13 → duplicate classes with the above
+    // Both cause `checkReleaseDuplicateClasses` and `checkReleaseAarMetadata` failures.
+    // Do not add them back until the toolchain migration (AGP ≥ 8.9, compileSdk 36/37,
+    // Kotlin 2.1–2.4, OkHttp 5) is complete. Extension APKs are still downloaded, stored,
+    // enabled/disabled and updated via MangaExtensionRepository — they simply cannot execute yet.
 }
 
 /**

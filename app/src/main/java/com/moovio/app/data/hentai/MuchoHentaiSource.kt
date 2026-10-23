@@ -9,6 +9,7 @@ import java.net.URLEncoder
  * MP4 on the page or an embedded player. Streams resolve through [HentaiTubes].
  */
 object MuchoHentaiSource : HentaiSource {
+    override val experimental = true
 
     override val id = "muchohentai"
     override val name = "MuchoHentai"

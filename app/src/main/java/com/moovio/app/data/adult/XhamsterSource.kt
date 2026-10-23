@@ -9,6 +9,7 @@ package com.moovio.app.data.adult
  * [TubeMedia] extractor, which copes with xHamster's escaped `https:\/\/…` JSON strings.
  */
 object XhamsterSource : AdultSource {
+    override val experimental = true
 
     override val id = "xhamster"
     override val name = "xHamster"

@@ -14,6 +14,7 @@ import java.net.URLEncoder
  * player iframe) through [HentaiTubes.resolvedStreams].
  */
 object OhentaiSource : HentaiSource {
+    override val experimental = true
 
     override val id = "ohentai"
     override val name = "Ohentai"

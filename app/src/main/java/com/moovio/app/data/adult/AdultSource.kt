@@ -17,6 +17,13 @@ interface AdultSource {
     /** Human-readable name shown in row titles and UI. */
     val name: String
 
+    /** True when this source has not been verified against a live response (adult endpoints are
+     * blocked from the build environment). Such sources are kept in the registry but must never be
+     * presented as guaranteed-working — the UI should show a clear "source unavailable" notice
+     * when they fail, and they degrade gracefully one source at a time. */
+    val experimental: Boolean
+        get() = false
+
     /** Home rows: Popular / Trending / Latest / popular categories. */
     suspend fun home(): List<AdultRow>
 

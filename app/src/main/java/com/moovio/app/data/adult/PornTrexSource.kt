@@ -11,6 +11,7 @@ import com.moovio.app.data.model.StreamSource
  * fallbacks; streams come from the video page via [TubeMedia].
  */
 object PornTrexSource : AdultSource {
+    override val experimental = true
 
     override val id = "porntrex"
     override val name = "PornTrex"

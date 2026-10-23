@@ -16,6 +16,7 @@ import com.moovio.app.data.hentai.HentaiTvSource
 import com.moovio.app.data.hentai.OhentaiSource
 import com.moovio.app.data.hentai.XAnimuSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -257,10 +258,16 @@ class MoreSourcesTest {
         val adultIds = AdultSources.all.map { it.id }
         assertEquals(adultIds.size, adultIds.distinct().size)
         for (id in listOf(
-            "porntrex", "sxyprn", "fullporner", "txxx",
-            "javmost", "kissjav", "javtiful", "opjav", "7mmtv",
+            "porntrex", "sxyprn", "fullporner",
+            "kissjav", "javtiful",
         )) {
             assertTrue("missing adult source $id", id in adultIds)
+        }
+        // Source hygiene pass: these consistently 403/blocked/unreachable hosts were removed
+        // from the active registry (see AdultSources). Their source objects/parser tests remain,
+        // but a regression that re-registers one should fail here.
+        for (id in listOf("txxx", "javmost", "opjav", "7mmtv")) {
+            assertNull("removed adult source re-registered: $id", AdultSources.byId(id))
         }
         val hentaiIds = HentaiSources.all.map { it.id }
         assertEquals(hentaiIds.size, hentaiIds.distinct().size)

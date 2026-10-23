@@ -11,6 +11,7 @@ import com.moovio.app.data.model.StreamSource
  * the watch page via [TubeMedia].
  */
 object FullPornerSource : AdultSource {
+    override val experimental = true
 
     override val id = "fullporner"
     override val name = "FullPorner"

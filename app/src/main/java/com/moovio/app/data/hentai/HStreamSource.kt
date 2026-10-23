@@ -13,6 +13,7 @@ import java.net.URLEncoder
  * page (or its player frame).
  */
 object HStreamSource : HentaiSource {
+    override val experimental = true
 
     override val id = "hstream"
     override val name = "HStream"

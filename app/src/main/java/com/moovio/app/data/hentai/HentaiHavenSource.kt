@@ -12,6 +12,7 @@ import java.net.URLEncoder
  * first, then the older `.org` mirror.
  */
 object HentaiHavenSource : HentaiSource {
+    override val experimental = true
 
     override val id = "hentaihaven"
     override val name = "HentaiHaven"

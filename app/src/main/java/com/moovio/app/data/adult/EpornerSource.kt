@@ -16,6 +16,7 @@ import com.moovio.app.data.remote.str
  * which picks up the player's MP4/HLS sources.
  */
 object EpornerSource : AdultSource {
+    override val experimental = true
 
     override val id = "eporner"
     override val name = "Eporner"
