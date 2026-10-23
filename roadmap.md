@@ -7,8 +7,15 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-23 (later) — **extension repositories
-> pre-seeded, parsed and installable (§2ba).** Phisher98, **CXXX 18+**, Yuzono and Keiyoushi are
+> resume exactly where it left off. Last updated: 2026-10-23 (v1.10.2) — **repository layer
+> released.** `versionCode` 21 / `versionName` 1.10.2; signed `dist/app-release.apk` +
+> `dist/Moovio.apk` (43,963,421 bytes, SHA-256 `EB952AB9…02D54`); commit `ea2e57c`, tag `v1.10.2`
+> pushed, **GitHub Release published with both APKs attached** (`releases/latest/download/
+> app-release.apk` → HTTP 200 / 43,963,421 bytes, digest matches); website bumped to v1.10.2 /
+> 309 tests (`22c26a4`, `next build` ✓). **Aniyomi/Mihon extensions still do not execute** — this
+> release ships the repositories, install/enable/update and NSFW gating only (§2ba).
+>
+> Previous, 2026-10-23 — **extension repositories pre-seeded, parsed and installable (§2ba).** Phisher98, **CXXX 18+**, Yuzono and Keiyoushi are
 > seeded by default; the Keiyoushi index is parsed from its real repository-wrapper protobuf
 > (1425 extensions, 389 NSFW) and Aniyomi APK URLs resolve to `…/repo/apk/…` (250 entries, 72
 > NSFW); Aniyomi/Mihon extensions now download, install, enable/disable and update into
@@ -440,7 +447,8 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: extension repositories (§2ba).** The four requested repos are pre-seeded and NSFW-aware,
+**Topic: v1.10.2 released — repository layer (§2ba).** Runtime not included (blocked; see §2ba).
+The four requested repos are pre-seeded and NSFW-aware,
 Keiyoushi's real protobuf index is parsed (1425 extensions, 389 NSFW), Aniyomi APK URLs resolve,
 and Aniyomi/Mihon extensions install/enable/update into app-private storage with an `nsfw = 1`
 gate. Adult CloudStream plugins (CXXX) already run and are wired into Real 18+ search.
@@ -1037,8 +1045,17 @@ source APIs and the app's extension host only knows its own `MoovioExtension` in
   Compose-compiler move, OkHttp 5) plus an Aniyomi API source.
 - **Alternatives:** (a) do the toolchain migration and land Mihon first, then Aniyomi; (b) skip
   the APK runtime and add native NSFW scrapers for the top Yuzono/Keiyoushi sites in the existing
-  `data/hentai` + `data/manga` pattern — smaller, but only for hand-implemented sites. Nothing was
-  released for this: the feature does not work yet, so a version bump would claim otherwise.
+  `data/hentai` + `data/manga` pattern — smaller, but only for hand-implemented sites.
+
+### Release (2026-10-23, v1.10.2)
+Shipped the repository layer **without** claiming the runtime: `versionCode` 21 / `versionName`
+1.10.2; signed APK 43,963,421 bytes, SHA-256
+`EB952AB92325CF2A0029830E223F3E4BFCBE7BA49208E69D05698A2D91302D54`, signer
+`2EDB949B…351379`; commit `ea2e57c`, tag `v1.10.2`; GitHub Release published with
+`app-release.apk` + `Moovio.apk` (verified latest → HTTP 200 / 43,963,421 bytes, digests match);
+website badges → v1.10.2, stats → 309 (`22c26a4`, `next build` ✓). Toolchain migration deliberately
+**not** started, per the user's decision. Device pass still outstanding: seeded repos, Add-on
+Manager NSFW switch, extension install/update, CXXX Real 18+ search.
 
 ### Files
 `data/model/Models.kt` (`RemoteRepo.nsfw`, `MangaExt.{versionCode,repoUrl,apkPath,disabled}`,
