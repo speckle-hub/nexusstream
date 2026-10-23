@@ -7,15 +7,20 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-23 — **v1.10.1 patch fixes implemented
-> (§2az), not yet released.** Closes the P0/P1 items in `TEST_REPORT.md` against v1.10.0: the Cast
-> button no longer throws inside the player (`ThemeOverlay.Moovio.CastButton` gives
-> `MediaRouteButton` an opaque AppCompat context), NSFW Manga chapter feeds ask for the non-safe
-> MangaDex ratings (with one widening retry) instead of a filter that returns HTTP 200 + empty
-> `data`, and torrent preparation has a 20 s watchdog that cancels and offers **Retry**. Bumped to
-> `versionCode` 20 / `versionName` 1.10.1. Verified `:app:compileDebugKotlin` ✓,
-> `:app:testDebugUnitTest` ✓ **301/301** (+9 `Patch1101Test`), `:app:assembleDebug` ✓. No signed
-> release APK, tag or push this session; device pass needed (see §7 item 33).
+> resume exactly where it left off. Last updated: 2026-10-23 — **v1.10.1 released.** Closes the
+> P0/P1 items in `TEST_REPORT.md` against v1.10.0: the Cast button no longer throws inside the
+> player (`ThemeOverlay.Moovio.CastButton` gives `MediaRouteButton` an opaque AppCompat context),
+> NSFW Manga chapter feeds ask for the non-safe MangaDex ratings (with one widening retry) instead
+> of a filter that returns HTTP 200 + empty `data`, and torrent preparation has a 20 s watchdog
+> that cancels and offers **Retry**. `versionCode` 20 / `versionName` 1.10.1; signed release built
+> → `dist/Moovio.apk` + `dist/app-release.apk` (43,947,037 bytes, SHA-256 `8C474F67…BA2A79A`,
+> signer SHA-256 `2EDB949B…351379`); committed `14e11fc`, tagged `v1.10.1`, pushed (`main` + tag)
+> and **published as a GitHub Release with both APKs attached** (`releases/latest/download/
+> app-release.apk` → HTTP 200 / 43,947,037 bytes, digest matches). Website hero/nav/footer bumped to
+> v1.10.1 and stats to 301 (`next build` ✓, `82d50bf`).
+> Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **301/301** (+9
+> `Patch1101Test`) · `:app:assembleDebug` ✓ · `:app:assembleRelease` ✓ (signed). Device pass still
+> worth doing (§7 item 33).
 >
 > Previous, Last updated: 2026-10-22 — **v1.10.0 released.** Bundles the
 > Moovio rename (§2aw) and the security / stability remediation (§2ax): package `com.moovio.app`,
@@ -423,16 +428,17 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: v1.10.1 patch fixes (§2az), implemented and unit-verified — release not cut yet.** The
-`TEST_REPORT.md` P0/P1 items against v1.10.0 are fixed: the player's `MediaRouteButton` gets an
-opaque theme instead of throwing `background can not be translucent: #0`, the NSFW Manga chapter
-feed no longer asks MangaDex for `safe` ratings (which it answers with HTTP 200 + empty `data`),
-and torrent preparation is cancelled after 20 s with a retry dialog instead of hanging on
-"Preparing stream…" forever. `versionCode` 20 / `versionName` 1.10.1; `:app:compileDebugKotlin` ✓,
-`:app:testDebugUnitTest` ✓ **301/301** (+9 `Patch1101Test`), `:app:assembleDebug` ✓.
+**Topic: v1.10.1 released (§2az).** The ADB test-report P0/P1 fixes shipped: the player's
+`MediaRouteButton` gets an opaque theme instead of throwing `background can not be translucent:
+#0`, the NSFW Manga chapter feed no longer asks MangaDex for `safe` ratings (which it answers with
+HTTP 200 + empty `data`), and torrent preparation is cancelled after 20 s with a retry dialog
+instead of hanging on "Preparing stream…" forever. `versionCode` 20 / `versionName` 1.10.1;
+signed APK 43,947,037 bytes; tag `v1.10.1` pushed and the **GitHub Release published with
+`app-release.apk` + `Moovio.apk` attached**, so the in-app updater and the site CTA serve v1.10.1.
+Website at v1.10.1 / 301 tests. 301/301 unit tests green.
 
-Next up: run §7 item 33 on hardware, then build/sign/tag `v1.10.1` and publish the GitHub Release
-(the site CTA reads `releases/latest/download/app-release.apk`, so the asset name matters).
+Next up: §7 item 33 on hardware (cast picker, NSFW Manga chapters, torrent timeout on a
+blocked-tracker network) — the release is otherwise complete.
 
 Previous focus: **v1.10.0 released (§2ay).** The first Moovio-named release: package
 `com.moovio.app`, the rotated signing key, the OAuth state nonce, the updater signature check, the
@@ -1002,6 +1008,22 @@ tagged or pushed** this session.
 `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **301/301** (292 existing + 9 new) ·
 `:app:assembleDebug` ✓ (`com.moovio.app.debug`, `versionCode` 20, `versionName` 1.10.1) ·
 `aapt2 dump resources` confirms the cast style's opaque background attributes.
+
+### Release (2026-10-23, v1.10.1)
+- `versionCode` 20 / `versionName` 1.10.1 (`app/build.gradle.kts`); `:app:assembleRelease` ✓ signed
+  with the rotated key (`2EDB949B…351379`, DN `CN=Moovio…`).
+- APK 43,947,037 bytes, SHA-256 `8C474F671DAF35A682B3683B7209DA4083B468CF0EBB9631474C089BCBA2A79A`
+  (`com.moovio.app`, `versionCode` 20, `versionName` 1.10.1, `targetSdk 34`); copied to
+  `dist/app-release.apk` + `dist/Moovio.apk` (both gitignored — release assets only).
+- Committed `14e11fc` (code + roadmap + `TEST_REPORT.md`) with the tag `v1.10.1`; `main` and the
+  tag pushed to `origin`.
+- Website: hero/nav/footer `v1.10.0` → `v1.10.1`, hero + stats `292` → `301`; `npm run build` ✓
+  (8/8 static pages); committed `82d50bf` and pushed (Vercel auto-redeploys).
+- **GitHub Release `v1.10.1` published** with `app-release.apk` + `Moovio.apk`; verified
+  `releases/latest/download/app-release.apk` → HTTP 200 / 43,947,037 bytes and both asset digests
+  equal the local `8C474F67…BA2A79A`.
+- Upgrade path: installs in place over v1.10.0 (same package + key); still a clean install over
+  v1.9.0 and older (package id and key changed in v1.10.0).
 
 ---
 
