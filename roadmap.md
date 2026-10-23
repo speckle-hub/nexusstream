@@ -5800,5 +5800,7 @@ Bumped with the source-hygiene rebuild: `versionCode` 22 / `versionName` 1.10.3 
 `dist/app-release.apk` + `dist/Moovio.apk` rebuilt (43,963,421 bytes, SHA-256
 `5656EFA1…AFBA447`, signer `2EDB949B…351379`, verified with `apksigner`);
 `:app:testDebugUnitTest` ✓ **309/309** (two registry tests updated for the removed sources).
-Not tagged and **not** published as a GitHub Release — `releases/latest` still serves v1.10.2;
-tag/publish when ready so the in-app updater and site CTA move together.
+Tagged `v1.10.3`, pushed (`main` + tag) and **published as a GitHub Release with
+`Moovio.apk` + `app-release.apk` attached** (`releases/latest/download/app-release.apk` →
+HTTP 200 / 43,963,421 bytes, digest matches the local build), so the in-app updater and the
+site CTA now serve v1.10.3. Website bumped to v1.10.3 / 309 tests (`next build` ✓).
