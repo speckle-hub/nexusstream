@@ -5,6 +5,30 @@
 **Tested by**: AI agent with ADB/uiautomator / logcat  
 **Reference screenshots**: `C:\Users\speck\AppData\Local\Temp\opencode\moovio-test\shots\`
 
+## Status as of v1.10.3 (2026-10-24)
+
+- ✅ **P0 MediaRouteButton crash** — fixed in v1.10.1 (`ThemeOverlay.Moovio.CastButton` with opaque
+  background + `ContextThemeWrapper`, `runCatching` fallback). Verified structurally via `aapt2`; device
+  confirmation outstanding (no hardware/emulator in this environment).
+- ✅ **P0 MangaDex NSFW chapter feed** — fixed in v1.10.1 (`MangaDexQuery` + `feedAttempts`: NSFW feed
+  asks for suggestive+erotica+pornographic, never `safe`; SFW empty-feed retried once with NSFW set).
+  `MangaDexClient.chapters()` now uses `feedAttempts()`.
+- ✅ **P1 Torrent "Preparing stream…" hang** — fixed in v1.10.1 (`TorrentWatchdog`, 20 s, cancels +
+  Retry dialog in `DetailScreen`). Unit-tested in `Patch1101Test`.
+- ⚠️ **P2 Clipboard overlay on Settings → Backup & Updates** — no app-side clipboard code exists; the
+  overlay is Android system behavior. Could not be reproduced or fixed without a device; left as a
+  device-pass item.
+- ⚠️ **P2 Add-on Manager default repos** — four repos now pre-seeded (Phisher98, CXXX 18+, Yuzoni,
+  Keiyoushi) via `AddonStore.Defaults.repos` + `ensureDefaultRepos()` (v1.10.2). Device verification
+  outstanding.
+- ⚠️ **Aniyomi/Mihon extension runtime** — deferred. Extensions install/enable/update but do not
+  execute (§2ba). Honesty UI in place; no false "works" state. Toolchain migration (AGP ≥ 8.9,
+  compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) left for a future pass.
+
+Source hygiene (roadmap items 1–2) committed in 3335a2d: dead adult/NSFW-anime hosts retired, never-probed
+sources flagged `experimental` and quarantined off by default, verified/partial sources kept with
+`displayLabel` error surfacing; one dead source never blocks the tab. Empty states say why.
+
 ---
 
 ## 1. NSFW Manga Tab

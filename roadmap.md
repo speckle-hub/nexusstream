@@ -7,15 +7,19 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-23 (v1.10.2) — **repository layer
-> released.** `versionCode` 21 / `versionName` 1.10.2; signed `dist/app-release.apk` +
-> `dist/Moovio.apk` (43,963,421 bytes, SHA-256 `EB952AB9…02D54`); commit `ea2e57c`, tag `v1.10.2`
-> pushed, **GitHub Release published with both APKs attached** (`releases/latest/download/
-> app-release.apk` → HTTP 200 / 43,963,421 bytes, digest matches); website bumped to v1.10.2 /
-> 309 tests (`22c26a4`, `next build` ✓). **Aniyomi/Mihon extensions still do not execute** — this
-> release ships the repositories, install/enable/update and NSFW gating only (§2ba).
+> resume exactly where it left off. Last updated: 2026-10-24 (v1.10.3) — **source hygiene +
+> test-report P0/P1 fixes built and verified (compile + 309/309 unit tests).** `versionCode` 22 /
+> `versionName` 1.10.3; signed `dist/app-release.apk` + `dist/Moovio.apk` (43,963,421 bytes)
+> built locally, commit `3335a2d` on `main` (not yet published as a GitHub Release — build
+> artifacts only). **Aniyomi/Mihon extensions still do not execute** — runtime deferred per the
+> honest-UI decision (§2ba, item 5): extensions install/enable/update but the Add-on Manager and
+> empty states say plainly they are not executable, so no false "works" state is shipped.
+> Device/emulator not available in this environment, so the v1.10.1 device-pass fixes
+> (MediaRouteButton cast overlay, MangaDex NSFW chapter feed, torrent 20 s watchdog + Retry
+> dialog) and this session's source quarantine are verified by build + tests only; hardware
+> confirmation still outstanding (§7).
 >
-> **Source hygiene pass (this session):** Hard-failing adult sources removed from the active
+> **Source hygiene pass (committed in 3335a2d):** Hard-failing adult sources removed from the active
 > registry (Jable, YouPorn, RedTube, SpankBang, TXXX, JavMost, OpJav, 7MMTV — all consistently
 > 403/blocked/unreachable); never-probed-live sources flagged `experimental` (Eporner, Beeg,
 > PornTrex, SxyPrn, FullPorner, Missav, Xhamster, JavGuru, SupJav, Vjav, KissJav, Javtiful);
@@ -23,7 +27,8 @@
 > dead hosts retired (Hanime, Hentaigasm), unproven sources flagged `experimental` (HentaiHaven,
 > HStream, MuchoHentai, HentaiCity, Rule34Video, AnimeIdHentai, HenVids, Ohentai, HentaiTv,
 > XAnimu), verified sources kept (HentaiMama, HentaiPlay, Haho). One dead source never blocks the
-> tab — per-source error isolation degrades gracefully.
+> tab — per-source error isolation degrades gracefully, and empty states say why (no sources /
+> source failed / extension installed but not executable).
 >
 > Previous, 2026-10-23 — **extension repositories pre-seeded, parsed and installable (§2ba).** Phisher98, **CXXX 18+**, Yuzono and Keiyoushi are
 > seeded by default; the Keiyoushi index is parsed from its real repository-wrapper protobuf
