@@ -1,11 +1,11 @@
-# Moovio v1.10.0 Functional Test Report
+# Moovio v1.10.4 Functional Test Report
 **Device**: OnePlus CPH2487 (OP5961L1), Android 16, 1240×2772 px, 560 dpi  
-**App version**: v1.10.0 (versionCode 19, package `com.moovio.app`)  
+**App version**: v1.10.4 (versionCode 23, package `com.moovio.app`)  
 **Network**: Wi‑Fi with no torrent tracker access  
 **Tested by**: AI agent with ADB/uiautomator / logcat  
 **Reference screenshots**: `C:\Users\speck\AppData\Local\Temp\opencode\moovio-test\shots\`
 
-## Status as of v1.10.3 (2026-10-24)
+## Status as of v1.10.4 (2026-10-24)
 
 - ✅ **P0 MediaRouteButton crash** — fixed in v1.10.1 (`ThemeOverlay.Moovio.CastButton` with opaque
   background + `ContextThemeWrapper`, `runCatching` fallback). Verified structurally via `aapt2`; device

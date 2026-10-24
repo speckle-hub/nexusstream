@@ -7,17 +7,16 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-24 (v1.10.3) — **source hygiene +
-> test-report P0/P1 fixes built and verified (compile + 309/309 unit tests).** `versionCode` 22 /
-> `versionName` 1.10.3; signed `dist/app-release.apk` + `dist/Moovio.apk` (43,963,421 bytes)
-> built locally, commit `3335a2d` on `main` (not yet published as a GitHub Release — build
-> artifacts only). **Aniyomi/Mihon extensions still do not execute** — runtime deferred per the
-> honest-UI decision (§2ba, item 5): extensions install/enable/update but the Add-on Manager and
-> empty states say plainly they are not executable, so no false "works" state is shipped.
-> Device/emulator not available in this environment, so the v1.10.1 device-pass fixes
-> (MediaRouteButton cast overlay, MangaDex NSFW chapter feed, torrent 20 s watchdog + Retry
-> dialog) and this session's source quarantine are verified by build + tests only; hardware
-> confirmation still outstanding (§7).
+> resume exactly where it left off. Last updated: 2026-10-24 (v1.10.4) — **source hygiene +
+> test-report P0/P1 fixes built and verified (compile + 309/309 unit tests).** `versionCode` 23 /
+> `versionName` 1.10.4; signed `dist/app-release.apk` + `dist/Moovio.apk` (43,963,421 bytes)
+> built locally (not yet published as a GitHub Release). **Aniyomi/Mihon extensions still do not
+> execute** — runtime deferred per the honest-UI decision (§2ba, item 5): extensions install/enable/
+> update but the Add-on Manager and empty states say plainly they are not executable, so no false
+> "works" state is shipped. Device/emulator not available in this environment, so the v1.10.1
+> device-pass fixes (MediaRouteButton cast overlay, MangaDex NSFW chapter feed, torrent 20 s
+> watchdog + Retry dialog) and this session's source quarantine are verified by build + tests only;
+> hardware confirmation still outstanding (§7).
 >
 > **Source hygiene pass (committed in 3335a2d):** Hard-failing adult sources removed from the active
 > registry (Jable, YouPorn, RedTube, SpankBang, TXXX, JavMost, OpJav, 7MMTV — all consistently
