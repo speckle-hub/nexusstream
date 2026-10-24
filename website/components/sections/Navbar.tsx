@@ -73,7 +73,7 @@ export function Navbar() {
               Moovio
             </span>
             <span className="eyebrow hidden rounded-full border border-rule bg-white/[0.04] px-2.5 py-1 text-[9px] text-muted sm:block">
-              v1.10.3
+              v1.10.4
             </span>
           </a>
 
