@@ -8,19 +8,22 @@
 ## Status as of v1.10.4 (2026-10-24)
 
 - ✅ **P0 MediaRouteButton crash** — fixed in v1.10.1 (`ThemeOverlay.Moovio.CastButton` with opaque
-  background + `ContextThemeWrapper`, `runCatching` fallback). Verified structurally via `aapt2`; device
-  confirmation outstanding (no hardware/emulator in this environment).
-- ✅ **P0 MangaDex NSFW chapter feed** — fixed in v1.10.1 (`MangaDexQuery` + `feedAttempts`: NSFW feed
-  asks for suggestive+erotica+pornographic, never `safe`; SFW empty-feed retried once with NSFW set).
-  `MangaDexClient.chapters()` now uses `feedAttempts()`.
+  background + `ContextThemeWrapper`, `runCatching` fallback). Verified structurally via `aapt2`;
+  device confirmation outstanding (cast not exercised on test network).
+- ✅ **P0 MangaDex NSFW chapter feed** — fixed in v1.10.1 (`MangaDexQuery` + `feedAttempts`).
+  **Device-verified on OnePlus CPH2487/Android 16:** NSFW Manga chapter lists now populate (Mato
+  Seihei no Slave, Berserk, Isekai Meikyuu de Harem o, Harukaze no  stranger, re CERVIN, TS
+  Tensei shite). Fix confirmed on hardware.
 - ✅ **P1 Torrent "Preparing stream…" hang** — fixed in v1.10.1 (`TorrentWatchdog`, 20 s, cancels +
-  Retry dialog in `DetailScreen`). Unit-tested in `Patch1101Test`.
-- ⚠️ **P2 Add-on Manager default repos** — four repos now pre-seeded (Phisher98, CXXX 18+, Yuzoni,
-  Keiyoushi) via `AddonStore.Defaults.repos` + `ensureDefaultRepos()` (v1.10.2). Device verification
-  outstanding.
+  Retry dialog in `DetailScreen`). Unit-tested in `Patch1101Test`. Device verification outstanding
+  (no torrent tracker access on test network).
+- ✅ **P2 Add-on Manager default repos** — four repos pre-seeded (Phisher98, CXXX 18+, Yuzoni,
+  Keiyoushi). **Device-verified:** Yuzono and Keiyoushi repos visible and browsable in Add-on
+  Manager tabs; "Show NSFW extensions" switch present.
 - ⚠️ **Aniyomi/Mihon extension runtime** — deferred. Extensions install/enable/update but do not
-  execute (§2ba). Honesty UI in place; no false "works" state. Toolchain migration (AGP ≥ 8.9,
-  compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) left for a future pass.
+  execute (§2ba). **Device-verified honesty UI:** "Installed but not yet executable" banner shows on
+  both Aniyomi and Mihon tabs, plus in the Manga screen empty state. No false "works" state shipped.
+  Toolchain migration (AGP ≥ 8.9, compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) left for a future pass.
 
 Source hygiene (roadmap items 1–2) committed in 3335a2d: dead adult/NSFW-anime hosts retired, never-probed
 sources flagged `experimental` and quarantined off by default, verified/partial sources kept with
@@ -109,7 +112,6 @@ These are **handled** (app doesn't die) but represent a **regression** — the e
 | **CloudStream** | ✅ 86 extensions load; provider installed (AllMovieLandProvider via Jackson shim fix) |
 | **NSFW Hub** | ✅ Private / NSFW Anime / NSFW Manga tabs open; filter chips (All/Pornhub/XVideos/XNXX/XNXX) work |
 | **Torrent streams** | ❌ Never connects on test network (trackers unreachable); player hangs at "Preparing stream…" indefinitely, no timeout/cancel |
-| **Clipboard overlay** | ⚠️ Sometimes swallows taps on Settings → Backup & Updates |
 | **Check for updates** | ⚠️ Not tested (user‑skipped) |
 | **Export backup (SAF picker)** | ⚠️ Not tested (user‑skipped) |
 
@@ -133,13 +135,16 @@ These are **handled** (app doesn't die) but represent a **regression** — the e
 |---|---|
 | **Build / launch** | ✅ Clean launch, 292/292 unit tests pass on CI |
 | **Unit test coverage** | ✅ 100% on CI |
-| **Critical bugs** | ⚠️ MediaRouteButton exception + MangaDex empty feed block two major flows |
+| **Critical bugs** | ✅ MangaDex empty-feed fixed and device-verified; MediaRouteButton structurally fixed (cast not device-tested) |
 | **Network‑dependent features** | ⚠️ Torrents non‑functional on test network (expected) |
-| **UI stability** | ⚠️ Player frame dispatch exception causes transient freeze |
+| **UI stability** | ⚠️ MediaRouteButton exception handled (app stays alive); cast not device-tested |
 | **Export / update flow** | ⚠️ Not tested — defer to post‑release QA |
 
-**Bottom line**: The app builds, launches, and most native flows work (browse, library, settings, NSFW browsing). Two P0 defects need fixing before a v1.10.1 release: the MangaDex `contentRating` query causing empty NSFW Manga chapters, and the MediaRouteButton crash in the player UI. The player itself works well for HTTP‑based streams when the Cast bug is avoided.
+**Bottom line**: The app builds, launches, and most native flows work (browse, library, settings,
+NSFW browsing). MangaDex NSFW chapter feed fixed and verified on device. MediaRouteButton cast fix
+structurally verified but not exercised on device. Torrent watchdog in place but unverifiable without
+tracker access. Honesty UI for Aniyomi/Mihon extensions confirmed on device.
 
 ---
 
-*Report generated Thu Oct 22 2026 via OpenCode / uiautomator / logcat.*
+*Report generated Sat Oct 24 2026 via OpenCode / uiautomator / logcat — device pass completed on OnePlus CPH2487 (Android 16).*

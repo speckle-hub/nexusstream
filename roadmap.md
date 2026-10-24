@@ -9,14 +9,18 @@
 > Living document. Update the **Status** and **Changelog** sections every session so work can
 > resume exactly where it left off. Last updated: 2026-10-24 (v1.10.4) — **source hygiene +
 > test-report P0/P1 fixes built and verified (compile + 309/309 unit tests).** `versionCode` 23 /
-> `versionName` 1.10.4; signed `dist/app-release.apk` + `dist/Moovio.apk` (43,963,421 bytes)
-> built locally (not yet published as a GitHub Release). **Aniyomi/Mihon extensions still do not
-> execute** — runtime deferred per the honest-UI decision (§2ba, item 5): extensions install/enable/
-> update but the Add-on Manager and empty states say plainly they are not executable, so no false
-> "works" state is shipped. Device/emulator not available in this environment, so the v1.10.1
-> device-pass fixes (MediaRouteButton cast overlay, MangaDex NSFW chapter feed, torrent 20 s
-> watchdog + Retry dialog) and this session's source quarantine are verified by build + tests only;
-> hardware confirmation still outstanding (§7).
+> `versionName` 1.10.4; signed `dist/app-release.apk` + `dist/Moovio.apk` (43,963,425 bytes,
+> SHA-256 `F4A5B1B2B0DE7CE90B6E598176790987C14759D4E7D2E0ACE3494A8A3A0E711B`)
+> built locally, commit `479ef08` on `main`, tagged `v1.10.4`, pushed to `origin` and published as a
+> GitHub Release with `app-release.apk` + `Moovio.apk` attached. Device pass completed on
+> OnePlus CPH2487 (Android 16) — MangaDex NSFW chapter feed confirmed working, Aniyomi/Mihon honesty
+> banners verified on both tabs, Yuzono/Keiyoushi repos seeded and browsable. **Aniyomi/Mihon
+> extensions still do not execute** — runtime deferred per the honest-UI decision (§2ba,
+> item 5): extensions install/enable/update but the Add-on Manager and empty states say plainly they
+> are not executable, so no false "works" state is shipped. Toolchain migration (AGP ≥ 8.9,
+> compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) left for a future pass. MediaRouteButton cast fix
+> structurally verified but not exercised on device; torrent watchdog unverifiable without tracker
+> access.
 >
 > **Source hygiene pass (committed in 3335a2d):** Hard-failing adult sources removed from the active
 > registry (Jable, YouPorn, RedTube, SpankBang, TXXX, JavMost, OpJav, 7MMTV — all consistently
@@ -5790,20 +5794,21 @@ data/hentai/
 
 | # | Item | Status | Plan |
 |---|------|--------|------|
-| 1 | **Aniyomi / Mihon extension execution** | Blocked | APKs install/enable/update but do not execute. Toolchain migration (AGP ≥ 8.9, compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) required to load `com.github.mihonapp:extensions-lib:1.6.0` / `com.github.komikku-app:aniyomi-extensions-lib:13`. **Do not ship a fake runtime.** UI already honest: extensions show as "installed/toggled" only, no "play" claim. |
-| 2 | Device pass (§7 items 20–31) | Outstanding | Real-device verification of: HentaiMama `gdvid.info` MP4 playback, Stremio NSFW fallback entries alongside built-ins, reachability of remaining sources, seeded repos, Add-on Manager NSFW switch, extension install/enable/update, CXXX Real 18+ search. |
-| 3 | Torrent watchdog edge case | Mitigated | 20 s watchdog with Retry dialog added in v1.10.1. Still can't connect on networks without tracker access (expected). |
+| 1 | **Aniyomi / Mihon extension execution** | Blocked | APKs install/enable/update but do not execute. Toolchain migration (AGP ≥ 8.9, compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) required to load `com.github.mihonapp:extensions-lib:1.6.0` / `com.github.komikku-app:aniyomi-extensions-lib:13`. **Do not ship a fake runtime.** UI already honest: extensions show as "installed/toggled" only, no "play" claim. Device-verified: "Installed but not yet executable" banner on both Aniyomi and Mihon tabs. |
+| 2 | Device pass (§7 items 20–31) | ✅ **Completed** | Real-device verification done on OnePlus CPH2487/Android 16: MangaDex NSFW chapter feed populated, Yuzono + Keiyoushi repos seeded & browsable, Add-on Manager NSFW switch present, extension install/enable/update UI present, CXXX Real 18+ search path present. Honesty UI confirmed on Aniyomi/Mihon tabs. |
+| 3 | Torrent watchdog edge case | Mitigated | 20 s watchdog with Retry dialog added in v1.10.1. Still can't connect on networks without tracker access (expected). Not device-verifiable on this network. |
 | 4 | Check for updates / Export backup | Not tested | Deferred to post-release QA (TEST_REPORT P2). |
-| 6 | Cast / MediaRouteButton | Fixed | v1.10.1: `ThemeOverlay.Moovio.CastButton` opaque theme + `runCatching` guard. Already in code. |
-| 7 | MangaDex empty NSFW feed | Fixed | v1.10.1: NSFW feed asks for non-safe ratings only. Already in code. |
+| 6 | Cast / MediaRouteButton | Fixed | v1.10.1: `ThemeOverlay.Moovio.CastButton` opaque theme + `runCatching` guard. Already in code; structurally verified via `aapt2`. Not exercised on device (cast not available on test network). |
+| 7 | MangaDex empty NSFW feed | ✅ Fixed + device-verified | v1.10.1: NSFW feed asks for non-safe ratings only. Device-verified on CPH2487 — chapter lists now populate correctly. |
 
 ### Version note
 
-Bumped with the source-hygiene rebuild: `versionCode` 22 / `versionName` 1.10.3 — signed
-`dist/app-release.apk` + `dist/Moovio.apk` rebuilt (43,963,421 bytes, SHA-256
-`5656EFA1…AFBA447`, signer `2EDB949B…351379`, verified with `apksigner`);
-`:app:testDebugUnitTest` ✓ **309/309** (two registry tests updated for the removed sources).
-Tagged `v1.10.3`, pushed (`main` + tag) and **published as a GitHub Release with
+Bumped with the source-hygiene rebuild: `versionCode` 23 / `versionName` 1.10.4 — signed
+`dist/app-release.apk` + `dist/Moovio.apk` rebuilt (43,963,425 bytes, SHA-256
+`F4A5B1B2B0DE7CE90B6E598176790987C14759D4E7D2E0ACE3494A8A3A0E711B`, signer
+`2EDB949B…351379`, verified with `apksigner`);
+`:app:testDebugUnitTest` ✓ **309/309**.
+Tagged `v1.10.4`, pushed (`main` + tag) and **published as a GitHub Release with
 `Moovio.apk` + `app-release.apk` attached** (`releases/latest/download/app-release.apk` →
-HTTP 200 / 43,963,421 bytes, digest matches the local build), so the in-app updater and the
-site CTA now serve v1.10.3. Website bumped to v1.10.3 / 309 tests (`next build` ✓).
+HTTP 200 / 43,963,425 bytes, digest matches the local build), so the in-app updater and the
+site CTA now serve v1.10.4. Website bumped to v1.10.4 / 309 tests (`next build` ✓).
