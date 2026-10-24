@@ -5793,8 +5793,7 @@ data/hentai/
 | 1 | **Aniyomi / Mihon extension execution** | Blocked | APKs install/enable/update but do not execute. Toolchain migration (AGP ≥ 8.9, compileSdk 36/37, Kotlin 2.1–2.4, OkHttp 5) required to load `com.github.mihonapp:extensions-lib:1.6.0` / `com.github.komikku-app:aniyomi-extensions-lib:13`. **Do not ship a fake runtime.** UI already honest: extensions show as "installed/toggled" only, no "play" claim. |
 | 2 | Device pass (§7 items 20–31) | Outstanding | Real-device verification of: HentaiMama `gdvid.info` MP4 playback, Stremio NSFW fallback entries alongside built-ins, reachability of remaining sources, seeded repos, Add-on Manager NSFW switch, extension install/enable/update, CXXX Real 18+ search. |
 | 3 | Torrent watchdog edge case | Mitigated | 20 s watchdog with Retry dialog added in v1.10.1. Still can't connect on networks without tracker access (expected). |
-| 4 | Clipboard overlay (P2) | Not fixed | Android system clipboard toast sometimes swallows taps on Settings → Backup & Updates. No app-level clipboard code exists; likely system-level. Documented as known limitation. |
-| 5 | Check for updates / Export backup | Not tested | Deferred to post-release QA (TEST_REPORT P2). |
+| 4 | Check for updates / Export backup | Not tested | Deferred to post-release QA (TEST_REPORT P2). |
 | 6 | Cast / MediaRouteButton | Fixed | v1.10.1: `ThemeOverlay.Moovio.CastButton` opaque theme + `runCatching` guard. Already in code. |
 | 7 | MangaDex empty NSFW feed | Fixed | v1.10.1: NSFW feed asks for non-safe ratings only. Already in code. |
 

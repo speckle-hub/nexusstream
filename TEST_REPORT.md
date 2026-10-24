@@ -15,9 +15,6 @@
   `MangaDexClient.chapters()` now uses `feedAttempts()`.
 - ✅ **P1 Torrent "Preparing stream…" hang** — fixed in v1.10.1 (`TorrentWatchdog`, 20 s, cancels +
   Retry dialog in `DetailScreen`). Unit-tested in `Patch1101Test`.
-- ⚠️ **P2 Clipboard overlay on Settings → Backup & Updates** — no app-side clipboard code exists; the
-  overlay is Android system behavior. Could not be reproduced or fixed without a device; left as a
-  device-pass item.
 - ⚠️ **P2 Add-on Manager default repos** — four repos now pre-seeded (Phisher98, CXXX 18+, Yuzoni,
   Keiyoushi) via `AddonStore.Defaults.repos` + `ensureDefaultRepos()` (v1.10.2). Device verification
   outstanding.
@@ -126,7 +123,6 @@ These are **handled** (app doesn't die) but represent a **regression** — the e
 | **P0** | `PlayerActivity.kt` / `PlayerScreen.kt` | Fix MediaRouteButton construction: supply a non‑translucent background color, or guard the `AndroidView` factory with a try/catch that prevents the exception from propagating to the frame dispatcher |
 | **P1** | `TorrentStreamer.kt` | Add watchdog timeout + auto‑dismiss / user‑facing cancel so a hanging torrent stream doesn't block the UI indefinitely |
 | **P1** | `CatalogRepository.kt:140‑149` | Verify NSFW anime fetchers (JikanClient.nsfwTop()) don't silently return empty; add fallback or retry |
-| **P2** | Settings / Backup & Updates | Investigate clipboard overlay interference; add `android:windowIsFloating` or input method gating if taps are being swallowed |
 | **P2** | Add‑on Manager default repos | `Defaults.repos` not auto‑seeded; add default CloudStream/Aniyomi repos on first launch or document manual addition requirement |
 
 ---
