@@ -62,6 +62,12 @@ class MoovioApp : Application(), ImageLoaderFactory {
         collectSafely(container.settings.customReferer) { Http.customReferer = it }
         collectSafely(container.settings.customCookie) { Http.customCookie = it }
         collectSafely(container.settings.incognito) { LibraryStore.incognito = it }
+        // Source hygiene: mirror the experimental-source quarantine into the registries so
+        // every engine path (home/search/categories/episodes) sees the same flag from boot.
+        collectSafely(container.settings.showExperimentalSources) {
+            com.moovio.app.data.adult.AdultSources.includeExperimental = it
+            com.moovio.app.data.hentai.HentaiSources.includeExperimental = it
+        }
         // Seed default add-ons on first launch. Best-effort, but retried once so a cold boot on a
         // flaky connection still ends up with working defaults instead of an empty Add-on Manager.
         appScope.launch {

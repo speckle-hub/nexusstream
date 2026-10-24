@@ -203,6 +203,10 @@ private fun NsfwHubHeader(
 private fun NsfwContent(nav: NavHostController) {
     val vm = moovioViewModel { NsfwViewModel(it) }
     val moovio = LocalMoovioColors.current
+    val container = LocalContainer.current
+    // Source hygiene: quarantine state drives which chips exist (experimental sources are
+    // simply not offered — and not queried — until this is on).
+    val showExperimental by container.settings.showExperimentalSources.collectAsStateSafe()
     // Saved, not just remembered: opening a detail page disposes this destination, and coming
     // back used to reset the sub-tab to 0 (NSFW Anime) — losing the Real 18+ position.
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -213,9 +217,17 @@ private fun NsfwContent(nav: NavHostController) {
     var animeQuery by rememberSaveable { mutableStateOf("") }
     var mangaQuery by rememberSaveable { mutableStateOf("") }
     var realQuery by rememberSaveable { mutableStateOf("") }
-    // Phase 36: Real 18+ source filter ("All" + one chip per built-in source).
+    // Phase 36: Real 18+ source filter ("All" + one chip per active built-in source).
+    // Experimental sources only appear once opted in, and their chips are labelled as such.
     var realSource by rememberSaveable { mutableStateOf<String?>(null) }
-    val realSourceOptions = remember { AdultSources.all.map { it.id to it.name } }
+    val realSourceOptions = remember(showExperimental) {
+        AdultSources.active.map { it.id to it.displayLabel }
+    }
+    // Quarantining a source that currently has the filter applied must clear the filter,
+    // otherwise the grid would stay filtered to a chip that no longer exists (empty forever).
+    LaunchedEffect(realSourceOptions) {
+        if (realSource != null && realSourceOptions.none { it.first == realSource }) realSource = null
+    }
     // Index 0 is the Private dashboard (isolated history + tools); the browse sections shift by one.
     val titles = listOf("Private", "NSFW Anime", "NSFW Manga", "Real 18+")
 
@@ -299,6 +311,7 @@ private fun NsfwPrivateTab(
     val bookmarks by vm.nsfwFavorites.collectAsStateSafe()
     val globalSearch by container.settings.nsfwGlobalSearch.collectAsStateSafe()
     val autoNsfw by container.settings.autoNsfwFromAddons.collectAsStateSafe()
+    val showExperimental by container.settings.showExperimentalSources.collectAsStateSafe()
 
     var confirmClearHistory by rememberSaveable { mutableStateOf(false) }
     var confirmClearBookmarks by rememberSaveable { mutableStateOf(false) }
@@ -371,6 +384,8 @@ private fun NsfwPrivateTab(
                 onGlobalSearch = { scope.launch { container.settings.setNsfwGlobalSearch(it) } },
                 autoNsfw = autoNsfw,
                 onAutoNsfw = { scope.launch { container.settings.setAutoNsfwFromAddons(it) } },
+                showExperimental = showExperimental,
+                onShowExperimental = { vm.setShowExperimental(it) },
                 historyCount = watching.size + reading.size,
                 bookmarksCount = bookmarks.size,
                 onClearHistory = { confirmClearHistory = true },
@@ -628,6 +643,8 @@ private fun NsfwManageCard(
     onGlobalSearch: (Boolean) -> Unit,
     autoNsfw: Boolean,
     onAutoNsfw: (Boolean) -> Unit,
+    showExperimental: Boolean,
+    onShowExperimental: (Boolean) -> Unit,
     historyCount: Int,
     bookmarksCount: Int,
     onClearHistory: () -> Unit,
@@ -682,6 +699,27 @@ private fun NsfwManageCard(
                 }
                 Spacer(Modifier.size(8.dp))
                 MoovioSwitch(checked = autoNsfw, onCheckedChange = onAutoNsfw)
+            }
+            // Source hygiene: experimental sources are never probed live, so they stay
+            // quarantined (unlisted and unqueried) until the user explicitly opts in.
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Show experimental sources",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = moovio.textPrimary,
+                    )
+                    Text(
+                        "Unverified sources that were never probed live — expect failures. Off keeps Real 18+ and NSFW Anime on sources proven to work.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = moovio.textTertiary,
+                    )
+                }
+                Spacer(Modifier.size(8.dp))
+                MoovioSwitch(checked = showExperimental, onCheckedChange = onShowExperimental)
             }
             Spacer(Modifier.height(8.dp))
             Button(

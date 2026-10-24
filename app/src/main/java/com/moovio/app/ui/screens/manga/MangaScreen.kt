@@ -92,6 +92,15 @@ fun MangaScreen(nav: NavHostController, embedded: Boolean = false) {
         if (installed.isNotEmpty()) {
             item {
                 SectionHeader("Installed Manga Sources")
+                // Honesty (§2ba): these APKs are installed but have no runtime yet — the rail
+                // must not read as "these are where the rows below come from".
+                Text(
+                    "Installed but not yet executable — reading from these extensions is not available yet. The rows below come from MangaDex and your add-ons.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = moovio.textTertiary,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                Spacer(Modifier.height(6.dp))
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -116,9 +125,17 @@ fun MangaScreen(nav: NavHostController, embedded: Boolean = false) {
 
         if (loading && rows.isEmpty()) items(4) { LoadingRow() }
         if (!loading && rows.isEmpty()) item {
+            // If Mihon/Aniyomi extensions are installed, say explicitly why they can't fill
+            // this list — otherwise "No manga found" implies they should have.
+            val extHint = if (installed.isNotEmpty()) {
+                "Check your connection and try again. Installed Mihon/Aniyomi extensions are " +
+                    "not executable yet and cannot provide chapters."
+            } else {
+                "Check your connection and try again."
+            }
             EmptyState(
                 "No manga found",
-                "Check your connection and try again.",
+                extHint,
                 actionLabel = "Retry",
                 onAction = { vm.refresh() },
             )

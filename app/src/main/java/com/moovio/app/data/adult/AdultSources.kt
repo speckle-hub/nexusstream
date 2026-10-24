@@ -32,6 +32,22 @@ object AdultSources {
 
     val all: List<AdultSource> = verified + experimental
 
+    /**
+     * Hygiene quarantine: when false (the default), [active] excludes the never-probed
+     * [experimental] sources so unverified sites are not presented as working ones.
+     *
+     * Written synchronously by the NSFW ViewModel on toggle (so the very next row refresh sees
+     * the new set) and kept in sync app-wide by the collector in `MoovioApp.onCreate`.
+     * Resolution paths ([byId], [isBuiltIn]) always see every registered source, so cached or
+     * deep-linked items from an experimental source still resolve while quarantined.
+     */
+    @Volatile
+    var includeExperimental: Boolean = false
+
+    /** The sources home/search/categories actually query, honouring the quarantine. */
+    val active: List<AdultSource>
+        get() = if (includeExperimental) all else verified
+
     /** Sources removed from the active registry because they consistently fail:
      *  Jable (Cloudflare 403), YouPorn (broken stub), RedTube (blocked/timeout),
      *  SpankBang (Cloudflare 403), TXXX (unreachable), JavMost (blocked),

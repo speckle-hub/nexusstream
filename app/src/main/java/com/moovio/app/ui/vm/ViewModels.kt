@@ -375,6 +375,18 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
 
     init { refresh() }
 
+    /**
+     * Source hygiene: toggle the experimental-source quarantine. The registry flags are flipped
+     * **synchronously** (before the settings write returns) so the [refresh] below — and any later
+     * episode/stream lookup — queries the new source set; the preference is then persisted.
+     */
+    fun setShowExperimental(v: Boolean) {
+        com.moovio.app.data.adult.AdultSources.includeExperimental = v
+        com.moovio.app.data.hentai.HentaiSources.includeExperimental = v
+        viewModelScope.launch { container.settings.setShowExperimentalSources(v) }
+        refresh()
+    }
+
     fun refresh() {
         viewModelScope.launch {
             loading.value = true
@@ -1079,7 +1091,8 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
             busy.value = true
             container.mangaExtensionRepository.install(ext)
                 .onSuccess {
-                    message.value = "Installed ${it.name}"
+                    // Honest confirmation: install works, execution does not (§2ba).
+                    message.value = "Installed ${it.name} — not executable yet (no runtime)"
                     recomputeMangaUpdates()
                 }
                 .onFailure { message.value = "Install failed: ${it.message}" }

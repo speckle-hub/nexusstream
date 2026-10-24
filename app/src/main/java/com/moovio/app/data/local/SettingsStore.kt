@@ -42,6 +42,8 @@ class SettingsStore(private val context: Context) {
         // never consulted by the general Search screen or the Home feed.
         val NSFW_GLOBAL_SEARCH = booleanPreferencesKey("nsfw_global_search")
         val SHOW_NSFW_EXTENSIONS = booleanPreferencesKey("show_nsfw_extensions")
+        // Source hygiene: list/query never-probed "experimental" sources (off = quarantined).
+        val SHOW_EXPERIMENTAL_SOURCES = booleanPreferencesKey("show_experimental_sources")
         val CACHE_META = booleanPreferencesKey("cache_meta")
         val LAST_TAB = intPreferencesKey("last_tab")
         // Bumped whenever the bottom-bar tab list changes shape. The persisted tab is stored as an
@@ -149,6 +151,12 @@ class SettingsStore(private val context: Context) {
 
     /** Add-on Manager: list `nsfw = 1` extensions (off by default, so the manager stays SFW). */
     val showNsfwExtensions: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_NSFW_EXTENSIONS] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
+
+    /**
+     * Source hygiene: query never-probed "experimental" Real 18+ / NSFW-anime sources.
+     * Off by default — quarantined sources are not queried and not listed until opted in.
+     */
+    val showExperimentalSources: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_EXPERIMENTAL_SOURCES] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val cacheMeta: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.CACHE_META] ?: true }.stateIn(scope, SharingStarted.WhileSubscribed(5000), true)
     val lastTab: StateFlow<Int> = context.dataStore.data.map { it[Keys.LAST_TAB] ?: 0 }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 0)
 
@@ -239,6 +247,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setAutoNsfwFromAddons(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_NSFW_FROM_ADDONS] = v }
     suspend fun setNsfwGlobalSearch(v: Boolean) = context.dataStore.edit { it[Keys.NSFW_GLOBAL_SEARCH] = v }
     suspend fun setShowNsfwExtensions(v: Boolean) = context.dataStore.edit { it[Keys.SHOW_NSFW_EXTENSIONS] = v }
+    suspend fun setShowExperimentalSources(v: Boolean) = context.dataStore.edit { it[Keys.SHOW_EXPERIMENTAL_SOURCES] = v }
     suspend fun setCacheMeta(v: Boolean) = context.dataStore.edit { it[Keys.CACHE_META] = v }
     suspend fun setLastTab(v: Int) = context.dataStore.edit { it[Keys.LAST_TAB] = v }
 

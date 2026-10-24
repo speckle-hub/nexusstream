@@ -196,6 +196,29 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
     }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Honesty banner (§2ba): Aniyomi/Mihon APKs install, toggle and update — but the source
+        // runtime that would execute them does not exist yet. Never let the list imply otherwise.
+        if (kind == AddonKind.ANIYOMI || kind == AddonKind.KEIYOUSHI) {
+            item {
+                GlassSurface(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            "Installed but not yet executable",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = moovio.accent,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Playback/reading from these extensions is not available yet. " +
+                                "You can install, enable, update and remove them — they will not " +
+                                "provide streams or chapters until the extension runtime ships.",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = moovio.textTertiary,
+                        )
+                    }
+                }
+            }
+        }
         // No repositories are preinstalled — the user adds their own by URL.
         item {
             Column {
@@ -305,9 +328,18 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
                 }
             }
         }
-
         if (csInstalled.isNotEmpty() || mangaInstalled.isNotEmpty()) {
             item { Text("Installed", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
+            // Repeat the notice right at the installed list: this is where a user most expects
+            // the extensions to be ready to use.
+            if (mangaInstalled.isNotEmpty()) item {
+                Text(
+                    "Installed but not yet executable — playback/reading from these extensions is not available yet.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = moovio.textTertiary,
+                )
+            }
+
             items(csInstalled) { ext ->
                 InstalledRow(ext.name, ext.version, ext.language) { vm.uninstallCloudStream(ext.url) }
             }

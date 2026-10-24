@@ -24,6 +24,11 @@ interface AdultSource {
     val experimental: Boolean
         get() = false
 
+    /** Display label for chips/notices — marks never-probed sources so they're never
+     *  presented as verified ones. Only visible when the user opted into experimental sources. */
+    val displayLabel: String
+        get() = if (experimental) "$name (experimental)" else name
+
     /** Home rows: Popular / Trending / Latest / popular categories. */
     suspend fun home(): List<AdultRow>
 

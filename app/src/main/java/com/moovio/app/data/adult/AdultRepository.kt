@@ -108,7 +108,8 @@ object AdultRepository {
     suspend fun home(
         onUpdate: (suspend (rows: List<CatalogRow>, errors: List<String>) -> Unit)? = null,
     ): Home = coroutineScope {
-        val sources = AdultSources.all
+        // Quarantine-aware: experimental sources are only queried when the user opted in.
+        val sources = AdultSources.active
         val results = LinkedHashMap<String, SourceResult>()
         val mutex = Mutex()
 
@@ -142,7 +143,7 @@ object AdultRepository {
                             // raceResult and never lands here, so a failure is a genuine
                             // source/timeout failure worth recording — never a cancelled load.
                             mirrorHealth.recordFailure(source.id)
-                            SourceResult(emptyList(), "${source.name}: ${it.message ?: "unavailable"}")
+                            SourceResult(emptyList(), "${source.displayLabel}: ${it.message ?: "unavailable"}")
                         },
                     )
                 storeSource(source.id, result)
@@ -211,7 +212,9 @@ object AdultRepository {
     ): Search = coroutineScope {
         val clean = query.trim()
         if (clean.length < MIN_QUERY_CHARS) return@coroutineScope Search(emptyList(), emptyList())
-        val cacheKey = clean.lowercase()
+        // Cache keyed per quarantine state: a result built while experimental sources were on
+        // must never be served after they're turned off (and vice versa).
+        val cacheKey = clean.lowercase() + if (AdultSources.includeExperimental) "|e" else ""
         cachedSearch(cacheKey)?.let {
             onUpdate(it.items, it.errors)
             return@coroutineScope it
@@ -221,7 +224,8 @@ object AdultRepository {
         val videos = ArrayList<MediaItem>()
         val errors = ArrayList<String>()
         val mutex = Mutex()
-        AdultSources.all.filterNot { mirrorHealth.isQuarantined(it.id) }.map { source ->
+        // Quarantine-aware: experimental sources are only queried when the user opted in.
+        AdultSources.active.filterNot { mirrorHealth.isQuarantined(it.id) }.map { source ->
             launch {
                 val result = searchOne(source, clean)
                 val partial = mutex.withLock {
@@ -229,7 +233,7 @@ object AdultRepository {
                         .onSuccess { found -> videos += found.map { it.toMediaItem(source.name) } }
                         .onFailure {
                             mirrorHealth.recordFailure(source.id)
-                            errors += "${source.name}: ${it.message ?: "unavailable"}"
+                            errors += "${source.displayLabel}: ${it.message ?: "unavailable"}"
                         }
                     if (result.isSuccess) mirrorHealth.recordSuccess(source.id)
                     rankSearch(videos.toList(), errors.toList(), tokens)
@@ -290,7 +294,8 @@ object AdultRepository {
     private const val RETRY_DELAY_MS = 300L
 
     suspend fun categories(): List<Pair<AdultSource, AdultCategory>> = coroutineScope {
-        AdultSources.all
+        // Quarantine-aware: experimental sources are only queried when the user opted in.
+        AdultSources.active
             .map { source ->
                 source to async {
                     runCatching {

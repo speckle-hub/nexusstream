@@ -28,6 +28,11 @@ interface HentaiSource {
     val experimental: Boolean
         get() = false
 
+    /** Display label for notices — marks never-probed sources so they're never
+     *  presented as verified ones. Only visible when the user opted into experimental sources. */
+    val displayLabel: String
+        get() = if (experimental) "$name (experimental)" else name
+
     /**
      * Episode-level results for [query], most relevant first.
      *

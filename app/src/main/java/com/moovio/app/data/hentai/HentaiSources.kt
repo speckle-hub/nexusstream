@@ -31,6 +31,18 @@ object HentaiSources {
 
     val all: List<HentaiSource> = verified + experimental
 
+    /**
+     * Hygiene quarantine, mirroring `AdultSources.includeExperimental`: when false (the default),
+     * [active] excludes the never-probed [experimental] sources. Episode/stream resolution keeps
+     * resolving quarantined sources by id ([byId]) so previously opened titles still work.
+     */
+    @Volatile
+    var includeExperimental: Boolean = false
+
+    /** The sources the NSFW-anime episode/stream lookups actually query, honouring the quarantine. */
+    val active: List<HentaiSource>
+        get() = if (includeExperimental) all else verified
+
     /** Sources removed from the active registry:
      *  Hanime (search API DNS-dead + JS-shell page), Hentaigasm (30 s timeouts).
      *  Their objects and parser tests remain should a host return. */

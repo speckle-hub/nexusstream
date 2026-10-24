@@ -80,13 +80,14 @@ object HentaiRepository {
             val remaining = TOTAL_BUDGET_MS - (System.currentTimeMillis() - start)
             if (remaining <= 0) break
             val tokens = adultQueryTokens(query)
+            // Quarantine-aware: experimental sources are only queried when the user opted in.
             val results = coroutineScope {
-                HentaiSources.all
+                HentaiSources.active
                     .map { source -> async { source to boundedSearch(source, query, remaining) } }
                     .awaitAll()
             }
             for ((source, result) in results) {
-                result.onFailure { errors += "${source.name}: ${it.message ?: "unavailable"}" }
+                result.onFailure { errors += "${source.displayLabel}: ${it.message ?: "unavailable"}" }
             }
             val hits = results.filter { it.second.isSuccess }.flatMap { it.second.getOrDefault(emptyList()) }
             if (hits.isEmpty()) continue
@@ -145,7 +146,7 @@ object HentaiRepository {
             withTimeout(STREAM_TIMEOUT_MS) { AdultHttp.verifyPlayable(raw) }
         }.getOrDefault(raw)
         val errors = result.exceptionOrNull()
-            ?.let { listOf("${source.name}: ${it.message ?: "unavailable"}") }
+            ?.let { listOf("${source.displayLabel}: ${it.message ?: "unavailable"}") }
             .orEmpty()
         val out = HentaiStreams(verified, errors)
         if (verified.isNotEmpty() || errors.isEmpty()) storeStreams(episode.url, out)
