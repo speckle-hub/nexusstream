@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Github, Menu, X } from "lucide-react";
-import { APK_URL, GITHUB_URL, cn } from "@/lib/utils";
+import { Download, Github, Menu, X, Monitor, FileText } from "lucide-react";
+import Link from "next/link";
+import {
+  DESKTOP_ZIP_URL,
+  DESKTOP_MSI_URL,
+  APK_URL,
+  GITHUB_URL,
+  cn,
+} from "@/lib/utils";
 import { LogoMark } from "./LogoMark";
+import { Button } from "@/components/ui/button";
 
 const links = [
-  { label: "Ecosystem", href: "#ecosystem" },
   { label: "Features", href: "#features" },
   { label: "Showcase", href: "#showcase" },
   { label: "FAQ", href: "#faq" },
@@ -56,14 +63,14 @@ export function Navbar() {
     <header className="fixed inset-x-0 top-0 z-50">
       <div
         className={cn(
-          "transition-[background-color,border-color] duration-300 ease-[var(--ease-smooth-out)]",
+          "transition-[background-color,border-color] duration-300 ease-out",
           scrolled
             ? "material-void border-b border-rule-soft"
             : "border-b border-transparent bg-transparent",
         )}
       >
         <div className="mx-auto flex h-16 max-w-editorial items-center justify-between gap-6 px-5 sm:px-8">
-          <a
+          <Link
             href="#top"
             className="press flex shrink-0 items-center gap-2.5"
             aria-label="Moovio home"
@@ -73,13 +80,13 @@ export function Navbar() {
               Moovio
             </span>
             <span className="eyebrow hidden rounded-full border border-rule bg-white/[0.04] px-2.5 py-1 text-[9px] text-muted sm:block">
-              v1.10.4
+              v0.1.0 · Windows
             </span>
-          </a>
+          </Link>
 
           <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary">
             {links.map((l) => (
-              <a
+              <Link
                 key={l.href}
                 href={l.href}
                 className="press eyebrow group relative py-1 text-muted transition-colors hover:text-paper"
@@ -87,14 +94,14 @@ export function Navbar() {
                 {l.label}
                 <span
                   aria-hidden
-                  className="absolute -bottom-0.5 left-0 h-px w-0 bg-accent-soft transition-[width] duration-300 ease-[var(--ease-smooth-out)] group-hover:w-full"
+                  className="absolute -bottom-0.5 left-0 h-px w-0 bg-accent-soft transition-[width] duration-300 ease-out group-hover:w-full"
                 />
-              </a>
+              </Link>
             ))}
           </nav>
 
           <div className="flex items-center gap-3">
-            <a
+            <Link
               href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
@@ -102,15 +109,31 @@ export function Navbar() {
               className="press hidden h-9 w-9 items-center justify-center rounded-full border border-rule text-muted hover:border-paper/40 hover:text-paper sm:flex"
             >
               <Github className="h-4 w-4" />
-            </a>
+            </Link>
 
-            <a
-              href={APK_URL}
-              className="press hidden items-center gap-2 rounded-full bg-paper px-5 py-2.5 text-[13px] font-semibold tracking-tight text-void hover:bg-white sm:inline-flex"
+            <Button
+              asChild
+              size="sm"
+              variant="default"
+              className="hidden sm:inline-flex items-center gap-2"
             >
-              <Download className="h-3.5 w-3.5" />
-              Download APK
-            </a>
+              <Link href={DESKTOP_MSI_URL}>
+                <Monitor className="h-3.5 w-3.5" />
+                Windows (MSI)
+              </Link>
+            </Button>
+
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              className="hidden sm:inline-flex items-center gap-2"
+            >
+              <Link href={DESKTOP_ZIP_URL}>
+                <FileText className="h-3.5 w-3.5" />
+                Portable ZIP
+              </Link>
+            </Button>
 
             <div className="relative lg:hidden">
               <button
@@ -125,30 +148,55 @@ export function Navbar() {
               {(open || closing) && (
                 <div
                   className={cn(
-                    "t-dropdown absolute right-0 top-full mt-3 w-60 origin-top-right overflow-hidden rounded-2xl border border-rule bg-void-raised p-1.5 shadow-card",
+                    "t-dropdown absolute right-0 top-full mt-3 w-64 origin-top-right overflow-hidden rounded-2xl border border-rule bg-void-raised p-1.5 shadow-card",
                     open && !closing && "is-open",
                     closing && "is-closing",
                   )}
                 >
                   {links.map((l) => (
-                    <a
+                    <Link
                       key={l.href}
                       href={l.href}
                       onClick={closeMenu}
                       className="press block rounded-xl px-4 py-3 text-sm font-medium text-muted hover:bg-white/[0.05] hover:text-paper"
                     >
                       {l.label}
-                    </a>
+                    </Link>
                   ))}
                   <div className="my-1.5 h-px bg-rule-soft" />
-                  <a
-                    href={APK_URL}
-                    onClick={closeMenu}
-                    className="press flex items-center gap-2 rounded-xl bg-paper px-4 py-3 text-sm font-semibold text-void"
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="default"
+                    className="w-full justify-start gap-2"
                   >
-                    <Download className="h-4 w-4" />
-                    Download APK
-                  </a>
+                    <Link href={DESKTOP_MSI_URL}>
+                      <Monitor className="h-4 w-4" />
+                      Windows (MSI)
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                  >
+                    <Link href={DESKTOP_ZIP_URL}>
+                      <FileText className="h-4 w-4" />
+                      Portable ZIP
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start gap-2 mt-2"
+                  >
+                    <Link href={APK_URL}>
+                      <Download className="h-4 w-4" />
+                      Android APK
+                    </Link>
+                  </Button>
                 </div>
               )}
             </div>

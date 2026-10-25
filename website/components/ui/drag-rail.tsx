@@ -276,7 +276,7 @@ export function DragRail({
           onClick={() => nudge(-1)}
           disabled={atStart}
           aria-label={`Scroll ${label} backwards`}
-          className="press flex h-11 w-11 items-center justify-center rounded-full border border-ink/20 text-ink transition-colors hover:border-ink hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-25"
+          className="press flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-paper transition-colors hover:border-accent hover:bg-accent hover:text-paper disabled:pointer-events-none disabled:opacity-25"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -285,15 +285,15 @@ export function DragRail({
           onClick={() => nudge(1)}
           disabled={atEnd}
           aria-label={`Scroll ${label} forwards`}
-          className="press flex h-11 w-11 items-center justify-center rounded-full border border-ink/20 text-ink transition-colors hover:border-ink hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-25"
+          className="press flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-paper transition-colors hover:border-accent hover:bg-accent hover:text-paper disabled:pointer-events-none disabled:opacity-25"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
 
         <div className="ml-3 flex-1">
-          <div className="relative h-px w-full max-w-[220px] bg-rule">
+          <div className="relative h-px w-full max-w-[220px] bg-white/10">
             <div
-              className="absolute inset-y-0 left-0 bg-ink transition-[width] duration-300 ease-[var(--ease-smooth-out)]"
+              className="absolute inset-y-0 left-0 bg-accent transition-[width] duration-300 ease-out"
               style={{
                 width: `${
                   cards <= 0
@@ -305,7 +305,7 @@ export function DragRail({
           </div>
         </div>
 
-        <span className="eyebrow hidden text-[10px] text-ash sm:block">
+        <span className="eyebrow hidden text-[10px] text-muted sm:block">
           Drag
         </span>
       </div>

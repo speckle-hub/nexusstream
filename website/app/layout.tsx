@@ -1,21 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter_Tight, Instrument_Serif } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-/* One grotesk carries UI and display; a high-contrast serif is held
-   back for editorial moments only (headlines set at 36px and up). */
-const sans = Inter_Tight({
+const sans = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
-  display: "swap",
-});
-
-const serif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-serif",
   display: "swap",
 });
 
@@ -25,29 +15,29 @@ export const metadata: Metadata = {
   ),
   title: "Moovio — Every stream. One app.",
   description:
-    "Moovio unifies Stremio add-ons, CloudStream extensions, Aniyomi and Mihon repos into one beautiful Android app — movies, TV, anime and manga, with a player and reader that feel purpose-built.",
+    "Moovio Desktop for Windows — a premium native streaming client built with Kotlin + Compose Multiplatform and libmpv. Stremio add-ons, Cinemeta & AniList metadata, PIN-gated NSFW area, local library, and MSI/portable downloads.",
   keywords: [
-    "Android",
+    "Windows",
+    "desktop",
     "streaming",
     "Stremio",
-    "CloudStream",
-    "Aniyomi",
-    "Mihon",
-    "MangaDex",
-    "open source",
+    "Compose Multiplatform",
+    "libmpv",
+    "Moovio",
+    "media player",
   ],
   openGraph: {
-    title: "Moovio — Every stream. One app.",
+    title: "Moovio Desktop — Every stream. One app.",
     description:
-      "One beautiful Android app for movies, TV, anime and manga. Free and open source.",
+      "Premium Windows desktop streaming client. Native Compose Multiplatform UI, libmpv playback, Stremio add-ons, and cinematic dark design.",
     type: "website",
     siteName: "Moovio",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Moovio — Every stream. One app.",
+    title: "Moovio Desktop — Every stream. One app.",
     description:
-      "One beautiful Android app for movies, TV, anime and manga. Free and open source.",
+      "Premium Windows desktop streaming client. Native Compose Multiplatform UI, libmpv playback, Stremio add-ons, and cinematic dark design.",
   },
   robots: { index: true, follow: true },
 };
@@ -63,7 +53,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${sans.variable} ${serif.variable} font-sans antialiased`}>
+      <body className={`${sans.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

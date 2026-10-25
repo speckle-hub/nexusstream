@@ -2,10 +2,10 @@ import { PopNumber } from "../ui/pop-number";
 import { Stagger } from "../ui/reveal";
 
 const stats = [
-  { value: "309", label: "Unit tests", note: "all green" },
-  { value: "4", label: "Ecosystems", note: "Stremio · CloudStream · Aniyomi · Mihon" },
-  { value: "25k", label: "Lines of Kotlin", note: "no wrapper, no WebView" },
-  { value: "2X", label: "Hold-for-2X", note: "player speed, on a press" },
+  { value: "0.1.0", label: "Desktop version", note: "Windows release" },
+  { value: "180", label: "MB", note: "ZIP / MSI installer" },
+  { value: "24+", label: "Tests", note: "all green" },
+  { value: "0", label: "Electron", note: "pure native Compose" },
 ];
 
 export function Stats() {
@@ -31,12 +31,18 @@ export function Stats() {
             >
               <dt className="eyebrow order-2 mt-5 text-muted">{s.label}</dt>
               <dd
-                className="tabular order-1 font-sans font-bold text-paper"
-                style={{ fontSize: "clamp(2.75rem, 6vw, 5rem)", lineHeight: 0.9, letterSpacing: "-0.05em" }}
+                className="tabular order-1 font-display font-bold text-paper"
+                style={{
+                  fontSize: "clamp(3rem, 7vw, 5.5rem)",
+                  lineHeight: 0.9,
+                  letterSpacing: "-0.05em",
+                }}
               >
                 <PopNumber value={s.value} />
               </dd>
-              <dd className="order-3 mt-2 text-[13px] leading-relaxed text-faint">{s.note}</dd>
+              <dd className="order-3 mt-2 text-[13px] leading-relaxed text-faint">
+                {s.note}
+              </dd>
             </div>
           ))}
         </dl>
