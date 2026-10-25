@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "com.moovio"
-version = "1.0.0"
+version = "0.1.1"
 
 kotlin {
     jvmToolchain(21)
@@ -126,7 +126,7 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             appResourcesRootDir.set(layout.projectDirectory.dir("packaging"))
             packageName = "Moovio"
-            packageVersion = "1.0.0"
+            packageVersion = "0.1.1"
             description = "Moovio — premium desktop streaming client"
             vendor = "Moovio"
             // JDK modules used indirectly (java.net.http, JNA, Skia/JCEF bindings).
