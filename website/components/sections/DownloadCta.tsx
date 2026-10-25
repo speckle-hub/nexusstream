@@ -44,7 +44,7 @@ export function DownloadCta() {
             <p key="deck" className="mt-8 max-w-xl text-[17px] leading-relaxed text-muted md:text-[20px]">
               Choose the MSI installer for a proper Windows install with
               Start Menu entry, or the portable ZIP to run Moovio.exe from
-              anywhere. Both include libmpv and are signed for v0.1.0.
+              anywhere. Both include libmpv and are signed for v0.1.1.
             </p>,
             <div key="ctas" className="mt-12 flex flex-wrap items-center gap-4">
               <Link

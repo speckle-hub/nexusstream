@@ -80,7 +80,7 @@ export function Navbar() {
               Moovio
             </span>
             <span className="eyebrow hidden rounded-full border border-rule bg-white/[0.04] px-2.5 py-1 text-[9px] text-muted sm:block">
-              v0.1.0 · Windows
+              v0.1.1 · Windows
             </span>
           </Link>
 
@@ -114,8 +114,7 @@ export function Navbar() {
             <Button
               asChild
               size="sm"
-              variant="default"
-              className="hidden sm:inline-flex items-center gap-2"
+              className="hidden sm:inline-flex items-center gap-2 bg-[#7C5CFF] text-white hover:bg-[#6a4cd9] shadow-glow-accent"
             >
               <Link href={DESKTOP_MSI_URL}>
                 <Monitor className="h-3.5 w-3.5" />
@@ -167,8 +166,7 @@ export function Navbar() {
                   <Button
                     asChild
                     size="sm"
-                    variant="default"
-                    className="w-full justify-start gap-2"
+                    className="w-full justify-start gap-2 bg-[#7C5CFF] text-white hover:bg-[#6a4cd9] shadow-glow-accent"
                   >
                     <Link href={DESKTOP_MSI_URL}>
                       <Monitor className="h-4 w-4" />
