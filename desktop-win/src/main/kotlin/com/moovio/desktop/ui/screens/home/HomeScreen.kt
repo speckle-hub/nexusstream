@@ -71,7 +71,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) { viewModel.load() }
 
     val continueWatching = library.progress
-        .filter { !it.adult && !it.finished && it.positionMs > 15_000 }
+        .filter { !it.adult && it.inProgress }
         .sortedByDescending { it.updatedAt }
         .take(12)
 

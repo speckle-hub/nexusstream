@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -146,12 +147,21 @@ class LibraryStore(
 
     fun continueWatching(adult: Boolean = false): List<WatchProgress> =
         _state.value.progress
-            .filter { it.adult == adult && !it.finished && it.positionMs > 15_000 }
+            .filter { it.adult == adult && it.inProgress }
             .sortedByDescending { it.updatedAt }
 
     private fun persist() {
         val snapshot = _state.value
-        scope.launch { file.write(snapshot) }
+        // Best effort, like reads: a failed write must never crash playback or shut the app down.
+        scope.launch { runCatching { file.write(snapshot) } }
+    }
+
+    /**
+     * Blocking write used when the app is closing: the async scope may already be cancelled, and a
+     * final playback position must still reach disk before the process exits.
+     */
+    fun flush() {
+        runCatching { runBlocking { file.write(_state.value) } }
     }
 }
 

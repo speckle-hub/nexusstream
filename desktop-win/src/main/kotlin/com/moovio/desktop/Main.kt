@@ -23,7 +23,14 @@ fun main() {
             "data=${AppPaths.dataDir.absolutePath}; " +
             "libmpv=${MpvLibrary.locate(container.settings.current.mpvLibPath) ?: "NOT FOUND"}",
     )
-    Runtime.getRuntime().addShutdownHook(Thread { runCatching { container.dispose() } })
+    // The coroutine scope is cancelled as the app exits, so pending JSON writes can be lost.
+    // Flush watch progress synchronously on the way out instead.
+    Runtime.getRuntime().addShutdownHook(
+        Thread {
+            runCatching { container.library.flush() }
+            runCatching { container.dispose() }
+        },
+    )
 
     application {
         val windowState = rememberWindowState(
@@ -34,6 +41,7 @@ fun main() {
 
         Window(
             onCloseRequest = {
+                runCatching { container.library.flush() }
                 container.dispose()
                 exitApplication()
             },

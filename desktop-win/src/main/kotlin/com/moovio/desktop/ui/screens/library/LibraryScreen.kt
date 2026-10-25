@@ -74,7 +74,7 @@ fun LibraryScreen(
     var confirmClear by remember { mutableStateOf(false) }
 
     val favorites = library.favorites.filter { !it.adult }
-    val history = library.progress.filter { !it.adult && !it.finished && it.positionMs > 15_000 }
+    val history = library.progress.filter { !it.adult && it.inProgress }
         .sortedByDescending { it.updatedAt }
 
     Column(Modifier.fillMaxSize()) {

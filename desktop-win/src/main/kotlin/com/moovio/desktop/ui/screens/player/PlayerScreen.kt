@@ -82,10 +82,11 @@ import com.moovio.desktop.domain.StreamRanking
 import com.moovio.desktop.domain.model.MediaItem
 import com.moovio.desktop.domain.model.PlaybackRequest
 import com.moovio.desktop.domain.model.StreamSource
-import com.moovio.desktop.domain.model.WatchProgress
 import com.moovio.desktop.player.MpvPlayer
 import com.moovio.desktop.player.MpvSnapshot
 import com.moovio.desktop.player.MpvTrack
+import com.moovio.desktop.player.recordPlaybackProgress
+import com.moovio.desktop.player.resumePosition
 import com.moovio.desktop.ui.components.CircleIconButton
 import com.moovio.desktop.ui.components.GhostButton
 import com.moovio.desktop.ui.components.LoadingIndicator
@@ -102,6 +103,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+
+/** Upper bound for the software YUV->RGB/scaling pass in device pixels (same as v1's 1600x900). */
+private const val MAX_SW_RENDER_WIDTH = 1600
 
 @Composable
 fun PlayerScreen(app: AppState, container: AppContainer, onExit: () -> Unit) {
@@ -147,7 +151,7 @@ fun PlayerScreen(app: AppState, container: AppContainer, onExit: () -> Unit) {
             )
         }
 
-        val resume = resolveResumePosition(request, container)
+        val resume = resumePosition(request, container.library, settings.autoResume)
         if (request.source != null) {
             start(request.source, resume)
             return@LaunchedEffect
@@ -226,13 +230,24 @@ fun PlayerScreen(app: AppState, container: AppContainer, onExit: () -> Unit) {
     val latestPlayback = androidx.compose.runtime.rememberUpdatedState(playback)
     val latestPlayer = androidx.compose.runtime.rememberUpdatedState(player)
 
-    // Persist every 5 seconds while playing, and once more on exit.
+    // Persist every 5 seconds while playing. The call only touches in-memory state and schedules
+    // an off-thread JSON write, and it skips unchanged positions (e.g. while paused).
     LaunchedEffect(player, playback) {
         if (playback == null) return@LaunchedEffect
         while (isActive) {
             delay(5_000)
             val current = player?.snapshot?.value ?: continue
-            persistProgress(container, playback!!, current)
+            recordPlaybackProgress(container.library, playback!!, current)
+        }
+    }
+
+    // Pause is a natural checkpoint, so a session that is paused (or closed while paused) keeps
+    // exactly the position the user stopped at.
+    LaunchedEffect(player, playback, snapshot.paused) {
+        val request = playback ?: return@LaunchedEffect
+        val instance = player ?: return@LaunchedEffect
+        if (snapshot.paused) {
+            recordPlaybackProgress(container.library, request, instance.snapshot.value)
         }
     }
 
@@ -240,12 +255,14 @@ fun PlayerScreen(app: AppState, container: AppContainer, onExit: () -> Unit) {
         onDispose {
             val request = latestPlayback.value ?: return@onDispose
             val current = latestPlayer.value?.snapshot?.value ?: latestSnapshot.value
-            persistProgress(container, request, current)
+            recordPlaybackProgress(container.library, request, current)
         }
     }
 
     fun leave() {
-        playback?.let { persistProgress(container, it, player?.snapshot?.value ?: snapshot) }
+        playback?.let {
+            recordPlaybackProgress(container.library, it, player?.snapshot?.value ?: snapshot)
+        }
         app.closePlayer()
         onExit()
     }
@@ -681,18 +698,31 @@ private fun BoxWithConstraintsVideo(
             val density = LocalDensity.current
             val maxWidthPx = with(density) { maxWidth.toPx() }.toInt()
             val maxHeightPx = with(density) { maxHeight.toPx() }.toInt()
-            val aspect = if (snapshot.videoWidth > 0 && snapshot.videoHeight > 0) {
-                snapshot.videoWidth.toFloat() / snapshot.videoHeight
+            val sourceW = snapshot.videoWidth
+            val sourceH = snapshot.videoHeight
+            val aspect = if (sourceW > 0 && sourceH > 0) {
+                sourceW.toFloat() / sourceH
             } else {
                 16f / 9f
             }
-            val capW = min(maxWidthPx, 1600)
-            val capH = min(maxHeightPx, 900)
-            var renderW = capW
-            var renderH = (capW / aspect).toInt()
-            if (renderH > capH) {
-                renderH = capH
-                renderW = (capH * aspect).toInt()
+
+            // Fit the video area, but never upscale past the source: a 720p stream used to be
+            // blown up to 1600x900 by the software converter every frame. Rendering at the source
+            // size is both cheaper and sharper; Compose only scales the finished bitmap if needed.
+            var renderW = maxWidthPx
+            var renderH = (renderW / aspect).toInt()
+            if (renderH > maxHeightPx) {
+                renderH = maxHeightPx
+                renderW = (renderH * aspect).toInt()
+            }
+            if (sourceW > 0 && sourceH > 0) {
+                renderW = min(renderW, sourceW)
+                renderH = min(renderH, sourceH)
+            }
+            // Bound the CPU conversion pass on very large windows / 4K sources.
+            if (renderW > MAX_SW_RENDER_WIDTH) {
+                renderW = MAX_SW_RENDER_WIDTH
+                renderH = (renderW / aspect).toInt()
             }
             renderW = max(2, renderW - (renderW % 2))
             renderH = max(2, renderH - (renderH % 2))
@@ -901,41 +931,4 @@ private fun pickBest(
         ?: playable.first()
 }
 
-private fun resolveResumePosition(
-    target: com.moovio.desktop.domain.model.PlayTarget,
-    container: AppContainer,
-): Long {
-    if (target.startPositionMs > 0) return target.startPositionMs
-    if (!container.settings.current.autoResume) return 0
-    val saved = container.library.progressFor(target.media.key) ?: return 0
-    if (saved.finished) return 0
-    if (target.season != null && saved.season != null && target.season != saved.season) return 0
-    if (target.episode != null && saved.episode != null && target.episode != saved.episode) return 0
-    return saved.positionMs
-}
 
-private fun persistProgress(
-    container: AppContainer,
-    request: PlaybackRequest,
-    snapshot: MpvSnapshot,
-) {
-    if (snapshot.durationMs <= 0 || snapshot.positionMs <= 0) return
-    val position = if (snapshot.ended) snapshot.durationMs else snapshot.positionMs
-    container.library.recordProgress(
-        WatchProgress(
-            mediaKey = request.media.key,
-            mediaId = request.media.id,
-            type = request.media.type,
-            name = request.media.name,
-            poster = request.media.poster,
-            background = request.media.background,
-            season = request.season,
-            episode = request.episode,
-            episodeTitle = request.episodeTitle,
-            positionMs = position,
-            durationMs = snapshot.durationMs,
-            updatedAt = System.currentTimeMillis(),
-            adult = request.media.adult,
-        ),
-    )
-}

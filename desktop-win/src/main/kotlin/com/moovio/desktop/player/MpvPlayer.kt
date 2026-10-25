@@ -2,7 +2,7 @@ package com.moovio.desktop.player
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.graphics.asComposeImageBitmap
 import com.moovio.desktop.data.local.AppSettings
 import com.moovio.desktop.data.net.MoovioJson
 import com.moovio.desktop.data.net.arr
@@ -17,9 +17,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
-import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
 
 data class MpvTrack(
@@ -154,58 +154,75 @@ class MpvPlayer private constructor(
         return result.value
     }
 
-    private fun renderFrame(renderCtx: Pointer, width: Int, height: Int, sequence: Long): VideoFrame? {
-        val stride = ((width * 4 + 63) / 64) * 64
-        val byteCount = stride.toLong() * height
-        val raw = Memory(byteCount + 64)
-        val base = Pointer.nativeValue(raw)
-        val aligned = (base + 63) and 63L.inv()
-        val pixels = Pointer(aligned)
-
-        val sizeMemory = Memory(8)
-        sizeMemory.setInt(0, width)
-        sizeMemory.setInt(4, height)
-        val formatMemory = Memory(5)
-        formatMemory.setString(0, "rgb0")
-        val strideMemory = Memory(8)
-        strideMemory.setLong(0, stride.toLong())
-
+    /**
+     * Double-buffered Skia bitmaps that libmpv draws into directly.
+     *
+     * The first implementation rendered into a JNA buffer, copied it into a ByteArray, built a
+     * raster Image and then called toComposeImageBitmap() — that last step measured ~150 ms per
+     * 1600x900 frame and capped playback at ~6 fps. Rendering straight into the bitmap's native
+     * pixels and wrapping it with asComposeImageBitmap() removes every per-frame copy.
+     */
+    private class SwTarget(
+        val width: Int,
+        val height: Int,
+        val bitmap: Bitmap,
+        pixelAddress: Long,
+        rowBytes: Int,
+    ) {
         val params = Memory(16L * 5)
-        params.setInt(0, RENDER_PARAM_SW_SIZE)
-        params.setPointer(8, sizeMemory)
-        params.setInt(16, RENDER_PARAM_SW_FORMAT)
-        params.setPointer(24, formatMemory)
-        params.setInt(32, RENDER_PARAM_SW_STRIDE)
-        params.setPointer(40, strideMemory)
-        params.setInt(48, RENDER_PARAM_SW_POINTER)
-        params.setPointer(56, pixels)
-        params.setInt(64, 0)
+        private val sizeMemory = Memory(8)
+        private val formatMemory = Memory(5)
+        private val strideMemory = Memory(8)
 
-        val code = lib.mpv_render_context_render(renderCtx, params)
-        if (code < 0) return null
+        init {
+            sizeMemory.setInt(0, width)
+            sizeMemory.setInt(4, height)
+            formatMemory.setString(0, "rgb0")
+            strideMemory.setLong(0, rowBytes.toLong())
 
-        // Two alternating arrays: the previous frame may still be on screen when the next arrives.
-        val bufferIndex = (sequence % 2).toInt()
-        val needed = byteCount.toInt()
-        var bytes = frameBuffers[bufferIndex]
-        if (bytes == null || bytes.size != needed) {
-            bytes = ByteArray(needed)
-            frameBuffers[bufferIndex] = bytes
+            params.setInt(0, RENDER_PARAM_SW_SIZE)
+            params.setPointer(8, sizeMemory)
+            params.setInt(16, RENDER_PARAM_SW_FORMAT)
+            params.setPointer(24, formatMemory)
+            params.setInt(32, RENDER_PARAM_SW_STRIDE)
+            params.setPointer(40, strideMemory)
+            params.setInt(48, RENDER_PARAM_SW_POINTER)
+            params.setPointer(56, Pointer(pixelAddress))
+            params.setInt(64, 0)
         }
-        pixels.read(0, bytes, 0, needed)
-
-        val info = ImageInfo(width, height, ColorType.RGBA_8888, ColorAlphaType.OPAQUE)
-        val image = Image.makeRaster(info, bytes, stride)
-        // toComposeImageBitmap() copies into a Skia Bitmap, so the raster image can be released now.
-        val bitmap = try {
-            image.toComposeImageBitmap()
-        } finally {
-            image.close()
-        }
-        return VideoFrame(bitmap, width, height, sequence)
     }
 
-    private val frameBuffers = arrayOfNulls<ByteArray>(2)
+    private var swTargets: Pair<SwTarget, SwTarget>? = null
+
+    private fun createSwTarget(width: Int, height: Int): SwTarget? {
+        val bitmap = Bitmap()
+        val info = ImageInfo(width, height, ColorType.RGBA_8888, ColorAlphaType.OPAQUE)
+        val allocated = runCatching { bitmap.allocPixels(info) }.getOrDefault(false)
+        if (!allocated) return null
+        val pixmap = bitmap.peekPixels() ?: return null
+        return SwTarget(width, height, bitmap, pixmap.addr, pixmap.rowBytes)
+    }
+
+    private fun swTarget(index: Int, width: Int, height: Int): SwTarget? {
+        val current = swTargets
+        if (current != null && current.first.width == width && current.first.height == height) {
+            return if (index == 0) current.first else current.second
+        }
+        val first = createSwTarget(width, height) ?: return null
+        val second = createSwTarget(width, height) ?: return null
+        swTargets = first to second
+        return if (index == 0) first else second
+    }
+
+    private fun renderFrame(renderCtx: Pointer, width: Int, height: Int, sequence: Long): VideoFrame? {
+        // Two targets alternate so a frame stays intact while Compose draws the previous one.
+        val target = swTarget((sequence % 2).toInt(), width, height) ?: return null
+        val code = lib.mpv_render_context_render(renderCtx, target.params)
+        if (code < 0) return null
+        // mpv wrote directly into the bitmap's pixels; bump the generation so Skia sees them.
+        target.bitmap.notifyPixelsChanged()
+        return VideoFrame(target.bitmap.asComposeImageBitmap(), width, height, sequence)
+    }
 
     fun setRenderSize(width: Int, height: Int) {
         targetWidth = width
@@ -339,6 +356,9 @@ class MpvPlayer private constructor(
         runCatching { lib.mpv_command_string(mpv, "stop") }
     }
 
+    /** Reads a libmpv property for diagnostics (e.g. `hwdec-current`, `frame-drop-count`). */
+    fun diagnostic(name: String): String? = if (closed) null else getString(name)
+
     private fun getString(name: String): String? {
         val pointer = lib.mpv_get_property_string(mpv, name) ?: return null
         return try {
@@ -403,13 +423,26 @@ class MpvPlayer private constructor(
             option("input-vo-keyboard", "no")
             option("audio-client-name", "Moovio")
             option("user-agent", "Moovio/1.0 (Windows)")
+            // Copy-back hardware decoding: the software render API needs frames in system memory,
+            // so auto-safe could end up decoding on the CPU entirely. -copy modes fall back
+            // cleanly to software decoding when no hardware decoder is available.
+            option("hwdec", if (settings.hardwareDecoding) "auto-copy-safe" else "no")
+            // Network streams: keep a generous read-ahead so short stalls don't empty the cache.
             option("cache", "yes")
+            option("cache-secs", "30")
+            option("demuxer-readahead-secs", "20")
             option("demuxer-max-bytes", "268435456")
             option("demuxer-max-back-bytes", "67108864")
-            option("hwdec", if (settings.hardwareDecoding) "auto-safe" else "no")
+            option("stream-buffer-size", "1048576")
+            // Keep audio master-clock and drop late video frames instead of falling behind when
+            // the CPU-bound colour conversion can't keep up.
+            option("video-sync", "audio")
+            option("framedrop", "decoder+vo")
+            // The render API converts YUV -> RGB and scales in software; fast bilinear is cheap
+            // and indistinguishable at typical playback sizes.
+            option("sws-scaler", "fast-bilinear")
             option("sub-auto", "fuzzy")
             option("volume", settings.playerVolume.toString())
-            option("sw-fast", "yes")
 
             val code = lib.mpv_initialize(mpv)
             if (code < 0) {

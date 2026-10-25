@@ -197,6 +197,17 @@ data class WatchProgress(
     val fraction: Float
         get() = if (durationMs <= 0) 0f else (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
     val finished: Boolean get() = durationMs > 0 && fraction >= 0.94f
+
+    /**
+     * Worth listing under Continue Watching: anything with real progress that has not effectively
+     * finished. Deliberately only a couple of seconds, so a short-but-real viewing session still
+     * shows up; accidental opens that never got past the first second stay out.
+     */
+    val inProgress: Boolean get() = !finished && positionMs >= MIN_PROGRESS_MS
+
+    companion object {
+        const val MIN_PROGRESS_MS = 2_000L
+    }
 }
 
 /** A request handed to the player screen. */
