@@ -126,7 +126,7 @@ export function Navbar() {
             <Button
               asChild
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="hidden sm:inline-flex items-center gap-2"
             >
               <Link href={DESKTOP_ZIP_URL}>

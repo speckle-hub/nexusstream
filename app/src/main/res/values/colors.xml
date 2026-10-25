@@ -3,6 +3,7 @@
     <color name="moovio_background">#FF0A0A0F</color>
     <color name="moovio_surface">#FF12121A</color>
     <color name="moovio_accent">#FF7C5CFF</color>
-    <!-- Solid Moovio brand purple for the adaptive-icon background (Phase 28 branding). -->
-    <color name="ic_launcher_background">#FF7C5CFF</color>
+    <!-- Ink fallback used by legacy launchers; the adaptive icon uses
+         @drawable/ic_launcher_background (desktop logo gradient). -->
+    <color name="ic_launcher_background">#FF0B0B12</color>
 </resources>

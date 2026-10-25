@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Moovio"
 include(":app")
+include(":desktop")

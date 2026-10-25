@@ -51,7 +51,7 @@ export function DownloadCta() {
                 href={DESKTOP_MSI_URL}
                 className={cn(
                   "press inline-flex items-center justify-center gap-3 rounded-xl px-10 py-5 text-[16px] font-semibold tracking-tight shadow-glow-accent transition-colors",
-                  "bg-primary text-primary-foreground hover:bg-primary/90",
+                  "bg-[#7C5CFF] text-white hover:bg-[#6a4cd9]",
                 )}
               >
                 <Monitor className="h-5 w-5" />
@@ -61,7 +61,7 @@ export function DownloadCta() {
                 href={DESKTOP_ZIP_URL}
                 className={cn(
                   "press inline-flex items-center justify-center gap-3 rounded-xl px-10 py-5 text-[16px] font-semibold tracking-tight transition-colors",
-                  "border border-input bg-background/30 text-paper hover:border-white/50 hover:bg-white/[0.06]",
+                  "bg-[#0a0a11] border border-white/20 text-white hover:bg-[#12121e] hover:border-white/40",
                 )}
               >
                 <FileText className="h-5 w-5" />
