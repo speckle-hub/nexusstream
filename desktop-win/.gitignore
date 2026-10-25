@@ -1,0 +1,9 @@
+.gradle/
+build/
+.kotlin/
+native/mpv/*.dll
+native/mpv/*.7z
+native/mpv/extract/
+packaging/windows/
+local.properties
+*.log
