@@ -339,7 +339,7 @@ private fun NsfwContent(app: AppState, container: AppContainer, onOpen: (MediaIt
                 icon = Icons.Rounded.Lock,
                 title = "No private add-ons yet",
                 message = "The private area only shows add-ons you explicitly mark as NSFW. " +
-                    "Add one in Settings → Add-ons, then switch on “NSFW-only” for it.",
+                    "Add one in Settings → Add-ons, then switch on “Private area only” for it.",
                 actionLabel = "Open Add-ons",
                 onAction = { app.navigateTab(Screen.Settings) },
                 modifier = Modifier.fillMaxSize(),

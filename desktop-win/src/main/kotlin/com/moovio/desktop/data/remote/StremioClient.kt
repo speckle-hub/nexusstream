@@ -87,10 +87,19 @@ class StremioClient(private val http: Http) {
             resources = resources.distinct(),
             idPrefixes = prefixes.toList(),
             catalogs = catalogs,
-            adult = json.objectOrNull("behaviorHints")?.bool("nsfw") == true ||
-                json.objectOrNull("flags")?.bool("nsfw") == true,
+            adult = json.indicatesAdult(),
             builtIn = false,
         )
+    }
+
+    /** Adult only when the manifest says so (Stremio's `behaviorHints.adult`/`nsfw` or `flags`) —
+     * never inferred from the add-on's kind, catalogs or name. */
+    private fun JsonObject.indicatesAdult(): Boolean {
+        if (bool("adult") == true || bool("nsfw") == true) return true
+        return listOf("behaviorHints", "flags").any { key ->
+            val hints = objectOrNull(key) ?: return@any false
+            hints.bool("adult") == true || hints.bool("nsfw") == true
+        }
     }
 
     suspend fun catalog(

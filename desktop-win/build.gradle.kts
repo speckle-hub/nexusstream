@@ -1,3 +1,5 @@
+@file:OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+
 import java.io.File
 import java.net.URI
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
@@ -32,6 +34,7 @@ dependencies {
     implementation("net.java.dev.jna:jna-platform:5.15.0")
 
     testImplementation(kotlin("test"))
+    testImplementation(compose.uiTest)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
 

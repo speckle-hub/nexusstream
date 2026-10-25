@@ -1,5 +1,6 @@
 package com.moovio.desktop.di
 
+import androidx.compose.runtime.mutableStateOf
 import com.moovio.desktop.data.local.AddonStore
 import com.moovio.desktop.data.local.LibraryStore
 import com.moovio.desktop.data.local.SettingsStore
@@ -40,11 +41,12 @@ class AppContainer {
     val metadata = MetadataRepository(cinemeta, aniList, stremio, addonStore, tmdb)
     val streams = StreamRepository(stremio, cinemeta, addonStore)
 
-    /** In-memory only: the NSFW area re-locks on every launch. */
-    private var nsfwUnlocked = false
-    val isNsfwUnlocked: Boolean get() = nsfwUnlocked
-    fun unlockNsfw() { nsfwUnlocked = true }
-    fun lockNsfw() { nsfwUnlocked = false }
+    /** In-memory only: the NSFW area re-locks on every launch. Compose-state so the UI
+     * recomposes and shows the NSFW section immediately after a successful unlock. */
+    private val _nsfwUnlocked = mutableStateOf(false)
+    val isNsfwUnlocked: Boolean get() = _nsfwUnlocked.value
+    fun unlockNsfw() { _nsfwUnlocked.value = true }
+    fun lockNsfw() { _nsfwUnlocked.value = false }
 
     fun dispose() {
         scope.cancel()

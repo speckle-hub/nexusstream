@@ -500,7 +500,7 @@ private fun AddonRow(
                     )
                 }
                 if (addon.adult) {
-                    Text("NSFW", style = MaterialTheme.typography.labelSmall, color = Palette.warning)
+                    Text("NSFW-only", style = MaterialTheme.typography.labelSmall, color = Palette.warning)
                 }
             }
             Text(
@@ -526,21 +526,26 @@ private fun AddonRow(
                     ),
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    "NSFW-only",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Palette.textTertiary,
-                    modifier = Modifier.clickable { onAdult(!addon.adult) },
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Private area only", style = MaterialTheme.typography.labelSmall, color = Palette.textTertiary)
+                Switch(
+                    checked = addon.adult,
+                    onCheckedChange = onAdult,
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = Palette.warning,
+                        checkedThumbColor = Color.White,
+                        uncheckedTrackColor = Palette.surfaceHighest,
+                        uncheckedBorderColor = Palette.outline,
+                    ),
                 )
-                if (!addon.builtIn) {
-                    Text(
-                        "Remove",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Palette.danger,
-                        modifier = Modifier.clickable(onClick = onRemove),
-                    )
-                }
+            }
+            if (!addon.builtIn) {
+                Text(
+                    "Remove",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Palette.danger,
+                    modifier = Modifier.clickable(onClick = onRemove),
+                )
             }
         }
     }
