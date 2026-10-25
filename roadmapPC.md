@@ -3,12 +3,13 @@
 > Living document for the **Windows desktop client** in `desktop-win/`. The Android app has its own
 > `roadmap.md`; the two are completely separate Gradle projects and share no build or configuration.
 >
-> **Status — 2026-10-25:** desktop **v1.0.0**, `main` @ `465fedd`. The app builds and runs on
+> **Status — 2026-10-25:** desktop **v0.1.1**, `main` @ `c37bc63`. The app builds and runs on
 > Windows x64 (`./gradlew run`), and **40 test cases execute green** — live metadata, headless UI
 > flows and unit-level playback tests (the real-playback test is gated and was not run with its
-> flag this session). Three commits touch this project: the v1.0 import
-> (`c2ee798`), the NSFW / add-on-labelling fix (`c28b4c6`) and the playback + Continue Watching fix
-> (`465fedd`).
+> flag this session). Release **v0.1.1** published on GitHub with `Moovio-0.1.1-windows-x64.zip`
+> and `Moovio-0.1.1.msi`. Four commits touch this project: the v1.0 import
+> (`c2ee798`), the NSFW / add-on-labelling fix (`c28b4c6`), the playback + Continue Watching fix
+> (`465fedd`) and the v0.1.1 release bump (`c37bc63`).
 
 ---
 
@@ -158,6 +159,16 @@ not by driving the live window.
 Whole client landed as a standalone Gradle project: navigation shell, catalogs, detail, libmpv
 player, library, PIN-gated NSFW area, settings/add-on management, manual DI container, JSON stores,
 and Windows packaging tasks (`fetchLibmpv`, `portableZip`, `packageMsi`).
+
+### 2026-10-25 — Release v0.1.1 (`c37bc63`)
+
+- Bumped `desktop-win` version `1.0.0` → `0.1.1` and `packageVersion` `1.0.0` → `0.1.1` in
+  `desktop-win/build.gradle.kts`.
+- Fixed `desktop/build.gradle.kts` missing `kotlin("jvm") plugin version` (set to `2.0.20`).
+- Built `portableZip` (`Moovio-0.1.1-windows-x64.zip`) and `packageMsi` (`Moovio-0.1.1.msi`)
+  with libmpv staged from `native/mpv/libmpv-2.dll`.
+- Created tag `v0.1.1` and GitHub release with both assets attached.
+- Pushed commit `c37bc63` to `origin/main`.
 
 ---
 
