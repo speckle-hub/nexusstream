@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -119,7 +120,7 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(favorites, key = { it.key }) { item ->
+                    itemsIndexed(favorites, key = { index, item -> "${item.key}:$index" }) { _, item ->
                         LibraryFavoriteCard(
                             item = item,
                             progress = container.library.progressFor(item.key)?.takeIf { !it.finished }?.fraction,

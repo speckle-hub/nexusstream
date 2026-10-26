@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -137,7 +138,7 @@ fun CatalogScreen(
                 verticalArrangement = Arrangement.spacedBy(22.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(items, key = { it.key }) { item ->
+                itemsIndexed(items, key = { index, item -> "${item.key}:$index" }) { _, item ->
                     PosterCard(
                         item = item,
                         onClick = { app.openDetail(item) },

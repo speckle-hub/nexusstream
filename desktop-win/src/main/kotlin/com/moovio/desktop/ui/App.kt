@@ -53,6 +53,7 @@ import com.moovio.desktop.ui.screens.nsfw.NsfwScreen
 import com.moovio.desktop.ui.screens.player.PlayerScreen
 import com.moovio.desktop.ui.screens.search.SearchOverlay
 import com.moovio.desktop.ui.screens.settings.SettingsScreen
+import com.moovio.desktop.ui.WindowStyler
 import com.moovio.desktop.ui.theme.MoovioTheme
 import com.moovio.desktop.ui.theme.Palette
 import com.moovio.desktop.ui.theme.glass
@@ -68,6 +69,11 @@ fun MoovioApp(container: AppContainer, windowState: WindowState) {
     MoovioTheme(accentId = settings.accent, reduceMotion = settings.reduceMotion) {
         LaunchedEffect(app.fullscreen) {
             windowState.placement = if (app.fullscreen) WindowPlacement.Fullscreen else WindowPlacement.Floating
+            if (app.fullscreen) {
+                WindowStyler.enterFullscreen()
+            } else {
+                WindowStyler.exitFullscreen()
+            }
         }
         LaunchedEffect(Unit) {
             delay(250)

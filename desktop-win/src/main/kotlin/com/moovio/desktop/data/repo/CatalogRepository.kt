@@ -168,10 +168,12 @@ class CatalogRepository(
         }
 
         val filtered = results.filter { includeAdult || !it.adult }
+        // Rank by relevance first so that de-duplication keeps the highest-ranked entry for each
+        // stable media id (type:id). De-duping by key prevents the same title appearing twice in
+        // search results (which would otherwise crash Lazy lists keyed by it.key).
+        val ranked = filtered.sortedByDescending { relevance(it, query) }
         val seen = HashSet<String>()
-        val deduped = filtered
-            .filter { seen.add("${it.name.lowercase()}|${it.year ?: 0}") }
-            .sortedByDescending { relevance(it, query) }
+        val deduped = ranked.filter { seen.add(it.key) }
         deduped to failures.toList()
     }
 
