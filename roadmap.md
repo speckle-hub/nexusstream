@@ -13,8 +13,10 @@
 > 1.11.0; signed `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk`
 > (44,129,211 bytes, SHA-256 `8B212EF4…547311`, same rotated signer as v1.10.0). Verified
 > `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **327/327** (0 failures, 0 errors).
-> **No tag, no GitHub Release, nothing pushed** — until that asset is uploaded the in-app updater
-> still offers v1.10.4. `desktop/` and `desktop-win/` were **not** touched.
+> **Published** — commit `4caee5f` on `main`, tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked
+> **Latest** with `app-release.apk` + `Moovio.apk` attached, so
+> `releases/latest/download/app-release.apk` now 302s to v1.11.0 and the re-downloaded asset
+> hash-matches `dist/`. `desktop/` and `desktop-win/` were **not** touched.
 >
 > Previous, 2026-10-30 — **Phase 4: encrypted backups, smart
 > search & release readiness (§2be), Android only: ISSUE-15 closed (AES-256-GCM backup container,
@@ -1480,8 +1482,12 @@ prerequisite. Android only; `desktop/` and `desktop-win/` untouched.
   key v1.10.0 shipped with, so an in-place upgrade from 1.10.x is possible.
 - Artifacts: `dist/app-release.apk` and `dist/Moovio.apk` (byte-identical, one SHA-256). The site CTA
   fetches `releases/latest/download/app-release.apk`, so that exact asset name has to exist.
-- **Not pushed, not tagged, no GitHub Release.** The upload step is manual and still outstanding, so
-  the in-app updater and the website both keep serving v1.10.4 until it is done.
+- **Published 2026-10-30** — commit `4caee5f` pushed to `main`, tag `v1.11.0` pushed, GitHub Release
+  [Moovio v1.11.0](https://github.com/speckle-hub/nexusstream/releases/tag/v1.11.0) marked **Latest**
+  with both assets uploaded (`app-release.apk` and `Moovio.apk`, 44,129,211 bytes each).
+  `releases/latest/download/app-release.apk` 302s to this tag and the re-downloaded file hash-matches
+  `dist/`, so the in-app updater and the site CTA serve v1.11.0. Publishing v1.11.0 as Latest also
+  moved the pointer off the desktop release `v0.1.1`, which had been holding it.
 
 **Size / code**
 - Main sources: **172 Kotlin files, 34,074 lines**.
@@ -5728,7 +5734,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-30 | **Phase 2 — motion, gestures & haptics (§2bc):** wired the poster → detail **shared-element morph** (new `Modifier.sharedPoster`: `SharedTransitionLayout`/`ProvideSharedScope` were installed on every destination but nothing consumed them, so navigation still cross-faded) with `Motion.settle<Rect>()` as its bounds transform, sourced from `PosterCard`'s artwork and landed on `DetailHeader`'s backdrop; new `MoovioHaptics` (`select`/`toggle`/`commit`, `@Stable`, remembered) replacing raw `performHapticFeedback` calls in 4 files and driving the player's brightness/volume drags per 10 % band, the primary CTA, the heart, season chips and Library long-press (from inside `PosterCard`); new `Motion.settle<T>()` (`DampingRatioNoBouncy` + `StiffnessLow`) for the carousel auto-advance, both nav indicators and the morph — the brief's `DampingRatioLowBouncy` was already in use on the nav controls and was removed, not extended. `PillSegmentedControl` (16/12 radii, neutral selection wash), `FloatingPillNavBar` (64 dp, no glass, no dark shadow), `LibraryScreen` (dead `LibrarySegmentedControl` duplicate deleted, chips on `AppRadius`) and `NsfwHubScreen` (hairline chip, 3 `Bold` dropped) finished the §2bb cleanup; `PosterPalette.kt` + `PaletteCacheTest` (3 cases) + `androidx.palette` deleted; root Gradle repaired (`:desktop` asked for a versioned Kotlin plugin after `kotlin.android` had claimed it). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**, `./gradlew help` at root ✅. No version bump, no APK, not pushed. Rendered/motion verification and frame-drop measurement still need a device; duplicate `poster:<key>` across Home rails is the open risk. |
 | 2026-10-30 | **Phase 3 — media player, manga reader, diagnostics & audio (§2bd):** "Stats for nerds" rebuilt as `ui/player/StatsHud.kt`, a `Canvas` HUD that owns its own 250 ms ticker (buffer-ahead sparkline over 40 samples = 10 s, buffered %, stream + download bitrate, resolution/fps/dropped, codec metadata) so a tick can no longer recompose the control overlay. **Spatial audio is offered honestly**: `Spatializer` has no setter, so the sheet row (shown only when `isAvailable && isEnabled`) sets the stream's `AudioAttributes` spatialisation behaviour (`C.SPATIALIZATION_BEHAVIOR_AUTO`/`_NEVER`) on the ExoPlayer, applied at player creation and on toggle, persisted as `audioSpatial`. Reader: new e-ink monochrome preset (`MANGA_EINK`, saturation 0 + contrast 1.45) that replaces invert/sepia, `MutableZoom.panBy`/`clampPan` bounding the pan to the page's real overflow, and the 3-page webtoon preload moved onto `Dispatchers.IO`. Morph keys are now rail-scoped — `sharedPoster(key, rail)`, `rail` threaded through `PosterCard`/`MediaRow` from Home/Anime/Manga/NSFW, and `?from=<rail>` on the detail route read back into `DetailHeader` — which closes §2bc's duplicate-key risk. Player chrome: sheet headings on `titleMedium`/`titleSmall`, every `Bold`/`SemiBold` (13) dropped to `Medium`, round 40 dp/48 dp controls on `CircleShape`. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**. No version bump, no APK, not pushed. Device passes (HUD cost, morph origin, spatial audio, e-ink panel, pan clamp) and all frame-timing measurement are still outstanding. |
 | 2026-10-30 | **Phase 4 — encrypted backups, smart search & release readiness (§2be):** **ISSUE-15 closed.** New `data/integrations/BackupCrypto.kt` — `BackupFormat` (`MOOVIO-BACKUP-1` magic + 12-byte IV + GCM tag) and `BackupCipher` (AES-256-GCM, fresh IV per export, injected key provider), with the key generated in `AndroidBackupKey` (AndroidKeyStore, no user-auth gate) — no `security-crypto` dependency added. `BackupManager` exports the container, gained `inspect(uri)` returning `Encrypted` vs `LegacyPlaintext` *before* any store is touched, and `importFrom(…, allowPlaintext = false)` refuses a plaintext file unless the caller opted in; Settings shows an "Unencrypted backup" confirmation, exports as `moovio-backup.mbackup` (`application/octet-stream`) and accepts both formats on import. New `data/search/SmartQuery.kt`: offline parser for type words, 18 genres, a year/decade/range (`2024`, `2020s`, two years), a rating floor (`high rating` = 7.0, `rating 8.5`), `recent`/`classic` and sorting, wired into `SearchViewModel` *before* the 350 ms debounce (cancellation + generation guard unchanged); type routes to the API, year/rating/genre narrow the merged result locally, and a muted one-line `summary()` shows what was understood. A four-digit token only counts as a year up to `currentYear + 1`, so "Blade Runner 2049" stays a title. Storage: `DownloadCacheMaintenance.isBelowLimit`/`shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace` (orphaned chunks only, never a playable download), `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off) with a Settings → Downloads ladder and a boot-time sweep in `MoovioApp`. `versionCode` 24 / `versionName` 1.11.0. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (+21: 8 crypto, 13 parser). No APK built, nothing pushed. Unverified on hardware: the KeyStore path, SAF MIME filtering, the boot sweep on a full disk. |
-| 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **No tag and no GitHub Release** — the updater still serves v1.10.4 until the asset is uploaded. |
+| 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **Published** as commit `4caee5f` + tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked Latest with `app-release.apk` + `Moovio.apk` attached (and the re-downloaded asset hash-matched); the release body carries the upgrade note, the four phase summaries and the deferred list. |
 
 ---
 
@@ -5789,13 +5795,13 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
    space) to prove it reclaims only orphans; (e) smart search on real catalog data: "anime 2024 high
    rating" and "scifi movies" through add-ons that return partial metadata, where a missing `year`
    drops an item when a year filter is active — decide whether that should fall back to no filter.
-0g. **Release follow-through for v1.11.0 (new, §2bf) —** the APK is built and verified but **not
-   published**. To finish the release: tag `v1.11.0` on the commit that contains the four phases,
-   push it, and publish a GitHub Release with `app-release.apk` + `Moovio.apk` attached and marked
-   Latest (the site CTA and the in-app updater both resolve
-   `releases/latest/download/app-release.apk`). Until then `dist/` is ahead of what users get. All
-   four phases remain **device-unverified** — §7 0d/0e/0f lists exactly what to poke on hardware
-   first (morph origin, HUD tick cost, KeyStore re-open, boot sweep).
+0g. **v1.11.0 is published (new, §2bf) — done.** Commit `4caee5f` on `main`, tag `v1.11.0`, GitHub
+   Release **Moovio v1.11.0** marked Latest with `app-release.apk` + `Moovio.apk` (byte-identical),
+   and `releases/latest/download/app-release.apk` 302ing to it, so the updater and the site CTA
+   already serve this build. **Still outstanding:** a device pass on all four phases (morph origin,
+   haptic feel, HUD tick cost, e-ink output, KeyStore re-open after process death, boot sweep on a
+   full disk — §7 0d/0e/0f), no frame timing measured, and the **website still advertises v1.10.4 /
+   306 tests** — its hero, footer and stats need their own commit to say 1.11.0 / 327.
 1. **Manual verification pass** on a device/emulator:
    - Fresh install → Home populates; open a movie → stream sources listed (Torrentio / TPB+).
    - Settings → Add-ons → CloudStream repo → provider list is **no longer empty**.
