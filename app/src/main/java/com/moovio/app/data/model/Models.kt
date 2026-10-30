@@ -1,5 +1,6 @@
 package com.moovio.app.data.model
 
+import androidx.compose.runtime.Immutable
 import com.google.gson.JsonObject
 
 /** Logical content type used across the app. */
@@ -20,7 +21,15 @@ enum class MediaType(val id: String, val label: String) {
     val isAdult: Boolean get() = this == NSFW_ANIME || this == NSFW_MANGA || this == REAL
 }
 
-/** A single browsable item (poster card). */
+/**
+ * A single browsable item (poster card).
+ *
+ * Annotated [Immutable] because of the `List<String>` field: the Compose compiler treats `List` as
+ * an unstable interface, so without this every item in a lazy poster rail is considered changed on
+ * each recomposition and none of the rows can skip. Nothing in the app mutates these lists after
+ * construction — the Gson/codec paths build new instances — so the promise holds.
+ */
+@Immutable
 data class MediaItem(
     val id: String,
     val type: MediaType,
@@ -285,6 +294,7 @@ data class RemoteRepo(
 )
 
 /** Row of content (a catalog result) for the home / section screens. */
+@Immutable
 data class CatalogRow(
     val title: String,
     val items: List<MediaItem>,
@@ -294,6 +304,7 @@ data class CatalogRow(
 )
 
 /** Continue-watching / history entry. */
+@Immutable
 data class WatchEntry(
     val item: MediaItem,
     val videoId: String? = null,

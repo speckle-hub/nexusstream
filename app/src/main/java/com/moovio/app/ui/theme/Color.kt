@@ -1,15 +1,25 @@
 package com.moovio.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 
-// Core surfaces (dark-first premium palette)
+// Core surfaces. One neutral ramp, slightly blue-shifted so it reads as a cinema at night
+// rather than a flat grey — but never so tinted that a surface reads as a colour on its own.
 val MoovioBackground = Color(0xFF0A0A0F)
 val MoovioSurface = Color(0xFF12121A)
 val MoovioSurfaceElevated = Color(0xFF1A1A25)
-val MoovioSurfaceGlass = Color(0xCC1A1A25)
 val MoovioOutline = Color(0xFF2A2A38)
 
-// Accents
+// True AMOLED (pitch black) surfaces, used when Settings → Theme → True AMOLED is on.
+// Cards stay #000 too so a poster grid has no visible rectangles around the artwork, and only the
+// raised step lifts to #0B0B0B so sheets/menus are still distinguishable from the page.
+val MoovioAmoledBackground = Color(0xFF000000)
+val MoovioAmoledSurface = Color(0xFF000000)
+val MoovioAmoledElevated = Color(0xFF0B0B0B)
+
+// Accents. The violet is the real brand colour (it is the launcher icon's fill), the rest are
+// user-selectable alternatives from Settings → Appearance.
 val AccentViolet = Color(0xFF7C5CFF)
 val AccentVioletDim = Color(0xFF5B3FE0)
 val AccentCyan = Color(0xFF35D6E0)
@@ -36,6 +46,41 @@ val LSurface = Color(0xFFFFFFFF)
 val LSurfaceElevated = Color(0xFFEFEFF6)
 val LTextPrimary = Color(0xFF12121A)
 val LTextSecondary = Color(0xFF555566)
+
+/** Near-black used as "ink" on bright accent fills, so a fill never needs pure black. */
+val ActionInk = Color(0xFF0B0B0D)
+
+/** WCAG AA floor for normal-size text. */
+private const val MIN_TEXT_CONTRAST = 4.5f
+
+/** Contrast ratio between two opaque colours, per WCAG 2.1 relative luminance. */
+fun Color.contrastWith(other: Color): Float {
+    val a = luminance()
+    val b = other.luminance()
+    return (maxOf(a, b) + 0.05f) / (minOf(a, b) + 0.05f)
+}
+
+/**
+ * The (fill, content) pair used for solid accent surfaces — primary buttons, the selected chip,
+ * the checked switch track.
+ *
+ * Every accent in [Accents] is user-selectable, and several of them are too bright for white label
+ * text (amber reaches only ~1.8:1 against white). Rather than hardcoding a second "dim" variant per
+ * accent, this picks the legible pairing at runtime: white text when the accent is dark enough,
+ * near-black ink when it is bright, and otherwise darkens the accent step by step until white text
+ * clears 4.5:1 — so sRGB saturation shifts but the hue family never changes.
+ */
+fun Color.actionFill(): Pair<Color, Color> {
+    if (contrastWith(Color.White) >= MIN_TEXT_CONTRAST) return this to Color.White
+    if (contrastWith(ActionInk) >= MIN_TEXT_CONTRAST) return this to ActionInk
+    var fill = this
+    var guard = 0
+    while (fill.contrastWith(Color.White) < MIN_TEXT_CONTRAST && guard < 24) {
+        fill = lerp(fill, Color.Black, 0.06f)
+        guard++
+    }
+    return fill to Color.White
+}
 
 data class Accent(val key: String, val label: String, val color: Color)
 

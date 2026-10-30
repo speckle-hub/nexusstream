@@ -2,7 +2,6 @@ package com.moovio.app.ui.components
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,17 +24,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.LocalMoovioColors
+import com.moovio.app.ui.theme.Motion
+import com.moovio.app.ui.theme.rememberMoovioHaptics
 
 /**
- * A pill-shaped segmented control with a spring-animated selection indicator.
+ * A segmented control with a spring-animated selection indicator.
  *
- * Shared by the Browse and Library sub-navigation rows so the two read as the same control. The
- * active pill slides between segments instead of snapping, which is the same motion language the
- * floating nav bar uses.
+ * Shared by the Browse and Library sub-navigation rows so the two read as the same control.
+ *
+ * Deliberately not a pill any more. A 48dp-tall capsule whose selected segment was an accent wash
+ * made the control the loudest thing on Browse, above the posters it was filtering; the geometry is
+ * now a panel radius (16) holding a 12-radius indicator, which is the nested step the radius scale
+ * prescribes, and selection is a neutral surface wash rather than colour. The label weight no longer
+ * changes with selection either: size and colour carry the hierarchy, so bumping to Bold as well was
+ * shouting twice.
  */
 @Composable
 fun PillSegmentedControl(
@@ -46,25 +52,27 @@ fun PillSegmentedControl(
 ) {
     if (labels.isEmpty()) return
     val moovio = LocalMoovioColors.current
+    val haptics = rememberMoovioHaptics()
+    val shape = RoundedCornerShape(AppRadius.panel.dp)
+    val itemShape = RoundedCornerShape(AppRadius.card.dp)
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(50),
-        color = moovio.surfaceElevated,
-        border = BorderStroke(1.dp, moovio.outline.copy(alpha = 0.6f)),
+        shape = shape,
+        color = moovio.surface,
+        border = BorderStroke(1.dp, moovio.hairline),
     ) {
         BoxWithConstraints(
             Modifier
                 .fillMaxWidth()
                 .height(48.dp)
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(4.dp),
         ) {
             val itemWidth = maxWidth / labels.size
             val indicatorOffset by animateDpAsState(
                 targetValue = itemWidth * selected,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
+                // The app's settling spring at a mid stiffness: an indicator that tracks a tap
+                // should arrive sooner than a page change, and still never overshoot.
+                animationSpec = Motion.settle(stiffness = Spring.StiffnessMediumLow),
                 label = "segIndicatorOffset",
             )
             Box(
@@ -72,8 +80,8 @@ fun PillSegmentedControl(
                     .offset(x = indicatorOffset)
                     .width(itemWidth)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(50))
-                    .background(moovio.accent.copy(alpha = 0.18f)),
+                    .clip(itemShape)
+                    .background(moovio.textPrimary.copy(alpha = 0.10f)),
             )
             Row(Modifier.fillMaxSize()) {
                 labels.forEachIndexed { index, label ->
@@ -82,15 +90,19 @@ fun PillSegmentedControl(
                         Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(50))
-                            .clickable { onSelect(index) },
+                            .clip(itemShape)
+                            .clickable {
+                                if (!active) {
+                                    haptics.select()
+                                    onSelect(index)
+                                }
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (active) moovio.accent else moovio.textSecondary,
-                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                            color = if (active) moovio.textPrimary else moovio.textSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )

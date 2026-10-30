@@ -312,6 +312,29 @@ class VideoDownloadManager(private val context: Context) {
         storageStats()
     }
 
+    /**
+     * Reclaims orphaned cache chunks when free space is under the user's floor.
+     *
+     * Called at app start (see `MoovioApp`). Deliberately narrow: only chunks no `SimpleCache` index
+     * entry references are deleted, so a completed or in-progress download is never touched — the
+     * bytes removed are ones the user already cannot play. Returns the bytes reclaimed.
+     */
+    suspend fun sweepOrphansIfLowOnSpace(thresholdMb: Int): Long = withContext(Dispatchers.IO) {
+        if (thresholdMb <= 0) return@withContext 0L
+        val cache = runCatching { DownloadManagerProvider.cache(context) }.getOrNull()
+            ?: return@withContext 0L
+        val orphans = runCatching { orphanFiles(cache) }.getOrDefault(emptyList())
+        val free = runCatching { DownloadManagerProvider.cacheDir(context).usableSpace }.getOrDefault(-1L)
+        val limitBytes = thresholdMb.toLong() * 1024L * 1024L
+        if (!DownloadCacheMaintenance.shouldSweep(free, limitBytes, orphans.size)) return@withContext 0L
+        var freed = 0L
+        orphans.forEach { file ->
+            val size = file.length()
+            if (runCatching { file.delete() }.getOrDefault(false)) freed += size
+        }
+        freed
+    }
+
     /** Files in the cache dir that no `SimpleCache` span references. */
     private fun orphanFiles(cache: Cache) = DownloadCacheMaintenance.orphans(
         DownloadManagerProvider.cacheDir(context),

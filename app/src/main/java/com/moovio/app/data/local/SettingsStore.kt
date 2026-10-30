@@ -12,12 +12,14 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+
+/** Default free-space floor (MB) for the automatic download cleanup sweep: 1 GB. */
+private const val DEFAULT_LOW_SPACE_MB = 1024
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "moovio_settings")
 
@@ -70,6 +72,9 @@ class SettingsStore(private val context: Context) {
         val PLAYER_SPEED = floatPreferencesKey("player_speed")      // 0.5 .. 2.0
         val AUDIO_BOOST = booleanPreferencesKey("audio_boost")
         val AUDIO_NORMALIZE = booleanPreferencesKey("audio_normalize")
+        // API 32+ Spatializer switch. Persisted like the other two audio toggles, so a session
+        // change (next episode, re-entering the player) does not silently reset it.
+        val AUDIO_SPATIAL = booleanPreferencesKey("audio_spatial")
         // Double-tap seek distance (ms), configurable from Settings -> Player.
         val DOUBLE_TAP_MS = intPreferencesKey("double_tap_ms")
         // Remembered in-player screen brightness (0..1); -1 = follow the system.
@@ -83,6 +88,8 @@ class SettingsStore(private val context: Context) {
         val MANGA_VOLUME_KEYS = booleanPreferencesKey("manga_volume_keys")
         // Warm / sepia reading filter alongside invert + grayscale.
         val MANGA_WARM = booleanPreferencesKey("manga_warm")
+        // High-contrast monochrome preset for e-ink panels (see mangaFilter in MangaReaderActivity).
+        val MANGA_EINK = booleanPreferencesKey("manga_eink")
         // Newline-joined "mangaId::chapterId=page" resume markers.
         val MANGA_PROGRESS = stringPreferencesKey("manga_progress")
 
@@ -105,6 +112,9 @@ class SettingsStore(private val context: Context) {
         // Delete a finished download once playback passes 90% (Phase 15).
         val AUTO_DELETE_WATCHED = booleanPreferencesKey("auto_delete_watched")
         val STORAGE_URI = stringPreferencesKey("storage_uri")
+        // Free-space floor (MB) under which orphaned download chunks are reclaimed automatically;
+        // 0 disables the sweep.
+        val LOW_SPACE_MB = intPreferencesKey("low_space_mb")
         // Updates
         val UPDATE_REPO = stringPreferencesKey("update_repo")
         val NOTIFY_NEW_CONTENT = booleanPreferencesKey("notify_new_content")
@@ -172,6 +182,7 @@ class SettingsStore(private val context: Context) {
     val playerSpeed: StateFlow<Float> = context.dataStore.data.map { it[Keys.PLAYER_SPEED] ?: 1f }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 1f)
     val audioBoost: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUDIO_BOOST] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val audioNormalize: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUDIO_NORMALIZE] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
+    val audioSpatial: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUDIO_SPATIAL] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val doubleTapMs: StateFlow<Int> = context.dataStore.data.map { it[Keys.DOUBLE_TAP_MS] ?: 10_000 }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 10_000)
     val playerBrightness: StateFlow<Float> = context.dataStore.data.map { it[Keys.PLAYER_BRIGHTNESS] ?: -1f }.stateIn(scope, SharingStarted.WhileSubscribed(5000), -1f)
     val mangaInvert: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_INVERT] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
@@ -181,6 +192,7 @@ class SettingsStore(private val context: Context) {
     val mangaZoomLock: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_ZOOM_LOCK] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val mangaVolumeKeys: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_VOLUME_KEYS] ?: true }.stateIn(scope, SharingStarted.WhileSubscribed(5000), true)
     val mangaWarm: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_WARM] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaEink: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.MANGA_EINK] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
 
     // ---- Phase 12 ----
     val incognito: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.INCOGNITO] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
@@ -200,6 +212,7 @@ class SettingsStore(private val context: Context) {
     val autoDownloadWifiOnly: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUTO_DOWNLOAD_WIFI_ONLY] ?: true }.stateIn(scope, SharingStarted.WhileSubscribed(5000), true)
     val autoDeleteWatched: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUTO_DELETE_WATCHED] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val storageUri: StateFlow<String> = context.dataStore.data.map { it[Keys.STORAGE_URI] ?: "" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
+    val lowSpaceMb: StateFlow<Int> = context.dataStore.data.map { it[Keys.LOW_SPACE_MB] ?: DEFAULT_LOW_SPACE_MB }.stateIn(scope, SharingStarted.WhileSubscribed(5000), DEFAULT_LOW_SPACE_MB)
     val updateRepo: StateFlow<String> = context.dataStore.data.map { it[Keys.UPDATE_REPO] ?: "" }.stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
     val notifyNewContent: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.NOTIFY_NEW_CONTENT] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val scrobbleTrakt: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.SCROBBLE_TRAKT] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
@@ -264,6 +277,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setPlayerBrightness(v: Float) = context.dataStore.edit { it[Keys.PLAYER_BRIGHTNESS] = v.coerceIn(-1f, 1f) }
     suspend fun setAudioBoost(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_BOOST] = v }
     suspend fun setAudioNormalize(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_NORMALIZE] = v }
+    suspend fun setAudioSpatial(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_SPATIAL] = v }
     suspend fun setMangaInvert(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_INVERT] = v }
     suspend fun setMangaGrayscale(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_GRAYSCALE] = v }
     suspend fun setMangaCrop(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_CROP] = v }
@@ -271,6 +285,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setMangaZoomLock(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_ZOOM_LOCK] = v }
     suspend fun setMangaVolumeKeys(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_VOLUME_KEYS] = v }
     suspend fun setMangaWarm(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_WARM] = v }
+    suspend fun setMangaEink(v: Boolean) = context.dataStore.edit { it[Keys.MANGA_EINK] = v }
 
     suspend fun setIncognito(v: Boolean) = context.dataStore.edit { it[Keys.INCOGNITO] = v }
     suspend fun setFlagSecure(v: Boolean) = context.dataStore.edit { it[Keys.FLAG_SECURE] = v }
@@ -285,6 +300,9 @@ class SettingsStore(private val context: Context) {
     suspend fun setAutoDownloadWifiOnly(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_DOWNLOAD_WIFI_ONLY] = v }
     suspend fun setAutoDeleteWatched(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_DELETE_WATCHED] = v }
     suspend fun setStorageUri(v: String) = context.dataStore.edit { it[Keys.STORAGE_URI] = v }
+
+    /** 0 disables the automatic sweep; anything else is a free-space floor in whole MB. */
+    suspend fun setLowSpaceMb(v: Int) = context.dataStore.edit { it[Keys.LOW_SPACE_MB] = v.coerceIn(0, 16_384) }
     suspend fun setUpdateRepo(v: String) = context.dataStore.edit { it[Keys.UPDATE_REPO] = v }
     suspend fun setNotifyNewContent(v: Boolean) = context.dataStore.edit { it[Keys.NOTIFY_NEW_CONTENT] = v }
     suspend fun setScrobbleTrakt(v: Boolean) = context.dataStore.edit { it[Keys.SCROBBLE_TRAKT] = v }

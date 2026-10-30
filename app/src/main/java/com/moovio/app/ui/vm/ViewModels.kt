@@ -19,6 +19,8 @@ import com.moovio.app.data.model.SubtitleTrack
 import com.moovio.app.data.model.Video
 import com.moovio.app.data.model.WatchEntry
 import com.moovio.app.data.remote.MangaDexClient
+import com.moovio.app.data.search.SmartQuery
+import com.moovio.app.data.search.SmartSearchParser
 import com.moovio.app.data.remote.TmdbClient
 import com.moovio.app.data.repo.StreamsResult
 import com.moovio.app.di.AppContainer
@@ -29,7 +31,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -567,6 +568,14 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
     val loading = MutableStateFlow(false)
     val section = MutableStateFlow<MediaType?>(null)
 
+    /**
+     * The compiled form of the current query, or null when the user typed plain words.
+     *
+     * Kept separate from [results] so the screen can show what the parser understood ("Anime · 2024
+     * · rated 7+") without re-parsing on every recomposition.
+     */
+    val compiled = MutableStateFlow<SmartQuery?>(null)
+
     /** Past searches, newest first — powers the suggestion chips on the empty state. */
     val recentSearches: StateFlow<List<String>> = container.settings.recentSearches
 
@@ -602,17 +611,33 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         if (query.isEmpty()) {
             generation++
             results.value = emptyList()
+            compiled.value = null
             loading.value = false
             return
         }
         val id = ++generation
         val requestedSection = section.value
+        // Natural-language filters compile before the debounce, so the timing and the generation
+        // guard below are untouched: this only changes what is searched and how it is narrowed.
+        val smart = SmartSearchParser.parse(query)
+        val searchText = smart.text
+        val effectiveType = requestedSection ?: smart.type
+        compiled.value = smart.takeIf { it.hasFilters }
         loading.value = true
         searchJob = viewModelScope.launch {
             delay(SEARCH_DEBOUNCE_MS)
+            // A query that is *only* filters ("high rating") leaves no subject to search for.
+            // Asking a provider for "" returns its whole catalog, so publish nothing instead.
+            if (searchText.isBlank()) {
+                if (id != generation) return@launch
+                results.value = emptyList()
+                loading.value = false
+                return@launch
+            }
             val found = runCatchingCancellable {
-                if (requestedSection == null) container.catalogRepository.globalSearch(query)
-                else container.catalogRepository.search(query, requestedSection)
+                val base = if (effectiveType == null) container.catalogRepository.globalSearch(searchText)
+                else container.catalogRepository.search(searchText, effectiveType)
+                smart.applyTo(base)
             }.getOrDefault(emptyList())
             // A newer keystroke (or a filter change) superseded this request; drop the result.
             if (id != generation) return@launch
@@ -1152,6 +1177,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val mangaZoomLock = container.settings.mangaZoomLock.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val mangaVolumeKeys = container.settings.mangaVolumeKeys.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val mangaWarm = container.settings.mangaWarm.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val mangaEink = container.settings.mangaEink.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val subtitleSyncMs = container.settings.subtitleSyncMs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     // ---- Phase 12 ----
@@ -1166,6 +1192,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val autoDownloadWifiOnly = container.settings.autoDownloadWifiOnly.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val autoDeleteWatched = container.settings.autoDeleteWatched.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val storageUri = container.settings.storageUri.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val lowSpaceMb = container.settings.lowSpaceMb.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1024)
     val updateRepo = container.settings.updateRepo.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
     val notifyNewContent = container.settings.notifyNewContent.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val scrobbleTrakt = container.settings.scrobbleTrakt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -1222,7 +1249,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setMangaZoomLock(v: Boolean) = viewModelScope.launch { container.settings.setMangaZoomLock(v) }
     fun setMangaVolumeKeys(v: Boolean) = viewModelScope.launch { container.settings.setMangaVolumeKeys(v) }
     fun setMangaWarm(v: Boolean) = viewModelScope.launch { container.settings.setMangaWarm(v) }
+    fun setMangaEink(v: Boolean) = viewModelScope.launch { container.settings.setMangaEink(v) }
     fun setSubtitleSyncMs(v: Int) = viewModelScope.launch { container.settings.setSubtitleSyncMs(v) }
+    fun setLowSpaceMb(v: Int) = viewModelScope.launch { container.settings.setLowSpaceMb(v) }
 
     fun setIncognito(v: Boolean) = viewModelScope.launch { container.settings.setIncognito(v) }
     fun setFlagSecure(v: Boolean) = viewModelScope.launch { container.settings.setFlagSecure(v) }

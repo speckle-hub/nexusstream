@@ -3,7 +3,6 @@ package com.moovio.app.ui.screens.detail
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -79,7 +78,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -101,20 +99,21 @@ import com.moovio.app.data.model.Video
 import com.moovio.app.data.remote.TorrentStreamer
 import com.moovio.app.data.repo.StreamRanking
 import com.moovio.app.ui.components.EmptyState
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.components.MediaRow
 import com.moovio.app.ui.components.RatingBadge
 import com.moovio.app.ui.components.ResolutionBadge
 import com.moovio.app.ui.components.SectionHeader
 import com.moovio.app.ui.components.ShimmerBox
 import com.moovio.app.ui.components.TagChip
+import com.moovio.app.ui.components.sharedPoster
 import com.moovio.app.ui.nav.Routes
 import com.moovio.app.ui.player.PlayerActivity
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.AppSpacing
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.theme.Motion
-import com.moovio.app.ui.theme.PosterPalette
-import com.moovio.app.ui.theme.rememberPosterPalette
+import com.moovio.app.ui.theme.rememberMoovioHaptics
 import com.moovio.app.ui.vm.DetailViewModel
 import com.moovio.app.ui.vm.LocalContainer
 import com.moovio.app.ui.vm.collectAsStateSafe
@@ -122,7 +121,7 @@ import com.moovio.app.ui.vm.moovioViewModel
 import kotlinx.coroutines.launch
 
 @Composable
-fun DetailScreen(nav: NavHostController, item: MediaItem) {
+fun DetailScreen(nav: NavHostController, item: MediaItem, fromRail: String? = null) {
     val vm = moovioViewModel(key = item.key) { DetailViewModel(it, item) }
     val moovio = LocalMoovioColors.current
     val context = LocalContext.current
@@ -180,9 +179,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
     var seasonDownloading by remember { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
 
-    // Dynamic Material You theming: derive an accent from the artwork and animate to it.
-    val palette = rememberPosterPalette(detail?.background ?: item.backdrop ?: item.poster)
-    val accent by animateColorAsState(palette?.vibrantColor ?: moovio.accent, label = "detailAccent")
+    // The accent is the app's accent. It used to be re-derived from each title's artwork, so the
+    // primary action changed hue from one film to the next and stopped reading as the same button.
+    val accent = moovio.accent
 
     // Flat, ordered episode list + the currently selected episode's index, handed to the player
     // so it can autoplay the next episode and populate its episode sheet.
@@ -352,7 +351,7 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                 item = item,
                 detail = detail,
                 loading = loading,
-                palette = palette,
+                fromRail = fromRail,
                 onBack = { nav.popBackStack() },
                 // The heart lives in the header's app bar rather than as a full-width button under
                 // the CTAs — it is a secondary toggle, not something competing with "Play".
@@ -452,7 +451,7 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
         // ---- Graceful error / empty state ------------------------------------
         if (detail == null && !loading) {
             item {
-                GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                SurfaceCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     Column(
                         Modifier.fillMaxWidth().padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -631,7 +630,7 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
                 Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center,
             ) {
-                GlassSurface(Modifier.padding(32.dp)) {
+                SurfaceCard(Modifier.padding(32.dp)) {
                     Column(
                         Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -711,8 +710,9 @@ fun DetailScreen(nav: NavHostController, item: MediaItem) {
 /**
  * The screen's single dominant call to action.
  *
- * Filled with the artwork-derived accent, a matching outer glow so it reads as *the* button on the
- * page, and the app's standard 0.96 press shrink so it feels physical like every other control.
+ * A solid fill in the app accent (with the content colour derived for contrast) and the standard
+ * 0.96 press shrink so it feels physical like every other control. It carries an embedded mini
+ * progress bar when there is watch/read progress to resume.
  */
 @Composable
 private fun PrimaryActionButton(
@@ -732,28 +732,22 @@ private fun PrimaryActionButton(
         animationSpec = tween(Motion.PRESS),
         label = "primaryPress",
     )
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (enabled) 0.45f else 0f,
-        animationSpec = tween(Motion.MEDIUM),
-        label = "primaryGlow",
-    )
-    // A floating capsule pill rather than a boxy button: fully rounded, elevated, and able to carry
-    // an embedded mini progress bar when there is watch/read progress to resume.
-    val shape = RoundedCornerShape(50)
+    // The screen's one dominant action, so the press gets a tick of its own — it is the control
+    // people reach for without looking.
+    val haptics = rememberMoovioHaptics()
+    // A control radius, not a capsule, and no outer glow: the solid fill already makes this the
+    // brightest thing on a dark page, and an accent-coloured shadow on top of that only haloed it.
+    val shape = RoundedCornerShape(AppRadius.control.dp)
     Box(
         modifier = modifier
-            .height(52.dp)
+            .height(48.dp)
             .scale(scale)
-            // Accent-tinted outer glow, faded in so it doesn't pop on first composition.
-            .shadow(
-                elevation = if (glowAlpha > 0f) 12.dp else 0.dp,
-                shape = shape,
-                ambientColor = accent,
-                spotColor = accent,
-            )
             .clip(shape)
-            .background(if (enabled) accent else moovio.surfaceElevated)
-            .clickable(enabled = enabled) { onClick() },
+            .background(if (enabled) moovio.actionFill else moovio.surfaceElevated)
+            .clickable(enabled = enabled) {
+                haptics.select()
+                onClick()
+            },
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -766,8 +760,7 @@ private fun PrimaryActionButton(
             Text(
                 label,
                 style = MaterialTheme.typography.labelLarge,
-                color = if (enabled) Color.White else moovio.textTertiary,
-                fontWeight = FontWeight.Bold,
+                color = if (enabled) moovio.onAction else moovio.textTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -779,13 +772,13 @@ private fun PrimaryActionButton(
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
                     .height(3.dp)
-                    .background(Color.White.copy(alpha = 0.25f)),
+                    .background(moovio.onAction.copy(alpha = 0.3f)),
             ) {
                 Box(
                     Modifier
                         .fillMaxWidth(progress.coerceIn(0f, 1f))
                         .fillMaxHeight()
-                        .background(Color.White),
+                        .background(moovio.onAction),
                 )
             }
         }
@@ -839,17 +832,16 @@ private fun DetailHeader(
     item: MediaItem,
     detail: com.moovio.app.data.model.MetaDetail?,
     loading: Boolean,
-    palette: PosterPalette?,
+    /** Rail the card was tapped from, so this header's morph key equals that card's key. */
+    fromRail: String?,
     onBack: () -> Unit,
     favourite: Boolean,
     onToggleFavourite: () -> Unit,
     accent: Color,
 ) {
     val moovio = LocalMoovioColors.current
+    val haptics = rememberMoovioHaptics()
     val img = detail?.background ?: item.backdrop ?: item.poster
-    // Palette-driven glow behind the artwork; animates as the color resolves / title changes.
-    val glow by animateColorAsState(palette?.darkVibrantColor ?: Color.Black, label = "headerGlow")
-    val halo by animateColorAsState(palette?.vibrantColor ?: Color.Transparent, label = "headerHalo")
     // Height derived from the screen width (like the home hero) rather than a fixed 16:11, so the
     // bottom title block always clears the header app bar. At 16:11 the poster+title stack grew
     // up into the back/heart buttons on narrow phones.
@@ -861,43 +853,30 @@ private fun DetailHeader(
                 img,
                 item.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                // Destination half of the poster → header morph. Same key as the tapped card's
+                // artwork, so the poster's frame grows into this header instead of the two screens
+                // cross-fading.
+                modifier = Modifier.fillMaxSize().sharedPoster(item.key, fromRail),
             )
         } else {
             ShimmerBox(Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
         }
-        // Ambient halo tinted by the artwork's dominant color.
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.radialGradient(
-                    listOf(halo.copy(alpha = 0.32f), Color.Transparent),
-                )
-            )
-        )
-        // Scrim for legibility, seeded from the palette's dark swatch so dark art stays cohesive.
+        // One neutral scrim: dark at the top so the back/heart controls read, clear through the
+        // middle so the artwork is untouched, opaque to the page colour at the bottom. The tinted
+        // halo that used to sit here muddied the key art instead of framing it.
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    0f to glow.copy(alpha = 0.55f),
-                    0.45f to Color.Transparent,
+                    0f to Color.Black.copy(alpha = 0.55f),
+                    0.30f to Color.Transparent,
+                    0.62f to Color.Transparent,
                     1f to moovio.background,
                 )
             )
         )
         // ---- Top app bar ----------------------------------------------------
-        // A dedicated scrim behind the status bar + controls. Without it the back arrow and heart
-        // sat directly on raw artwork and vanished against a bright frame; both now also carry a
-        // translucent circular backdrop so they stay legible over any image.
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(104.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)
-                    )
-                )
-        )
+        // The scrim above already darkens this band, so this is one layer instead of two; the back
+        // arrow and heart still carry their own translucent circular backdrop for legibility.
         Row(
             Modifier
                 .fillMaxWidth()
@@ -919,7 +898,10 @@ private fun DetailHeader(
                 icon = if (favourite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                 contentDescription = if (favourite) "Remove from library" else "Add to library",
                 tint = if (favourite) accent else Color.White,
-                onClick = onToggleFavourite,
+                onClick = {
+                    haptics.toggle()
+                    onToggleFavourite()
+                },
             )
         }
 
@@ -1143,7 +1125,8 @@ private fun SeasonPickerRow(
     onSelect: (Int) -> Unit,
 ) {
     val moovio = LocalMoovioColors.current
-    val shape = RoundedCornerShape(50)
+    val shape = RoundedCornerShape(AppRadius.chip.dp)
+    val haptics = rememberMoovioHaptics()
     LazyRow(
         contentPadding = PaddingValues(horizontal = AppSpacing.screen),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1153,19 +1136,26 @@ private fun SeasonPickerRow(
             Box(
                 Modifier
                     .clip(shape)
-                    .background(if (active) moovio.accent.copy(alpha = 0.20f) else moovio.surfaceElevated)
+                    // Selection is a surface step plus a brighter hairline, not an accent wash: the
+                    // chips sit directly under the header art and an accent tint there competed
+                    // with the artwork for attention.
+                    .background(if (active) moovio.surfaceElevated else Color.Transparent)
                     .border(
-                        BorderStroke(1.dp, if (active) moovio.accent else moovio.outline.copy(alpha = 0.6f)),
+                        BorderStroke(1.dp, if (active) moovio.textSecondary.copy(alpha = 0.5f) else moovio.hairline),
                         shape,
                     )
-                    .clickable { onSelect(s.season) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .clickable {
+                        if (!active) {
+                            haptics.select()
+                            onSelect(s.season)
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Text(
                     s.title ?: "Season ${s.season}",
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (active) moovio.accent else moovio.textSecondary,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    color = if (active) moovio.textPrimary else moovio.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1189,7 +1179,7 @@ private fun EpisodeRow(
 ) {
     val moovio = LocalMoovioColors.current
     val thumb = v.thumbnail
-    GlassSurface(
+    SurfaceCard(
         Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 4.dp),
         onClick = onClick,
     ) {
@@ -1276,7 +1266,7 @@ private fun EpisodeRow(
 @Composable
 private fun ChapterRow(v: Video, onClick: () -> Unit) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onClick) {
+    SurfaceCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onClick = onClick) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(v.title ?: "Chapter", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1292,7 +1282,7 @@ private fun StreamRow(s: StreamSource, onPlay: () -> Unit, onDownload: () -> Uni
     val moovio = LocalMoovioColors.current
     // Only directly playable HTTP(S) streams can be saved for offline use.
     val downloadable = s.playableUrl != null
-    GlassSurface(
+    SurfaceCard(
         Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 4.dp),
         onClick = onPlay,
     ) {

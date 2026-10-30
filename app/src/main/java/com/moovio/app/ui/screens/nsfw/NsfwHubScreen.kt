@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -72,7 +73,7 @@ import com.moovio.app.data.model.MediaItem
 import com.moovio.app.data.model.WatchEntry
 import com.moovio.app.ui.components.ConfirmRemoveDialog
 import com.moovio.app.ui.components.EmptyState
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.components.LoadingRow
 import com.moovio.app.ui.components.MediaRow
 import com.moovio.app.ui.components.MoovioSwitch
@@ -83,6 +84,9 @@ import com.moovio.app.ui.components.SectionHeader
 import com.moovio.app.ui.components.TagChip
 import com.moovio.app.ui.nav.LocalFloatingNavBottomPadding
 import com.moovio.app.ui.nav.Routes
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.AppSpacing
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.vm.LocalContainer
@@ -172,22 +176,23 @@ private fun NsfwHubHeader(
             color = moovio.textPrimary,
             modifier = Modifier.weight(1f),
         )
-        // Private pill: the hub's visual signature — dark surface, purple accent text.
+        // Private marker: a quiet chip, not a purple pill. The word already says what it means, so
+        // the tint was only decoration competing with the hub's content.
         Box(
             Modifier
-                .clip(RoundedCornerShape(50))
-                .background(moovio.accent.copy(alpha = 0.18f))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .clip(RoundedCornerShape(AppRadius.chip.dp))
+                .background(moovio.surfaceElevated)
+                .border(BorderStroke(1.dp, moovio.hairline), RoundedCornerShape(AppRadius.chip.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Lock, null, tint = moovio.accent, modifier = Modifier.size(13.dp))
+                Icon(Icons.Filled.Lock, null, tint = moovio.textSecondary, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
                 Text(
                     "Private",
                     style = MaterialTheme.typography.labelSmall,
-                    color = moovio.accent,
-                    fontWeight = FontWeight.Bold,
+                    color = moovio.textSecondary,
                 )
             }
         }
@@ -432,7 +437,7 @@ private fun NsfwPrivateTab(
 @Composable
 private fun NsfwStatusCard(historyCount: Int, onLock: () -> Unit) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp)) {
+    SurfaceCard(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp)) {
         Row(
             Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -440,8 +445,8 @@ private fun NsfwStatusCard(historyCount: Int, onLock: () -> Unit) {
             Box(
                 Modifier
                     .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(moovio.accent.copy(alpha = 0.18f)),
+                    .clip(RoundedCornerShape(AppRadius.card.dp))
+                    .background(moovio.surfaceElevated),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Filled.Lock, null, tint = moovio.accent, modifier = Modifier.size(22.dp))
@@ -452,7 +457,6 @@ private fun NsfwStatusCard(historyCount: Int, onLock: () -> Unit) {
                     "Private area unlocked",
                     style = MaterialTheme.typography.titleSmall,
                     color = moovio.textPrimary,
-                    fontWeight = FontWeight.Bold,
                 )
                 Text(
                     if (historyCount == 0) "Adult history stays inside this hub."
@@ -534,14 +538,14 @@ private fun NsfwHistoryRail(
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
                                 .size(48.dp)
-                                .clip(RoundedCornerShape(50))
+                                .clip(CircleShape)
                                 .clickable { onRemove(entry) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Box(
                                 Modifier
                                     .size(26.dp)
-                                    .clip(RoundedCornerShape(50))
+                                    .clip(CircleShape)
                                     .background(Color.Black.copy(alpha = 0.62f)),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -617,7 +621,7 @@ private fun NsfwBrowseShortcuts(onOpen: (Int) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         entries.forEach { (title, subtitle, index) ->
-            GlassSurface(Modifier.fillMaxWidth(), onClick = { onOpen(index) }) {
+            SurfaceCard(Modifier.fillMaxWidth(), onClick = { onOpen(index) }) {
                 Row(
                     Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -651,13 +655,12 @@ private fun NsfwManageCard(
     onClearBookmarks: () -> Unit,
 ) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp)) {
+    SurfaceCard(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 6.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 "Private library tools",
                 style = MaterialTheme.typography.titleSmall,
                 color = moovio.textPrimary,
-                fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(4.dp))
             // The isolation opt-in. Off by default, so the general Search screen and Home feed never
@@ -945,11 +948,13 @@ private fun NsfwSection(
                     // Same card width as the Home feed: `MediaRow`'s 132 dp default made every
                     // NSFW/Real 18+ rail narrower than Home's, which is what read as "narrow cards"
                     // next to the edge-to-edge Home rows.
+                    val rail = "nsfw:${row.title}"
                     MediaRow(
                         row.title,
                         row.items,
-                        onClick = { nav.navigate(Routes.detail(it)) },
+                        onClick = { nav.navigate(Routes.detail(it, rail)) },
                         cardWidth = AppSpacing.railCard,
+                        rail = rail,
                     )
                 }
             }

@@ -1,5 +1,8 @@
 package com.moovio.app.ui.theme
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.spring
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 
@@ -14,6 +17,9 @@ object AppSpacing {
     /** Left/right screen gutter. Used by every screen's outermost container. */
     val screen = 16.dp
 
+    /** Nudge inside a control: icon to label, badge padding, chip inner inset. */
+    val tight = 8.dp
+
     /** Gap between siblings inside a row/grid. */
     val item = 12.dp
 
@@ -22,6 +28,9 @@ object AppSpacing {
 
     /** Smaller inset used inside cards and rows. */
     val inset = 12.dp
+
+    /** Page-level breathing room: the gap under the last row, above a bottom sheet's content. */
+    val page = 32.dp
 
     /**
      * Poster width for every **horizontal media rail** (Home, Browse → Manga/Anime, NSFW).
@@ -53,6 +62,26 @@ object AppSpacing {
  * Durations used to be ad-hoc (`tween(220)`, `tween(900)`), so transitions felt unrelated to each
  * other. Everything now uses these tokens.
  */
+/**
+ * Radius by element size, so a control is not automatically a pill.
+ *
+ * Nested radius math: inner = outer − padding, never below 4dp. A 16dp card with 8dp padding holds
+ * 8dp-radius children.
+ */
+object AppRadius {
+    /** Tags, resolution badges, keycap-like micro chips. */
+    const val chip = 6
+
+    /** Buttons, inputs, rows, selected chips. */
+    const val control = 10
+
+    /** Poster artwork, cards. */
+    const val card = 12
+
+    /** Panels, sheets, the hero's inner surfaces. */
+    const val panel = 16
+}
+
 object Motion {
     /** Press feedback, ripple, tiny state flips. */
     const val FAST = 150
@@ -68,6 +97,19 @@ object Motion {
 
     /** How far a card shrinks while held. */
     const val PRESS_SCALE = 0.96f
+
+    /**
+     * The one spring the whole app settles on.
+     *
+     * Every animated position used to be either a rigid `tween` (which stops dead) or a
+     * `DampingRatioLowBouncy` spring (which overshoots and wobbles back). Neither is how a physical
+     * control behaves: a page, an indicator or a morph decelerates into place and stops. That is
+     * exactly `DampingRatioNoBouncy` with low stiffness, so motion reads as weight rather than
+     * bounce. Generic so the same curve drives `Dp` offsets, `Float` scroll targets and the `Rect`
+     * of a shared-element bounds transform.
+     */
+    fun <T> settle(stiffness: Float = Spring.StiffnessLow): SpringSpec<T> =
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = stiffness)
 }
 
 /**

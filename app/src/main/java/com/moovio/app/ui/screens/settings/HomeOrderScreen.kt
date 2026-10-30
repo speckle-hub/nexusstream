@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.moovio.app.data.model.CatalogRow
 import com.moovio.app.ui.components.EmptyState
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.theme.AppSpacing
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.vm.HomeViewModel
@@ -139,7 +139,7 @@ fun HomeOrderScreen(nav: NavHostController) {
                 // stable for the lifetime of this list.
                 itemsIndexed(order, key = { index, title -> "$index::$title" }) { index, title ->
                     val isHidden = title in hidden
-                    GlassSurface(Modifier.fillMaxWidth()) {
+                    SurfaceCard(Modifier.fillMaxWidth()) {
                         Row(
                             Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,

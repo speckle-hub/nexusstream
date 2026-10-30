@@ -46,7 +46,7 @@ import com.moovio.app.data.ext.ExtensionHost
 import com.moovio.app.data.integrations.SourceProbe
 import com.moovio.app.data.integrations.SourceTester
 import com.moovio.app.ui.components.EmptyState
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.components.MoovioSwitch
 import com.moovio.app.ui.theme.AppSpacing
 import com.moovio.app.ui.theme.LocalMoovioColors
@@ -164,7 +164,7 @@ fun SourcesScreen(nav: NavHostController) {
                 items(installed, key = { it.id }) { desc ->
                     val enabled = desc.id !in disabled
                     val probe = probes[desc.id]
-                    GlassSurface(Modifier.fillMaxWidth()) {
+                    SurfaceCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {

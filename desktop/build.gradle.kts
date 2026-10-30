@@ -1,8 +1,11 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.0.20"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.20"
+    // Versions come from the root build's `plugins` block. Declaring them again here makes Gradle
+    // reject the whole build ("already on the classpath with an unknown version"), which is why
+    // `./gradlew` at the repository root could not even configure.
+    id("org.jetbrains.kotlin.jvm")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose") version "1.8.2"
 }
 

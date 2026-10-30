@@ -55,7 +55,7 @@ import com.moovio.app.data.model.AddonKind
 import com.moovio.app.data.model.CloudStreamExt
 import com.moovio.app.data.model.MangaExt
 import com.moovio.app.ui.components.EmptyState
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.components.MoovioSwitch
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.vm.AddonViewModel
@@ -135,7 +135,7 @@ private fun StremioTab(vm: AddonViewModel) {
         items(com.moovio.app.data.local.AddonStore.Defaults.recommendedStreamAddons) { (name, manifestUrl) ->
             val host = manifestHost(manifestUrl)
             val installed = addons.any { it.transportUrl.contains(host) }
-            GlassSurface(Modifier.fillMaxWidth()) {
+            SurfaceCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -156,7 +156,7 @@ private fun StremioTab(vm: AddonViewModel) {
         item { Text("Installed (${addons.size})", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
         if (addons.isEmpty()) item { EmptyState("No add-ons installed", "Paste a Stremio manifest URL above.") }
         items(addons, key = { it.id }) { addon ->
-            GlassSurface(Modifier.fillMaxWidth()) {
+            SurfaceCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(addon.name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -200,7 +200,7 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
         // runtime that would execute them does not exist yet. Never let the list imply otherwise.
         if (kind == AddonKind.ANIYOMI || kind == AddonKind.KEIYOUSHI) {
             item {
-                GlassSurface(Modifier.fillMaxWidth()) {
+                SurfaceCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
                             "Installed but not yet executable",
@@ -251,7 +251,7 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
         if (recommended.isNotEmpty()) {
             item { Text("Recommended", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
             items(recommended) { (label, repo) ->
-                GlassSurface(Modifier.fillMaxWidth()) {
+                SurfaceCard(Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(label, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -269,7 +269,7 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
         // Content gate: extensions and repositories flagged `nsfw` (or coming from an adult repo
         // such as CXXX) are listed only when this is on.
         item {
-            GlassSurface(Modifier.fillMaxWidth()) {
+            SurfaceCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Show NSFW extensions", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
@@ -287,7 +287,7 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
         item { Text("Repositories", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
         if (myRepos.isEmpty()) item { EmptyState("No repositories added", "Paste a repository URL above to browse its extensions.") }
         items(myRepos) { repo ->
-            GlassSurface(Modifier.fillMaxWidth()) {
+            SurfaceCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(repo.name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
@@ -386,7 +386,7 @@ private fun MetaChip(text: String) {
 @Composable
 private fun ExtRow(name: String, version: String?, lang: String?, desc: String?, nsfw: Boolean = false, onInstall: () -> Unit) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth()) {
+    SurfaceCard(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -414,7 +414,7 @@ private fun InstalledExtRow(
     onRemove: () -> Unit,
 ) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth()) {
+    SurfaceCard(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -434,7 +434,7 @@ private fun InstalledExtRow(
 @Composable
 private fun InstalledRow(name: String, version: String?, lang: String?, onRemove: () -> Unit) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth()) {
+    SurfaceCard(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)

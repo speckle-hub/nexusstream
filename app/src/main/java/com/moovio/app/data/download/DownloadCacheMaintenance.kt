@@ -43,4 +43,22 @@ object DownloadCacheMaintenance {
         if (dir == null || !dir.isDirectory) return emptyList()
         return dir.walkTopDown().filter { isOrphan(it, referenced) }.toList()
     }
+
+    /**
+     * True when free space has fallen under the user's limit.
+     *
+     * A limit of zero or less means "off", and a negative free reading (some file systems report
+     * that for a mount that has just gone away) is treated as unknown rather than as an emergency,
+     * so a departed SD card never triggers a sweep.
+     */
+    fun isBelowLimit(freeBytes: Long, limitBytes: Long): Boolean =
+        limitBytes > 0L && freeBytes in 0L until limitBytes
+
+    /**
+     * Whether an automatic sweep is worth running: only when space is short *and* there is something
+     * to reclaim. Completed downloads are never touched — the sweep here is limited to chunks no
+     * index entry references, i.e. bytes the user already cannot play.
+     */
+    fun shouldSweep(freeBytes: Long, limitBytes: Long, orphanCount: Int): Boolean =
+        orphanCount > 0 && isBelowLimit(freeBytes, limitBytes)
 }

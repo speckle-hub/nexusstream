@@ -89,13 +89,22 @@ object Routes {
     const val SOURCES = "sources"
     const val HOME_ORDER = "home_order"
     const val COLLECTION = "collection/{type}"
-    const val DETAIL = "detail/{type}/{addonId}/{id}/{title}/{poster}"
+    const val DETAIL = "detail/{type}/{addonId}/{id}/{title}/{poster}?from={from}"
 
     fun collection(type: MediaType): String = "collection/${type.id}"
 
-    fun detail(item: MediaItem): String {
+    /**
+     * Detail destination for [item].
+     *
+     * [from] is the rail the tapped card lived in (`"home:Trending"`). It is carried through the
+     * route because the detail header's shared-element key must equal the *source* poster's key, and
+     * that key is rail-scoped so two rails showing the same title can't collide. Omit it for cards
+     * that aren't in a rail (library, search, related) — both ends then use the item-only key.
+     */
+    fun detail(item: MediaItem, from: String? = null): String {
         fun e(s: String?) = Uri.encode(s ?: "-")
-        return "detail/${item.type.id}/${e(item.addonId)}/${e(item.id)}/${e(item.title)}/${e(item.poster)}"
+        val base = "detail/${item.type.id}/${e(item.addonId)}/${e(item.id)}/${e(item.title)}/${e(item.poster)}"
+        return if (from.isNullOrBlank()) base else "$base?from=${Uri.encode(from)}"
     }
 
     /** Navigate to global search pre-filled with a query (used by clickable genre tags). */
@@ -318,6 +327,12 @@ fun MoovioApp(navController: NavHostController = rememberNavController()) {
                             navArgument("id") { type = NavType.StringType },
                             navArgument("title") { type = NavType.StringType },
                             navArgument("poster") { type = NavType.StringType },
+                            // Optional: the rail the card was tapped in, for a rail-scoped morph key.
+                            navArgument("from") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
                         ),
                         enterTransition = { detailEnter() },
                         exitTransition = { detailExit() },
@@ -329,6 +344,7 @@ fun MoovioApp(navController: NavHostController = rememberNavController()) {
                         val id = entry.arguments?.getString("id") ?: ""
                         val title = entry.arguments?.getString("title")?.takeIf { it != "-" } ?: ""
                         val poster = entry.arguments?.getString("poster")?.takeIf { it != "-" }
+                        val fromRail = entry.arguments?.getString("from")?.takeIf { it.isNotBlank() }
                         val item = MediaItem(
                             id = id,
                             type = MediaType.fromId(type) ?: MediaType.MOVIE,
@@ -336,7 +352,7 @@ fun MoovioApp(navController: NavHostController = rememberNavController()) {
                             poster = poster,
                             addonId = addonId,
                         )
-                        with(this) { ProvideSharedScope(sharedTransitionScope, this) { DetailScreen(navController, item) } }
+                        with(this) { ProvideSharedScope(sharedTransitionScope, this) { DetailScreen(navController, item, fromRail) } }
                     }
                 }
             }

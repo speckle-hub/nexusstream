@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -50,14 +51,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -110,8 +109,11 @@ import com.moovio.app.data.model.Video
 import com.moovio.app.data.remote.Http
 import com.moovio.app.data.model.WatchEntry
 import com.moovio.app.ui.components.MoovioSwitch
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.theme.MoovioTheme
+import com.moovio.app.ui.theme.rememberMoovioHaptics
+import com.moovio.app.ui.theme.tnum
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -183,6 +185,9 @@ class PlayerActivity : ComponentActivity() {
     private var playbackSpeed = 1f
     private var audioBoost = false
     private var audioNormalize = false
+    private var audioSpatial = false
+    // Whether this device exposes a Spatializer at all (API 32+ and a capable output path).
+    private var spatialSupported = false
     /**
      * Live subtitle look (Phase 29): Compose state so in-player style edits re-render the
      * time-shifted overlay and re-apply to the PlayerView immediately (see `PlayerScreen`).
@@ -241,6 +246,8 @@ class PlayerActivity : ComponentActivity() {
         playbackSpeed = settings.playerSpeed.value
         audioBoost = settings.audioBoost.value
         audioNormalize = settings.audioNormalize.value
+        audioSpatial = settings.audioSpatial.value
+        spatialSupported = spatializerAvailable()
         subtitleSyncMs = settings.subtitleSyncMs.value
         autoDeleteWatched = settings.autoDeleteWatched.value
         subtitleStyleState.value = SubtitleStyle(
@@ -284,6 +291,9 @@ class PlayerActivity : ComponentActivity() {
             finish(); return
         }
         player = exo
+        // Re-applied on every player creation, so a new episode or a re-entered player keeps the
+        // choice instead of silently falling back to stereo.
+        applySpatialAudio(audioSpatial)
         exo.playWhenReady = true
         exo.setPlaybackSpeed(playbackSpeed)
         exo.addListener(object : Player.Listener {
@@ -368,6 +378,9 @@ class PlayerActivity : ComponentActivity() {
                     onSpeedChange = { setPlaybackSpeed(it) },
                     onAudioBoost = { setAudioBoost(it) },
                     onAudioNormalize = { setAudioNormalize(it) },
+                    audioSpatialOn = audioSpatial,
+                    spatialSupported = spatialSupported,
+                    onAudioSpatial = { setAudioSpatial(it) },
                     onOpenVlc = { openInPackage("org.videolan.vlc") },
                     onOpenMpv = { openInPackage("is.xyz.mpv") },
                     onOpenOther = { openExternal() },
@@ -996,11 +1009,67 @@ class PlayerActivity : ComponentActivity() {
     private fun setAudioBoost(enabled: Boolean) {
         audioBoost = enabled
         applyAudioEffects(audioSessionId)
+        val settings = (application as MoovioApp).container.settings
+        lifecycleScope.launch { settings.setAudioBoost(enabled) }
     }
 
     private fun setAudioNormalize(enabled: Boolean) {
         audioNormalize = enabled
         applyAudioEffects(audioSessionId)
+        val settings = (application as MoovioApp).container.settings
+        lifecycleScope.launch { settings.setAudioNormalize(enabled) }
+    }
+
+    private fun setAudioSpatial(enabled: Boolean) {
+        audioSpatial = enabled
+        applySpatialAudio(enabled)
+        val settings = (application as MoovioApp).container.settings
+        lifecycleScope.launch { settings.setAudioSpatial(enabled) }
+    }
+
+    /**
+     * Request or decline spatialisation for this stream (API 32+).
+     *
+     * `Spatializer` is user-controlled in system settings — an app can read it but cannot enable it,
+     * so the lever left is the playback attributes: marking the stream
+     * `SPATIALIZATION_BEHAVIOR_AUTO` lets the platform binauralise it when the device is set up for
+     * that, and `NEVER` keeps it plain stereo. ExoPlayer rebuilds its audio sink when the attributes
+     * change, so this runs on toggle (and once at startup), never per frame.
+     * Best-effort: a device that rejects the call simply stays stereo.
+     */
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.S_V2)
+    private fun applySpatialAudioApi32(enabled: Boolean) {
+        val exo = player ?: return
+        runCatching {
+            val attrs = androidx.media3.common.AudioAttributes.Builder()
+                .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
+                .setSpatializationBehavior(
+                    if (enabled) androidx.media3.common.C.SPATIALIZATION_BEHAVIOR_AUTO
+                    else androidx.media3.common.C.SPATIALIZATION_BEHAVIOR_NEVER,
+                )
+                .build()
+            // Keep audio focus handling as ExoPlayer had it; only the attributes change.
+            exo.setAudioAttributes(attrs, true)
+        }
+    }
+
+    private fun applySpatialAudio(enabled: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S_V2) return
+        applySpatialAudioApi32(enabled)
+    }
+
+    /**
+     * True only when this device both has a spatialiser and has it switched on, so the row is never
+     * a switch that moves without changing anything. Users turn the spatialiser itself on in system
+     * settings; here we only decide whether the *stream* is offered to it.
+     */
+    private fun spatializerAvailable(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S_V2) return false
+        return runCatching {
+            val s = getSystemService(AudioManager::class.java)?.spatializer ?: return false
+            s.isAvailable && s.isEnabled
+        }.getOrDefault(false)
     }
 
     /**
@@ -1252,6 +1321,9 @@ private fun PlayerScreen(
     onSpeedChange: (Float) -> Unit,
     onAudioBoost: (Boolean) -> Unit,
     onAudioNormalize: (Boolean) -> Unit,
+    audioSpatialOn: Boolean,
+    spatialSupported: Boolean,
+    onAudioSpatial: (Boolean) -> Unit,
     onOpenVlc: () -> Unit,
     onOpenMpv: () -> Unit,
     onOpenOther: () -> Unit,
@@ -1267,6 +1339,7 @@ private fun PlayerScreen(
     var speed by remember { mutableStateOf(initialSpeed) }
     var boost by remember { mutableStateOf(audioBoostOn) }
     var normalize by remember { mutableStateOf(audioNormalizeOn) }
+    var spatial by remember { mutableStateOf(audioSpatialOn) }
     val doubleTapMs by LocalContainer.current.settings.doubleTapMs.collectAsStateWithLifecycle()
     // ---- Phase 37: Anime4K enhancement (persisted preset + GPU tier) ----
     // Applied to the live player on every change, so the sheet switches passes mid-playback.
@@ -1292,12 +1365,10 @@ private fun PlayerScreen(
     var boostRestoreSpeed by remember { mutableStateOf(initialSpeed) }
 
     // ---- Phase 15: haptics, stats overlay & subtitle-sync buffer -----------
-    val haptic = LocalHapticFeedback.current
+    // One haptic vocabulary for the whole screen (see ui/theme/Haptics.kt).
+    val haptics = rememberMoovioHaptics()
+    // The stats panel owns its own counters; this screen only tracks whether it is open.
     var showStats by remember { mutableStateOf(false) }
-    var droppedFrames by remember { mutableLongStateOf(0L) }
-    var bandwidthBps by remember { mutableLongStateOf(0L) }
-    var bufferMs by remember { mutableLongStateOf(0L) }
-    var bufferedPct by remember { mutableIntStateOf(0) }
     // Captioned cue timeline (presentation time -> cue set). The subtitle-sync overlay replays an
     // earlier or later cue set than the native SubtitleView would show, because Media3 1.3 has no
     // built-in subtitle offset. Bounded so it can't grow without limit.
@@ -1379,9 +1450,6 @@ private fun PlayerScreen(
             }
             isPlaying = player.isPlaying
             isBuffering = player.playbackState == Player.STATE_BUFFERING
-            // Buffer state for the Stats overlay.
-            bufferMs = player.totalBufferedDuration.coerceAtLeast(0)
-            bufferedPct = player.bufferedPercentage
             delay(250)
         }
     }
@@ -1408,26 +1476,6 @@ private fun PlayerScreen(
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
-    }
-
-    // Stats-for-Nerds counters that only the analytics listener exposes.
-    DisposableEffect(player) {
-        val analytics = object : AnalyticsListener {
-            override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, dropped: Int, elapsedMs: Long) {
-                droppedFrames += dropped
-            }
-
-            override fun onBandwidthEstimate(
-                eventTime: AnalyticsListener.EventTime,
-                totalLoadTimeMs: Int,
-                totalBytesLoaded: Long,
-                bitrateEstimate: Long,
-            ) {
-                bandwidthBps = bitrateEstimate
-            }
-        }
-        player.addAnalyticsListener(analytics)
-        onDispose { player.removeAnalyticsListener(analytics) }
     }
 
     val sheetOpen = showTracks || showEpisodes || showSpeedAudio || showExternal || showSleep
@@ -1500,12 +1548,17 @@ private fun PlayerScreen(
                     var totalY = 0f
                     var mode = GestureMode.SEEK
                     var modeLocked = false
+                    // Last 10% band the brightness/volume drag has ticked in. Haptics fire on a
+                    // band change, not per frame — a per-pixel buzz is unreadable and muting it to
+                    // one long drone is worse than silence.
+                    var lastLevelStep = -1
                     detectDragGestures(
                         onDragStart = { offset ->
                             startX = offset.x
                             totalX = 0f
                             totalY = 0f
                             modeLocked = false
+                            lastLevelStep = -1
                         },
                         onDrag = { change, drag ->
                             change.consume()
@@ -1527,9 +1580,18 @@ private fun PlayerScreen(
                                 return@detectDragGestures
                             }
                             val level = when (mode) {
-                                // Vertical drag; downward decreases.
-                                GestureMode.BRIGHTNESS, GestureMode.VOLUME ->
-                                    onGestures(mode, -drag.y / 260f)
+                                // Vertical drag; downward decreases. One light tick per 10% of the
+                                // level, so a brightness or volume swipe feels stepped and you can
+                                // stop on a step without looking away from the picture.
+                                GestureMode.BRIGHTNESS, GestureMode.VOLUME -> {
+                                    val lvl = onGestures(mode, -drag.y / 260f)
+                                    val step = (lvl * 10f).toInt()
+                                    if (step != lastLevelStep) {
+                                        lastLevelStep = step
+                                        haptics.select()
+                                    }
+                                    lvl
+                                }
                                 GestureMode.SEEK -> onGestures(GestureMode.SEEK, drag.x)
                             }
                             showHud(mode, level)
@@ -1557,7 +1619,7 @@ private fun PlayerScreen(
                             position = target
                             rippleDir = if (forward) 1 else -1
                             ripplePulse++
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            haptics.select()
                             pokeControls()
                         },
                         onTap = { onSingleTap() },
@@ -1571,7 +1633,7 @@ private fun PlayerScreen(
                                     boostRestoreSpeed = speed.coerceIn(0.5f, 2f)
                                     runCatching { player.setPlaybackSpeed(2f) }
                                     isBoosting = true
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    haptics.commit()
                                 }
                                 // Park here until the finger lifts, then restore.
                                 runCatching { tryAwaitRelease() }
@@ -1623,7 +1685,7 @@ private fun PlayerScreen(
                         Icon(Icons.Filled.ArrowBack, "Back", tint = Color.White)
                     }
                     Column(Modifier.weight(1f)) {
-                        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(title, color = Color.White, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (!subtitle.isNullOrBlank())
                             Text(subtitle, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -1689,7 +1751,7 @@ private fun PlayerScreen(
                     IconButton(onClick = {
                         val target = (player.currentPosition - 10_000).coerceAtLeast(0)
                         player.seekTo(target); position = target
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        haptics.select()
                         pokeControls()
                     }) {
                         Icon(Icons.Filled.Replay10, "Back 10", tint = Color.White, modifier = Modifier.size(40.dp))
@@ -1705,7 +1767,7 @@ private fun PlayerScreen(
                     IconButton(onClick = {
                         val target = player.currentPosition + 10_000
                         player.seekTo(target); position = target
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        haptics.select()
                         pokeControls()
                     }) {
                         Icon(Icons.Filled.Forward10, "Forward 10", tint = Color.White, modifier = Modifier.size(40.dp))
@@ -1729,7 +1791,7 @@ private fun PlayerScreen(
                                     qualityLabel,
                                     color = Color.White,
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = FontWeight.Medium,
                                     maxLines = 1,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 )
@@ -1747,7 +1809,7 @@ private fun PlayerScreen(
                                     val sec = (it * dur / 1000L).toInt()
                                     if (sec != lastScrubHapticSec) {
                                         lastScrubHapticSec = sec
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        haptics.select()
                                     }
                                 }
                             },
@@ -1756,7 +1818,7 @@ private fun PlayerScreen(
                                 if (dur > 0) player.seekTo((scrubValue * dur).toLong())
                                 position = if (dur > 0) (scrubValue * dur).toLong() else 0
                                 scrubbing = false
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                haptics.select()
                                 pokeControls()
                             },
                             modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
@@ -1819,13 +1881,13 @@ private fun PlayerScreen(
         ) {
             Surface(
                 color = Color.Black.copy(alpha = 0.65f),
-                shape = RoundedCornerShape(50),
+                shape = CircleShape,
             ) {
                 Text(
                     "2X Speed ▶▶",
                     color = Color.White,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                 )
             }
@@ -1858,7 +1920,7 @@ private fun PlayerScreen(
         if (locked) {
             Box(
                 Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).size(48.dp)
-                    .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
+                    .clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
                     .clickable { locked = false; resetAutoHideTimer() },
                 contentAlignment = Alignment.Center,
             ) {
@@ -1877,14 +1939,10 @@ private fun PlayerScreen(
 
         // ---- Stats for nerds overlay ----------------------------------------
         if (showStats) {
-            StatsOverlay(
-                tracks = tracks,
-                videoSize = player.videoSize,
-                bufferMs = bufferMs,
-                bufferedPct = bufferedPct,
-                playbackState = player.playbackState,
-                droppedFrames = droppedFrames,
-                bandwidthBps = bandwidthBps,
+            // Owns its own 250 ms ticker and its own state, so a stats tick cannot
+            // recompose the control overlay behind it.
+            StatsHud(
+                player = player,
                 modifier = Modifier.align(Alignment.TopStart).padding(top = 72.dp, start = 16.dp),
             )
         }
@@ -1930,6 +1988,9 @@ private fun PlayerScreen(
                 onSpeed = { speed = it; onSpeedChange(it); pokeControls() },
                 onBoost = { boost = it; onAudioBoost(it); pokeControls() },
                 onNormalize = { normalize = it; onAudioNormalize(it); pokeControls() },
+                spatial = spatial,
+                spatialSupported = spatialSupported,
+                onSpatial = { spatial = it; onAudioSpatial(it); pokeControls() },
                 onDismiss = { showSpeedAudio = false; pokeControls() },
             )
         }
@@ -1982,84 +2043,6 @@ private fun PlayerScreen(
     }
 }
 
-/**
- * Minimal "Stats for nerds" panel: resolution, codec, track + estimated bitrate, FPS, buffer state
- * and dropped frames. Values update on the player's 250 ms ticker plus the analytics listener.
- */
-@UnstableApi
-@Composable
-private fun StatsOverlay(
-    tracks: Tracks?,
-    videoSize: androidx.media3.common.VideoSize,
-    bufferMs: Long,
-    bufferedPct: Int,
-    playbackState: Int,
-    droppedFrames: Long,
-    bandwidthBps: Long,
-    modifier: Modifier = Modifier,
-) {
-    val format = remember(tracks) {
-        runCatching {
-            val groups = tracks?.groups
-            val video = groups?.firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }
-                ?: groups?.firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
-            video?.getTrackFormat(0)
-        }.getOrNull()
-    }
-    val resolution = when {
-        format != null && format.width > 0 -> "${format.width}x${format.height}"
-        videoSize.width > 0 -> "${videoSize.width}x${videoSize.height}"
-        else -> "\u2014"
-    }
-    val codec = listOfNotNull(format?.sampleMimeType, format?.codecs)
-        .joinToString(" \u00b7 ")
-        .ifBlank { "\u2014" }
-    val fps = format?.frameRate?.let { formatFps(it) }.orEmpty().ifBlank { "\u2014" }
-    val stateLabel = when (playbackState) {
-        Player.STATE_BUFFERING -> "buffering"
-        Player.STATE_READY -> "ready"
-        Player.STATE_ENDED -> "ended"
-        else -> "idle"
-    }
-    Column(
-        modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.Black.copy(alpha = 0.62f))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-    ) {
-        Text("Stats for nerds", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(4.dp))
-        StatsLine("Resolution", resolution)
-        StatsLine("Codec", codec)
-        StatsLine("Track bitrate", formatBitrate(format?.bitrate?.toLong() ?: 0L))
-        StatsLine("Bandwidth", formatBitrate(bandwidthBps))
-        StatsLine("FPS", fps)
-        StatsLine("Buffer", "%.1fs \u00b7 %d%%".format(bufferMs / 1000.0, bufferedPct))
-        StatsLine("State", stateLabel)
-        StatsLine("Dropped", droppedFrames.toString())
-    }
-}
-
-@Composable
-private fun StatsLine(label: String, value: String) {
-    Row {
-        Text(
-            label,
-            color = Color.White.copy(alpha = 0.7f),
-            fontSize = 10.sp,
-            modifier = Modifier.width(84.dp),
-        )
-        Text(
-            value,
-            // Tabular figures: the stats overlay updates every tick, so the value must not jitter.
-            style = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, fontFeatureSettings = "tnum"),
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -2086,7 +2069,7 @@ private fun TrackSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.7f).padding(16.dp)) {
-                Text("Quality", color = moovio.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Quality", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
                 LazyColumn(Modifier.weight(1f).padding(vertical = 8.dp)) {
                     item {
                         TrackRow("Auto", selectedVideo == -1) {
@@ -2114,7 +2097,7 @@ private fun TrackSheet(
 
                     item {
                         Spacer(Modifier.height(8.dp))
-                        Text("Audio", color = moovio.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Audio", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
                     }
                     item {
                         TrackRow("Default", selectedAudio == -1) {
@@ -2138,7 +2121,7 @@ private fun TrackSheet(
 
                     item {
                         Spacer(Modifier.height(8.dp))
-                        Text("Subtitles", color = moovio.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Subtitles", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
                     }
                     item {
                         TrackRow("Off", selectedText == -1) {
@@ -2167,8 +2150,7 @@ private fun TrackSheet(
                         Text(
                             "Sync offset ${formatSubtitleSync(subtitleSyncMs)}",
                             color = moovio.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.titleSmall,
                         )
                         Text(
                             "Delay or advance captions to fix out-of-sync subtitles",
@@ -2198,8 +2180,7 @@ private fun TrackSheet(
                         Text(
                             "Subtitle style",
                             color = moovio.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.titleSmall,
                         )
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2229,12 +2210,12 @@ private fun TrackSheet(
                                 Box(
                                     Modifier
                                         .size(40.dp)
-                                        .clip(RoundedCornerShape(50))
+                                        .clip(CircleShape)
                                         .background(Color(subtitleColor(key)))
                                         .border(
                                             if (selected) 3.dp else 1.dp,
                                             if (selected) moovio.accent else moovio.textTertiary,
-                                            RoundedCornerShape(50),
+                                            CircleShape,
                                         )
                                         .clickable { onSubtitleStyle(subtitleStyle.copy(colorKey = key)) },
                                 )
@@ -2250,12 +2231,12 @@ private fun TrackSheet(
                                 Box(
                                     Modifier
                                         .size(40.dp)
-                                        .clip(RoundedCornerShape(50))
+                                        .clip(CircleShape)
                                         .background(Color(subtitleColor(key)))
                                         .border(
                                             if (selected) 3.dp else 1.dp,
                                             if (selected) moovio.accent else moovio.textTertiary,
-                                            RoundedCornerShape(50),
+                                            CircleShape,
                                         )
                                         .clickable { onSubtitleStyle(subtitleStyle.copy(outlineKey = key)) },
                                 )
@@ -2310,14 +2291,13 @@ private fun TrackSheet(
                         Text(
                             "Anime4K Enhancement",
                             color = moovio.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.titleSmall,
                         )
                         Text(
                             anime4KEffectLabel(Anime4KConfig(anime4KPreset, anime4KTier)),
                             color = moovio.accent,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Medium,
                         )
                         Text(
                             anime4KPreset.blurb,
@@ -2367,7 +2347,7 @@ private fun SleepTimerSheet(
     val moovio = LocalMoovioColors.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Sleep timer", color = moovio.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Sleep timer", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
             Text(
                 "Playback pauses automatically when the timer ends.",
                 color = moovio.textTertiary,
@@ -2375,7 +2355,7 @@ private fun SleepTimerSheet(
             )
             sleepStatusLabel(current, deadlineMs, SystemClock.elapsedRealtime())?.let { status ->
                 Spacer(Modifier.height(6.dp))
-                Text(status, color = moovio.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(status, color = moovio.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
             Spacer(Modifier.height(8.dp))
             SleepTimerOption.entries.forEach { option ->
@@ -2397,7 +2377,7 @@ private fun EpisodeSheet(
     val moovio = LocalMoovioColors.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.7f).padding(16.dp)) {
-                Text("Episodes", color = moovio.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Episodes", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
                 LazyColumn(Modifier.padding(top = 8.dp)) {
                     items(episodes.size) { i ->
                         val ep = episodes[i]
@@ -2438,7 +2418,7 @@ private fun GestureHud(mode: GestureMode, level: Float, position: Long, duration
                 Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(fmt(position), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(fmt(position), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
                 Text(fmt(duration), color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
             }
         }
@@ -2489,7 +2469,12 @@ private fun trimSpeed(v: Float): String =
     if (v % 1f == 0f) v.toInt().toString() else v.toString().trimEnd('0').trimEnd('.')
 
 /**
- * Playback-speed chips plus the audio boost/normalize toggles, in a bottom sheet.
+ * Playback speed plus the three audio-processing switches, in a bottom sheet.
+ *
+ * Speed is a chip row, not a row of accent-filled pills: selection is a surface step with a hairline,
+ * which leaves the sheet's colour for the controls that change how the mix sounds. "Spatial audio"
+ * only appears when the device reports a usable `Spatializer` (API 32+), so it is never a switch that
+ * does nothing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -2497,49 +2482,83 @@ private fun SpeedAudioSheet(
     speed: Float,
     boost: Boolean,
     normalize: Boolean,
+    spatial: Boolean,
+    spatialSupported: Boolean,
     onSpeed: (Float) -> Unit,
+    onSpatial: (Boolean) -> Unit,
     onBoost: (Boolean) -> Unit,
     onNormalize: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val moovio = LocalMoovioColors.current
+    val haptics = rememberMoovioHaptics()
     val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+    val chipShape = RoundedCornerShape(AppRadius.chip.dp)
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("Playback speed", color = moovio.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(vertical = 10.dp),
-                ) {
-                    items(speeds) { s ->
-                        val selected = kotlin.math.abs(s - speed) < 0.01f
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (selected) moovio.accent else moovio.surfaceElevated)
-                                .clickable { onSpeed(s) }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        ) {
-                            Text("${trimSpeed(s)}x", color = if (selected) Color.White else moovio.textPrimary)
-                        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+            Text(
+                "Playback speed",
+                style = MaterialTheme.typography.titleMedium,
+                color = moovio.textPrimary,
+            )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(vertical = 12.dp),
+            ) {
+                items(speeds) { s ->
+                    val selected = kotlin.math.abs(s - speed) < 0.01f
+                    Box(
+                        Modifier
+                            .clip(chipShape)
+                            .background(if (selected) moovio.surfaceElevated else Color.Transparent)
+                            .border(
+                                1.dp,
+                                if (selected) moovio.textSecondary.copy(alpha = 0.5f) else moovio.hairline,
+                                chipShape,
+                            )
+                            .clickable {
+                                if (!selected) {
+                                    haptics.select()
+                                    onSpeed(s)
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            "${trimSpeed(s)}x",
+                            style = MaterialTheme.typography.labelLarge.tnum,
+                            color = if (selected) moovio.textPrimary else moovio.textSecondary,
+                        )
                     }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Audio boost", color = moovio.textPrimary)
-                        Text("Loudness enhancer for quiet dialogue", color = moovio.textSecondary, fontSize = 12.sp)
-                    }
-                    MoovioSwitch(checked = boost, onCheckedChange = onBoost)
-                }
-                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Normalize volume", color = moovio.textPrimary)
-                        Text("Even out loud and quiet scenes", color = moovio.textSecondary, fontSize = 12.sp)
-                    }
-                    MoovioSwitch(checked = normalize, onCheckedChange = onNormalize)
                 }
             }
+            AudioToggleRow("Audio boost", "Loudness enhancer for quiet dialogue", boost, onBoost)
+            AudioToggleRow("Normalize volume", "Even out loud and quiet scenes", normalize, onNormalize)
+            if (spatialSupported) {
+                AudioToggleRow("Spatial audio", "Device-mixed 3D audio for headphones", spatial, onSpatial)
+            }
+        }
+    }
+}
+
+/** One labelled switch in the audio sheet: title, quiet explanation, control. */
+@Composable
+private fun AudioToggleRow(
+    label: String,
+    detail: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    val moovio = LocalMoovioColors.current
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.titleSmall, color = moovio.textPrimary)
+            Text(detail, style = MaterialTheme.typography.labelSmall, color = moovio.textSecondary)
+        }
+        MoovioSwitch(checked = checked, onCheckedChange = onChange)
     }
 }
 
@@ -2555,7 +2574,7 @@ private fun ExternalPlayerSheet(
     val moovio = LocalMoovioColors.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("Open in external player", color = moovio.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Open in external player", style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
                 Spacer(Modifier.height(8.dp))
                 TrackRow("VLC", false, onVlc)
                 TrackRow("MPV", false, onMpv)
@@ -2590,7 +2609,7 @@ private fun DoubleTapRipple(pulse: Int, forward: Boolean, modifier: Modifier = M
                 contentDescription = null, tint = Color.White,
             )
             Spacer(Modifier.width(6.dp))
-            Text(if (forward) "+10s" else "\u221210s", color = Color.White, fontWeight = FontWeight.Bold)
+            Text(if (forward) "+10s" else "\u221210s", color = Color.White, fontWeight = FontWeight.Medium)
         }
     }
 }

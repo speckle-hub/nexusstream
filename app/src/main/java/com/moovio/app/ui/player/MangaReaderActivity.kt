@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -225,6 +226,7 @@ private fun ReaderScreen(
     val invert by settings.mangaInvert.collectAsStateWithLifecycle()
     val grayscale by settings.mangaGrayscale.collectAsStateWithLifecycle()
     val warm by settings.mangaWarm.collectAsStateWithLifecycle()
+    val eink by settings.mangaEink.collectAsStateWithLifecycle()
     val crop by settings.mangaCrop.collectAsStateWithLifecycle()
     val doublePage by settings.mangaDoublePage.collectAsStateWithLifecycle()
     val zoomLock by settings.mangaZoomLock.collectAsStateWithLifecycle()
@@ -291,6 +293,7 @@ private fun ReaderScreen(
                 invert = invert,
                 grayscale = grayscale,
                 warm = warm,
+                eink = eink,
                 crop = crop,
                 pageCommands = pageCommands,
                 initialPage = savedPage ?: 0,
@@ -302,6 +305,7 @@ private fun ReaderScreen(
                 invert = invert,
                 grayscale = grayscale,
                 warm = warm,
+                eink = eink,
                 crop = crop,
                 doublePage = doublePage,
                 zoomLock = zoomLock,
@@ -383,6 +387,7 @@ private fun PagedReader(
     invert: Boolean,
     grayscale: Boolean,
     warm: Boolean,
+    eink: Boolean,
     crop: Boolean,
     doublePage: Boolean,
     zoomLock: Boolean,
@@ -408,7 +413,7 @@ private fun PagedReader(
     if (!zoomLock) {
         LaunchedEffect(pagerState.currentPage) { zoom.reset() }
     }
-    val filter = remember(invert, grayscale, warm) { mangaFilter(invert, grayscale, warm) }
+    val filter = remember(invert, grayscale, warm, eink) { mangaFilter(invert, grayscale, warm, eink) }
     val haptic = LocalHapticFeedback.current
     var firstPage by remember { mutableStateOf(true) }
 
@@ -483,6 +488,7 @@ private fun WebtoonReader(
     invert: Boolean,
     grayscale: Boolean,
     warm: Boolean,
+    eink: Boolean,
     crop: Boolean,
     pageCommands: SharedFlow<Int>,
     initialPage: Int,
@@ -496,16 +502,21 @@ private fun WebtoonReader(
         if (target != listState.firstVisibleItemIndex) listState.scrollToItem(target)
     }
     val firstVisible by remember { derivedStateOf { listState.firstVisibleItemIndex } }
-    val filter = remember(invert, grayscale, warm) { mangaFilter(invert, grayscale, warm) }
+    val filter = remember(invert, grayscale, warm, eink) { mangaFilter(invert, grayscale, warm, eink) }
     val haptic = LocalHapticFeedback.current
     var firstPage by remember { mutableStateOf(true) }
     val cropMod = if (crop) Modifier.graphicsLayer(scaleX = 1.06f, scaleY = 1.06f, clip = true) else Modifier
 
     LaunchedEffect(firstVisible, pages) {
         val loader = context.imageLoader
-        for (i in (firstVisible + 1)..(firstVisible + 3)) {
-            pages.getOrNull(i)?.let { url ->
-                runCatching { loader.enqueue(ImageRequest.Builder(context).data(url).build()) }
+        // Enqueue off the main thread: building three requests per scroll tick is cheap, but at
+        // high-resolution pages the decode that follows must never be scheduled from a frame that
+        // is already drawing. `enqueue` returns immediately and Coil does its own dispatching.
+        withContext(Dispatchers.IO) {
+            for (i in (firstVisible + 1)..(firstVisible + 3)) {
+                pages.getOrNull(i)?.let { url ->
+                    runCatching { loader.enqueue(ImageRequest.Builder(context).data(url).build()) }
+                }
             }
         }
         onPage(firstVisible)
@@ -557,13 +568,64 @@ private class MutableZoom {
     var scale by mutableStateOf(1f)
     var offset by mutableStateOf(Offset.Zero)
     fun reset() { scale = 1f; offset = Offset.Zero }
+
+    /**
+     * Pan the zoomed page while keeping it on screen.
+     *
+     * Panning used to accumulate without a bound, so a long drag could push the artwork entirely
+     * out of the viewport and leave a blank reader until the user found the pinch-out gesture. The
+     * limit is derived from how much the page overflows the box at the current scale, so it tightens
+     * as you zoom back out and is exactly zero at 1x.
+     */
+    fun panBy(dx: Float, dy: Float, boxWidth: Int, boxHeight: Int, extraScale: Float) {
+        val overflow = (scale * extraScale - 1f).coerceAtLeast(0f)
+        val maxX = overflow * boxWidth / 2f
+        val maxY = overflow * boxHeight / 2f
+        offset = Offset(
+            (offset.x + dx).coerceIn(-maxX, maxX),
+            (offset.y + dy).coerceIn(-maxY, maxY),
+        )
+    }
+
+    /** Re-apply the pan limit after a pinch, so zooming out pulls a far-panned page back in. */
+    fun clampPan(boxWidth: Int, boxHeight: Int, extraScale: Float) {
+        val overflow = (scale * extraScale - 1f).coerceAtLeast(0f)
+        val maxX = overflow * boxWidth / 2f
+        val maxY = overflow * boxHeight / 2f
+        offset = Offset(offset.x.coerceIn(-maxX, maxX), offset.y.coerceIn(-maxY, maxY))
+    }
 }
 
 /**
- * Night-mode / grayscale / warm-sepia colour filter built from the reader settings. `null` when
- * none is on, so Coil skips the extra render pass entirely.
+ * Night-mode / grayscale / warm-sepia colour filter built from the reader settings. `null` when     * none is on, so Coil skips the extra render pass entirely. [eink] takes precedence over the
+     * other three (see its branch below).
  */
-private fun mangaFilter(invert: Boolean, grayscale: Boolean, warm: Boolean): ColorFilter? {
+private fun mangaFilter(
+    invert: Boolean,
+    grayscale: Boolean,
+    warm: Boolean,
+    eink: Boolean = false,
+): ColorFilter? {
+    // E-ink is a preset, not another layer: it replaces invert/sepia/saturation entirely, so the
+    // result is always clean monochrome at one fixed contrast rather than whatever the three toggles
+    // happened to add up to.
+    if (eink) {
+        val cm = ColorMatrix()
+        cm.setToSaturation(0f)
+        // out = 1.45 * in - 57.4  (contrast 1.45 pivoted on mid-grey), which is the range an e-ink
+        // panel actually resolves: line art goes properly black, paper goes white.
+        cm.timesAssign(
+            ColorMatrix(
+                floatArrayOf(
+                    1.45f, 0f, 0f, 0f, -57.4f,
+                    0f, 1.45f, 0f, 0f, -57.4f,
+                    0f, 0f, 1.45f, 0f, -57.4f,
+                    0f, 0f, 0f, 1f, 0f,
+                )
+            )
+        )
+        return ColorFilter.colorMatrix(cm)
+    }
     if (!invert && !grayscale && !warm) return null
     val cm = ColorMatrix()
     if (grayscale) cm.setToSaturation(0f)
@@ -597,9 +659,13 @@ private fun mangaFilter(invert: Boolean, grayscale: Boolean, warm: Boolean): Col
 
 @Composable
 private fun ZoomablePage(url: String, zoom: MutableZoom, filter: ColorFilter?, crop: Boolean) {
+    // The crop nudge is part of the effective scale, so the pan limit has to account for it.
+    val extraScale = if (crop) 1.06f else 1f
+    var boxSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     Box(
         Modifier.fillMaxSize()
             .clipToBounds()
+            .onSizeChanged { boxSize = it }
             // Pinch-to-zoom without swallowing the pager's swipe.
             //
             // `detectTransformGestures` consumes every pan once it passes the touch-slop
@@ -622,13 +688,14 @@ private fun ZoomablePage(url: String, zoom: MutableZoom, filter: ColorFilter?, c
                                 val next = (zoom.scale * zoomChange).coerceIn(1f, 4f)
                                 zoom.scale = next
                                 if (next <= 1f) zoom.offset = Offset.Zero
+                                else zoom.clampPan(boxSize.width, boxSize.height, extraScale)
                                 event.changes.forEach { change ->
                                     if (change.position != change.previousPosition) change.consume()
                                 }
                             }
                         } else if (zoom.scale > 1f && pan != Offset.Zero) {
                             // Zoomed in: one finger pans the image instead of turning the page.
-                            zoom.offset += pan
+                            zoom.panBy(pan.x, pan.y, boxSize.width, boxSize.height, extraScale)
                             event.changes.forEach { change ->
                                 if (change.position != change.previousPosition) change.consume()
                             }

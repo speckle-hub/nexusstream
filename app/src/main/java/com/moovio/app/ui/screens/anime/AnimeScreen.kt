@@ -137,11 +137,14 @@ fun AnimeScreen(nav: NavHostController, embedded: Boolean = false) {
                     }
                 }
                 items(rows, span = { GridItemSpan(maxLineSpan) }) { row ->
+                    // Rail-scoped so the same title in two anime rails can't share a morph key.
+                    val rail = "anime:${row.title}"
                     MediaRow(
                         row.title,
                         row.items,
-                        onClick = { nav.navigate(Routes.detail(it)) },
+                        onClick = { nav.navigate(Routes.detail(it, rail)) },
                         cardWidth = AppSpacing.railCard,
+                        rail = rail,
                     )
                 }
             }

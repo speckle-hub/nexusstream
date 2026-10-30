@@ -30,7 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,7 +44,6 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -62,7 +60,7 @@ import com.moovio.app.data.integrations.ReleaseInfo
 import com.moovio.app.data.integrations.UpdateChecker
 import com.moovio.app.data.integrations.downloadApk
 import com.moovio.app.data.integrations.installApk
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.components.MoovioSwitch
 import com.moovio.app.ui.nav.LocalFloatingNavBottomPadding
 import com.moovio.app.ui.nav.Routes
@@ -124,6 +122,7 @@ fun SettingsScreen(nav: NavHostController) {
     val mangaInvert by vm.mangaInvert.collectAsStateSafe()
     val mangaGrayscale by vm.mangaGrayscale.collectAsStateSafe()
     val mangaWarm by vm.mangaWarm.collectAsStateSafe()
+    val mangaEink by vm.mangaEink.collectAsStateSafe()
     val mangaCrop by vm.mangaCrop.collectAsStateSafe()
     val mangaDoublePage by vm.mangaDoublePage.collectAsStateSafe()
     val mangaZoomLock by vm.mangaZoomLock.collectAsStateSafe()
@@ -138,6 +137,7 @@ fun SettingsScreen(nav: NavHostController) {
     val autoDownloadNext by vm.autoDownloadNext.collectAsStateSafe()
     val autoDownloadWifiOnly by vm.autoDownloadWifiOnly.collectAsStateSafe()
     val autoDeleteWatched by vm.autoDeleteWatched.collectAsStateSafe()
+    val lowSpaceMb by vm.lowSpaceMb.collectAsStateSafe()
     val storageUri by vm.storageUri.collectAsStateSafe()
     val updateRepo by vm.updateRepo.collectAsStateSafe()
     val notifyNewContent by vm.notifyNewContent.collectAsStateSafe()
@@ -189,19 +189,69 @@ fun SettingsScreen(nav: NavHostController) {
     }
 
     // SAF launchers for backup/restore + the storage folder picker.
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    //
+    // The export is AES-256-GCM encrypted (ISSUE-15), so its type is opaque rather than
+    // `application/json`: the bytes are no longer JSON, and a file manager that believed otherwise
+    // would happily open a binary blob in a text viewer. Imports still accept JSON so a backup made
+    // before encryption existed can be restored — after an explicit confirmation.
+    var pendingLegacy by remember { mutableStateOf<android.net.Uri?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
             message = container.backupManager.exportTo(uri)
-                .fold({ "Exported $it items" }, { "Export failed: ${it.message}" })
+                .fold({ "Exported $it items, encrypted" }, { "Export failed: ${it.message}" })
         }
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
-            message = container.backupManager.importFrom(uri)
-                .fold({ "Restored $it items" }, { "Import failed: ${it.message}" })
+            // Read first, apply second: a legacy plaintext backup holds tracker tokens and cookies
+            // in the clear, so restoring it is a decision the user makes, not a side effect.
+            container.backupManager.inspect(uri).fold(
+                onSuccess = { found ->
+                    if (found is com.moovio.app.data.integrations.BackupInspection.LegacyPlaintext) {
+                        pendingLegacy = uri
+                    } else {
+                        message = container.backupManager.importFrom(uri)
+                            .fold({ "Restored $it items" }, { "Import failed: ${it.message}" })
+                    }
+                },
+                onFailure = { message = "Import failed: ${it.message}" },
+            )
         }
+    }
+    pendingLegacy?.let { legacy ->
+        AlertDialog(
+            onDismissRequest = { pendingLegacy = null },
+            title = { Text("Unencrypted backup") },
+            text = {
+                Text(
+                    "This file was written by an older version and stores tracker tokens and " +
+                        "cookies as plain text. Restore it anyway? Export a new backup afterwards " +
+                        "so the copy on disk is encrypted."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingLegacy = null
+                    scope.launch {
+                        message = container.backupManager.importFrom(legacy, allowPlaintext = true)
+                            .fold({ "Restored $it items" }, { "Import failed: ${it.message}" })
+                    }
+                }) { Text("Restore") }
+            },
+            dismissButton = { TextButton(onClick = { pendingLegacy = null }) { Text("Cancel") } },
+        )
+    }
+
+    // Click-through ladder for the free-space floor, so the Downloads group stays a list of taps
+    // rather than growing a slider among switches.
+    fun nextLowSpaceFloor(mb: Int): Int {
+        val steps = listOf(0, 256, 512, 1024, 2048, 4096)
+        val next = steps.indexOfFirst { it > mb }
+        return if (next == -1) 0 else steps[next]
     }
     val storageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) runCatching {
@@ -381,10 +431,13 @@ fun SettingsScreen(nav: NavHostController) {
             Slider(value = subtitleOffset, onValueChange = { vm.setSubtitleOffset(it) }, valueRange = 0f..0.3f)
         } }
 
-        item { if (settingsGroupVisible("Manga Reader", listOf("Night mode (invert)", "Grayscale", "Warm / sepia filter", "Auto-crop borders", "Double-page spread", "Lock zoom across pages", "Volume keys turn pages"))) SettingsGroup("Manga Reader") {
+        item { if (settingsGroupVisible("Manga Reader", listOf("Night mode (invert)", "Grayscale", "Warm / sepia filter", "E-ink (high contrast)", "Auto-crop borders", "Double-page spread", "Lock zoom across pages", "Volume keys turn pages"))) SettingsGroup("Manga Reader") {
             SwitchRow("Night mode (invert)", "Invert page colors for dark reading", mangaInvert) { vm.setMangaInvert(it) }
             SwitchRow("Grayscale", "Render pages in black and white", mangaGrayscale) { vm.setMangaGrayscale(it) }
             SwitchRow("Warm / sepia filter", "Soften paper white and blue light", mangaWarm) { vm.setMangaWarm(it) }
+            // Overrides the three above rather than stacking with them, so the filter never ends up
+            // as inverted sepia that then tries to be monochrome.
+            SwitchRow("E-ink (high contrast)", "Monochrome and harder contrast for e-ink panels. Overrides the filters above", mangaEink) { vm.setMangaEink(it) }
             SwitchRow("Auto-crop borders", "Trim uniform white margins", mangaCrop) { vm.setMangaCrop(it) }
             SwitchRow("Double-page spread", "Two pages side-by-side in landscape", mangaDoublePage) { vm.setMangaDoublePage(it) }
             SwitchRow("Lock zoom across pages", "Keep the same zoom level when turning pages", mangaZoomLock) { vm.setMangaZoomLock(it) }
@@ -451,11 +504,17 @@ fun SettingsScreen(nav: NavHostController) {
             ) { showHeaders = true }
         } }
 
-        item { if (settingsGroupVisible("Downloads", listOf("Max parallel downloads", "Copy downloads to folder", "Auto-download next episode", "Wi-Fi only", "Auto-delete watched downloads"))) SettingsGroup("Downloads") {
+        item { if (settingsGroupVisible("Downloads", listOf("Max parallel downloads", "Copy downloads to folder", "Auto-download next episode", "Wi-Fi only", "Auto-delete watched downloads", "Clean up when storage is low"))) SettingsGroup("Downloads") {
             SwitchRow("Auto-download next episode", "Pre-fetch ahead after an episode begins", autoDownloadNext) { vm.setAutoDownloadNext(it) }
             SwitchRow("Wi-Fi only", "Only auto-download on unmetered networks", autoDownloadWifiOnly) { vm.setAutoDownloadWifiOnly(it) }
             SwitchRow("Auto-delete watched downloads", "Remove the file once playback passes 90%", autoDeleteWatched) { vm.setAutoDeleteWatched(it) }
             SettingsRow("Max parallel downloads", "$maxParallel") { vm.setMaxParallel((maxParallel % 6) + 1) }
+            // Below this floor the app reclaims orphaned cache chunks at launch. It never deletes a
+            // download the user can still play, so the row promises exactly that and no more.
+            SettingsRow(
+                "Clean up when storage is low",
+                if (lowSpaceMb == 0) "Off" else "Below $lowSpaceMb MB free",
+            ) { vm.setLowSpaceMb(nextLowSpaceFloor(lowSpaceMb)) }
             // The folder is an export destination: Media3's cache can only live in app-private
             // storage, so completed downloads are copied here once they finish.
             SettingsRow("Copy downloads to folder", if (storageUri.isBlank()) "Off \u00b7 app storage only" else "On \u00b7 copied on completion") { storageLauncher.launch(null) }
@@ -476,10 +535,14 @@ fun SettingsScreen(nav: NavHostController) {
         } }
 
         item { if (settingsGroupVisible("Backup & Updates", listOf("Export backup", "Import backup", "Update repository", "Check for updates", "update"))) SettingsGroup("Backup & Updates") {
-            SettingsRow("Export backup", "Save favourites, history and settings to .json") {
-                exportLauncher.launch("moovio-backup.json")
+            SettingsRow("Export backup", "Favourites, history and settings, encrypted") {
+                exportLauncher.launch("moovio-backup.mbackup")
             }
-            SettingsRow("Import backup", "Restore from a .json backup") { importLauncher.launch(arrayOf("application/json")) }
+            // Both formats listed: the encrypted file has no readable extension, and users may
+            // still hold a `.json` export written before backups were encrypted.
+            SettingsRow("Import backup", "Restore an encrypted backup, or a legacy .json one") {
+                importLauncher.launch(arrayOf("application/octet-stream", "application/json"))
+            }
             // Shows the effective source: the user's repo, or the built-in default fallback.
             SettingsRow("Update repository", UpdateChecker.resolveRepo(updateRepo)) { showRepo = true }
             SettingsRow("Check for updates", "Look for a newer GitHub release") {
@@ -733,7 +796,7 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
     val moovio = LocalMoovioColors.current
     Column(Modifier.fillMaxWidth()) {
         Text(title, style = MaterialTheme.typography.labelLarge, color = moovio.accent, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
-        GlassSurface(Modifier.fillMaxWidth()) {
+        SurfaceCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) { content() }
         }
     }

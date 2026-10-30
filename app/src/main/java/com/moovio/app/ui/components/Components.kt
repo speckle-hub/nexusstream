@@ -39,7 +39,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -62,22 +61,22 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.moovio.app.data.model.MediaItem
-import com.moovio.app.ui.theme.AccentViolet
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.AppSpacing
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.theme.Motion
+import com.moovio.app.ui.theme.rememberMoovioHaptics
+import com.moovio.app.ui.theme.tnum
 import com.moovio.app.ui.theme.rememberReducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -162,53 +161,41 @@ private fun Modifier.pressableClickable(
 )
 
 /**
- * A translucent, elevated "glass" surface used for cards and sheets.
+ * The app's raised surface: a solid surface step with a hairline edge.
  *
- * Elevation is carried by two cues (§2d #17): a real drop shadow behind the shape, and a hairline
- * highlight along the top edge (a peak-in-the-middle horizontal gradient, as if light catches the
- * rim). Before this the surface was only a flat fill + outline, which is why panels read as painted
- * rectangles rather than raised glass. The shadow is subtler in light mode, where a heavy dark halo
- * looks like dirt.
+ * This replaced a glass treatment — translucent gradient fill, 10dp drop shadow and a white rim
+ * highlight along the top edge. On a near-black theme those three cues together read as frosted
+ * plastic, and the rim light competed with the artwork sitting behind the panel. Depth on dark now
+ * comes from the surface step plus the hairline, which is all this UI needs; light mode keeps a
+ * soft neutral shadow because a white surface on white needs one to separate at all.
  */
 @Composable
-fun GlassSurface(
+fun SurfaceCard(
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(20.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(AppRadius.panel.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val moovio = LocalMoovioColors.current
     val interaction = remember { MutableInteractionSource() }
-    val shadowElevation = if (moovio.isDark) 10.dp else 6.dp
-    val ambient = Color.Black.copy(alpha = if (moovio.isDark) 0.45f else 0.10f)
-    val spot = Color.Black.copy(alpha = if (moovio.isDark) 0.55f else 0.16f)
-    // Only the top edge lights up: transparent at both ends, brightest in the middle.
-    val topHighlight = if (moovio.isDark) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.9f)
     val base = Modifier
-        .shadow(shadowElevation, shape, clip = false, ambientColor = ambient, spotColor = spot)
-        .clip(shape)
-        .background(
-            Brush.verticalGradient(
-                listOf(
-                    moovio.surfaceElevated.copy(alpha = if (moovio.isDark) 0.72f else 0.9f),
-                    moovio.surface.copy(alpha = if (moovio.isDark) 0.55f else 0.8f),
+        .then(
+            if (moovio.isDark) {
+                Modifier
+            } else {
+                Modifier.shadow(
+                    elevation = 2.dp,
+                    shape = shape,
+                    clip = false,
+                    ambientColor = Color.Black.copy(alpha = 0.05f),
+                    spotColor = Color.Black.copy(alpha = 0.06f),
                 )
-            )
+            }
         )
-        .border(BorderStroke(1.dp, moovio.outline.copy(alpha = 0.5f)), shape)
-        .drawWithContent {
-            drawContent()
-            // Applied after the content so the highlight sits on the top rim of the surface.
-            val stroke = 1.dp.toPx()
-            drawRect(
-                brush = Brush.horizontalGradient(
-                    listOf(Color.Transparent, topHighlight, Color.Transparent)
-                ),
-                topLeft = Offset(0f, 0f),
-                size = Size(size.width, stroke),
-            )
-        }
-    // Tappable glass also shrinks slightly while held, so rows feel like physical controls.
+        .clip(shape)
+        .background(moovio.surfaceElevated)
+        .border(BorderStroke(1.dp, moovio.hairline), shape)
+    // Tappable surfaces shrink slightly while held, so rows feel like physical controls.
     val clickable = if (onClick != null) {
         base.pressableClickable(interaction) { onClick() }
     } else {
@@ -293,8 +280,13 @@ fun PosterCard(
     showTitle: Boolean = true,
     onLongClick: (() -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
+    /** Row this card belongs to; scopes its shared-element key (see [sharedPoster]). */
+    rail: String? = null,
 ) {
     val moovio = LocalMoovioColors.current
+    // Long press here opens a remove confirmation on Library cards, so the press that commits to it
+    // gets the heavier cue rather than the light tick a tap gets.
+    val haptics = rememberMoovioHaptics()
     val sizeMod = if (width > 0) Modifier.width(width.dp) else Modifier.fillMaxWidth()
     // Press feedback: the whole card shrinks slightly while held, so posters feel tappable rather
     // than inert. The scale happens in the draw phase, so no layout shifts on press.
@@ -306,7 +298,10 @@ fun PosterCard(
                 interactionSource = interaction,
                 indication = null,
                 onClick = onClick,
-                onLongClick = onLongClick,
+                onLongClick = {
+                    haptics.commit()
+                    onLongClick()
+                },
             )
     } else {
         Modifier.pressableClickable(interaction) { onClick() }
@@ -319,7 +314,13 @@ fun PosterCard(
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .clip(PosterShape)
-                .background(moovio.surfaceElevated),
+                .background(moovio.surfaceElevated)
+                // Hairline: without it a dark cover dissolves into the page background and two
+                // adjacent posters read as one shape rather than two works.
+                .border(BorderStroke(1.dp, moovio.hairline), PosterShape)
+                // Shared element: this artwork is the source half of the poster → detail-header
+                // morph. A plain modifier outside a NavHost (previews, tests).
+                .sharedPoster(item.key, rail),
         ) {
             // SubcomposeAsyncImage so a loading poster shows the shimmer instead of a blank dark
             // rectangle (the old behaviour while scrolling a grid), and a failed load degrades to
@@ -343,19 +344,8 @@ fun PosterCard(
                     Icon(Icons.Outlined.Image, null, tint = moovio.textTertiary, modifier = Modifier.size(28.dp))
                 }
             }
-            // subtle bottom gradient
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)),
-                            startY = 260f,
-                        )
-                    )
-            )
             // "×" affordance for removing the card from a curated list (favourites, continue
-            // watching). TopStart so it never collides with the rating badge.
+            // watching). TopStart so it never covers the artwork's focal point.
             //
             // The *visible* chip stays small (24dp) to avoid covering the artwork, but the touch
             // target is the 48dp minimum via `minimumInteractiveComponentSize` — the previous 24dp
@@ -387,26 +377,6 @@ fun PosterCard(
                     }
                 }
             }
-            item.rating?.let { r ->
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                Icon(Icons.Filled.Star, null, tint = Color(0xFFFFC94D), modifier = Modifier.size(11.dp))
-                Spacer(Modifier.width(3.dp))
-                Text(
-                    String.format("%.1f", r),
-                    color = Color.White,
-                    // Tabular figures so the badge doesn't re-flow as the number changes width.
-                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-                )
-                }
-            }
         }
         if (showTitle) {
             Text(
@@ -415,9 +385,11 @@ fun PosterCard(
                 color = moovio.textPrimary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 6.dp),
+                modifier = Modifier.padding(top = AppSpacing.tight),
             )
-            // Metadata on a single horizontal line, e.g. "Digger · 2026".
+            // Year and rating on one quiet line. The rating used to also sit in an amber-star pill
+            // over the artwork, so every poster said the same number twice while the pill covered
+            // the poster art that the user actually chooses by.
             val meta = listOfNotNull(
                 item.year?.takeIf { it.isNotBlank() },
                 item.rating?.let { String.format("%.1f", it) },
@@ -425,8 +397,8 @@ fun PosterCard(
             if (meta.isNotBlank()) {
                 Text(
                     meta,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = moovio.textSecondary,
+                    style = MaterialTheme.typography.labelMedium.tnum,
+                    color = moovio.textTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -443,6 +415,8 @@ fun MediaRow(
     modifier: Modifier = Modifier,
     cardWidth: Int = 132,
     trailing: @Composable (() -> Unit)? = null,
+    /** Screen-qualified id for this row, so its posters' shared keys never collide across rails. */
+    rail: String? = null,
 ) {
     if (items.isEmpty()) return
     val rowState = rememberLazyListState()
@@ -458,7 +432,13 @@ fun MediaRow(
             val uniqueItems = items.distinctBy { it.key }
             itemsIndexed(uniqueItems, key = { _, item -> item.key }) { index, item ->
                 StaggeredEntrance(index = index) {
-                    PosterCard(item, { onClick(item) }, width = cardWidth, onLongClick = { actionsFor = item })
+                    PosterCard(
+                        item,
+                        { onClick(item) },
+                        width = cardWidth,
+                        onLongClick = { actionsFor = item },
+                        rail = rail,
+                    )
                 }
             }
         }
@@ -592,7 +572,8 @@ fun LoadingRow() {
         ) {
             // Matches MediaRow's default cardWidth so the feed doesn't jump when real rows land.
             repeat(4) {
-                ShimmerBox(Modifier.width(132.dp).aspectRatio(2f / 3f), PosterShape)
+                // Match the rail card width so the feed doesn't jump when real rows land.
+                ShimmerBox(Modifier.width(AppSpacing.railCard.dp).aspectRatio(2f / 3f), PosterShape)
             }
         }
     }
@@ -610,33 +591,26 @@ fun EmptyState(
 ) {
     val moovio = LocalMoovioColors.current
     Column(
-        modifier = modifier.fillMaxWidth().padding(32.dp),
+        modifier = modifier.fillMaxWidth().padding(AppSpacing.page),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         icon?.let {
-            // A soft accent halo behind the icon so an empty screen reads as designed, not broken.
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    Modifier
-                        .size(140.dp)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(moovio.accent.copy(alpha = 0.16f), Color.Transparent),
-                            )
-                        )
-                )
-                Box(
-                    Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(moovio.surfaceElevated.copy(alpha = 0.6f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(it, null, tint = moovio.textTertiary, modifier = Modifier.size(36.dp))
-                }
+            // One quiet tile. This used to paint a 140dp accent radial gradient behind the icon —
+            // an empty state is a resting place, not a moment, and a coloured wash behind a glyph
+            // is the single clearest sign that a screen was generated rather than designed.
+            val tileShape = RoundedCornerShape(AppRadius.panel.dp)
+            Box(
+                Modifier
+                    .size(64.dp)
+                    .clip(tileShape)
+                    .background(moovio.surfaceElevated)
+                    .border(BorderStroke(1.dp, moovio.hairline), tileShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(it, null, tint = moovio.textTertiary, modifier = Modifier.size(28.dp))
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.screen))
         }
         Text(title, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary)
         subtitle?.let {
@@ -650,8 +624,12 @@ fun EmptyState(
         }
         // The button is what turns an empty state from a dead end into a next step.
         if (actionLabel != null && onAction != null) {
-            Spacer(Modifier.height(18.dp))
-            Button(onClick = onAction, shape = RoundedCornerShape(50)) { Text(actionLabel) }
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = onAction,
+                shape = RoundedCornerShape(AppRadius.control.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+            ) { Text(actionLabel, style = MaterialTheme.typography.labelLarge) }
         }
     }
 }
@@ -660,32 +638,42 @@ fun EmptyState(
 @Composable
 fun SourceBadge(text: String, modifier: Modifier = Modifier) {
     val moovio = LocalMoovioColors.current
+    val shape = RoundedCornerShape(AppRadius.chip.dp)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(moovio.surfaceElevated.copy(alpha = 0.7f))
-            .border(BorderStroke(1.dp, moovio.outline.copy(alpha = 0.7f)), RoundedCornerShape(50))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .clip(shape)
+            .background(moovio.surfaceElevated)
+            .border(BorderStroke(1.dp, moovio.hairline), shape)
+            .padding(horizontal = AppSpacing.tight, vertical = 4.dp),
     ) {
         Text(
             text,
             style = MaterialTheme.typography.labelMedium,
-            color = moovio.textSecondary,
-            fontWeight = FontWeight.Medium,
+            color = moovio.textTertiary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
 @Composable
 fun RatingBadge(text: String) {
-    Row(
+    val moovio = LocalMoovioColors.current
+    val shape = RoundedCornerShape(AppRadius.chip.dp)
+    Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(LocalMoovioColors.current.accent.copy(alpha = 0.18f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(shape)
+            .background(moovio.surfaceElevated)
+            .border(BorderStroke(1.dp, moovio.hairline), shape)
+            .padding(horizontal = AppSpacing.tight, vertical = 4.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.labelMedium, color = LocalMoovioColors.current.accent, fontWeight = FontWeight.SemiBold)
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium.tnum,
+            color = moovio.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -737,14 +725,9 @@ fun ResolutionBadge(quality: String?, modifier: Modifier = Modifier) {
         return
     }
     val moovio = LocalMoovioColors.current
-    val tint = when (tier) {
-        ResolutionTier.HDR -> Color(0xFFFFC94D)
-        ResolutionTier.UHD -> AccentViolet
-        ResolutionTier.FHD -> moovio.accent
-        ResolutionTier.HD -> Color(0xFF9AA0B5)
-        ResolutionTier.SD -> moovio.textTertiary
-        ResolutionTier.UNKNOWN -> moovio.textTertiary
-    }
+    // Two roles, not five hues. A stream list has one best option and everything else, so the
+    // high tiers take the accent and the rest stay muted; the old gold/violet/accent/slate/muted
+    // ladder turned the sheet into a colour chart the eye has to learn.
     val label = when (tier) {
         ResolutionTier.HDR -> "HDR"
         ResolutionTier.UHD -> "4K"
@@ -753,36 +736,40 @@ fun ResolutionBadge(quality: String?, modifier: Modifier = Modifier) {
         ResolutionTier.SD -> "SD"
         ResolutionTier.UNKNOWN -> quality.orEmpty()
     }
+    val leads = tier == ResolutionTier.HDR || tier == ResolutionTier.UHD || tier == ResolutionTier.FHD
+    val foreground = if (leads) moovio.accent else moovio.textTertiary
+    val shape = RoundedCornerShape(AppRadius.chip.dp)
     Text(
         text = label,
-        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-        color = tint,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.labelSmall.tnum,
+        color = foreground,
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(tint.copy(alpha = if (tier == ResolutionTier.SD) 0.10f else 0.16f))
-            .border(BorderStroke(1.dp, tint.copy(alpha = 0.35f)), RoundedCornerShape(6.dp))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
+            .clip(shape)
+            .background(foreground.copy(alpha = if (leads) 0.12f else 0.08f))
+            .border(BorderStroke(1.dp, foreground.copy(alpha = 0.28f)), shape)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
     )
 }
 
 @Composable
 fun TagChip(text: String, selected: Boolean = false, onClick: () -> Unit = {}) {
     val moovio = LocalMoovioColors.current
-    val shape = RoundedCornerShape(50)
+    // A control radius, not a capsule: chips sit next to cards and posters, and when every surface
+    // on screen is a pill the shapes stop carrying any meaning.
+    val shape = RoundedCornerShape(AppRadius.control.dp)
     Box(
         modifier = Modifier
             .clip(shape)
-            .background(if (selected) moovio.accent else moovio.surfaceElevated)
+            .background(if (selected) moovio.actionFill else moovio.surfaceElevated)
             // An explicit outline marks unselected chips as clearly clickable.
-            .border(BorderStroke(1.dp, if (selected) Color.Transparent else moovio.outline), shape)
+            .border(BorderStroke(1.dp, if (selected) Color.Transparent else moovio.hairline), shape)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = AppSpacing.tight),
     ) {
         Text(
             text,
             style = MaterialTheme.typography.labelLarge,
-            color = if (selected) Color.White else moovio.textSecondary,
+            color = if (selected) moovio.onAction else moovio.textSecondary,
         )
     }
 }
@@ -814,21 +801,22 @@ fun SearchField(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(AppRadius.card.dp))
             .background(moovio.surfaceElevated)
-            .border(BorderStroke(1.dp, moovio.outline.copy(alpha = 0.7f)), RoundedCornerShape(16.dp))
-            .padding(start = 14.dp, end = 6.dp),
+            .border(BorderStroke(1.dp, moovio.hairline), RoundedCornerShape(AppRadius.card.dp))
+            .padding(start = 14.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             Icons.Filled.Search,
             contentDescription = null,
-            tint = if (value.isBlank()) moovio.textTertiary else moovio.accent,
+            // One colour: the search glyph marks the field, it is not a state readout.
+            tint = moovio.textTertiary,
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(10.dp))
         Box(
-            Modifier.weight(1f).height(52.dp),
+            Modifier.weight(1f).height(48.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
             if (value.isEmpty()) {

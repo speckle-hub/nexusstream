@@ -7,7 +7,43 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-24 (v1.10.4) — **source hygiene +
+> resume exactly where it left off. Last updated: 2026-10-30 — **v1.11.0 released (§2bf): the
+> four-phase overhaul shipped — design tokens, shared-element morph + haptics, canvas StatsHud +
+> reader physics, encrypted backups + offline smart search.** `versionCode` 24 / `versionName`
+> 1.11.0; signed `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk`
+> (44,129,211 bytes, SHA-256 `8B212EF4…547311`, same rotated signer as v1.10.0). Verified
+> `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **327/327** (0 failures, 0 errors).
+> **No tag, no GitHub Release, nothing pushed** — until that asset is uploaded the in-app updater
+> still offers v1.10.4. `desktop/` and `desktop-win/` were **not** touched.
+>
+> Previous, 2026-10-30 — **Phase 4: encrypted backups, smart
+> search & release readiness (§2be), Android only: ISSUE-15 closed (AES-256-GCM backup container,
+> KeyStore-held key, legacy plaintext import only behind a confirmation), an offline natural-language
+> query compiler wired into Search, a free-space floor that reclaims orphaned download chunks, and
+> version metadata bumped to 1.11.0 (code 24).** Verified `:app:compileDebugKotlin` ✓ ·
+> `:app:testDebugUnitTest` ✓ **327/327**.
+>
+> Previous, 2026-10-30 — **Phase 3: media player, manga reader
+> & diagnostics (§2bd), Android only: "Stats for nerds" rebuilt as a self-ticking canvas HUD, spatial
+> audio offered through stream attributes (the toggle the brief assumed does not exist on Android),
+> an e-ink reading preset, bounded reader panning, off-thread page preload, rail-scoped morph keys
+> and the player's sheet typography on the type scale.** Verified `:app:compileDebugKotlin` ✓ ·
+> `:app:testDebugUnitTest` ✓ **306/306**. No version bump at the time.
+>
+> Previous, 2026-10-30 — **Phase 2: motion, gestures & haptics (§2bc), Android only: poster →
+> detail shared-element morph, one haptic vocabulary, one settling spring, residual surfaces on the
+> design tokens, `PosterPalette` removed and the root Gradle build repaired.** Verified
+> `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **306/306** (0 failures, 0 errors; 309 − 3
+> `PaletteCacheTest` cases deleted with `PosterPalette.kt`) · `./gradlew help` at the repo root ✓
+> (was failing at configuration). `desktop-win/` was **not** touched; `desktop/build.gradle.kts` was,
+> only to drop the duplicate Kotlin plugin versions.
+>
+> Previous, 2026-10-30 — **UI/UX design-system pass (§2bb), Android only: theme tokens, surface
+> components and the Home + Detail layers rebuilt on a quiet direction.** Verified
+> `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **309/309**. `desktop/` and `desktop-win/`
+> were **not** touched and `settings.gradle.kts` is unchanged.
+>
+> Previous, 2026-10-24 (v1.10.4) — **source hygiene +
 > test-report P0/P1 fixes built and verified (compile + 309/309 unit tests).** `versionCode` 23 /
 > `versionName` 1.10.4; signed `dist/app-release.apk` + `dist/Moovio.apk` (43,963,425 bytes,
 > SHA-256 `F4A5B1B2B0DE7CE90B6E598176790987C14759D4E7D2E0ACE3494A8A3A0E711B`)
@@ -465,7 +501,58 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: v1.10.2 released — repository layer (§2ba).** Runtime not included (blocked; see §2ba).
+**Topic: v1.11.0 released — the four-phase overhaul (§2bf) — Android only.** Design tokens (§2bb),
+shared-element morph + `MoovioHaptics` (§2bc), canvas `StatsHud` + reader physics (§2bd), encrypted
+backups + offline smart search (§2be): all four phases are in one signed APK, and ISSUE-15 plus the
+download-storage prerequisite are closed. `versionCode` 24 / `versionName` 1.11.0; `dist/` and the
+badging/signature verification are in §2bf. No tag or GitHub Release was published, so nothing
+downloads this build yet. Detail in §2bf.
+
+Previous focus: **encrypted backups, smart search & release readiness (Phase 4, §2be) — Android only.**
+ISSUE-15 is closed: exports are AES-256-GCM encrypted under a key generated in the Android KeyStore,
+so a backup that leaks no longer carries readable Trakt/AniList tokens or cookies; a legacy plaintext
+file still imports, but only after a dialog that says what is inside it. Search gained an offline
+query compiler ("anime 2024 high rating", "scifi movies", "recent action") that turns words into
+type/year/rating/genre/sort filters before the existing 350 ms debounce — the debounce and its
+generation guard are untouched. Downloads gained a user-set free-space floor below which orphaned
+cache chunks are reclaimed at launch, and the version is now 1.11.0 (code 24). Verified
+`:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **327/327**. No APK, nothing pushed. Detail in
+§2be.
+
+Previous focus: **media player, manga reader & diagnostics (Phase 3, §2bd) — Android only.** The text-heavy
+"Stats for nerds" chip is now a canvas HUD (`ui/player/StatsHud.kt`) that owns its own 250 ms ticker,
+so a stats tick cannot recompose the control overlay behind it; the Speed & Audio sheet gained a
+spatial-audio row that is **honest about what Android allows** (an app cannot switch the system
+`Spatializer` on — it can only offer the stream to it via `AudioAttributes` spatialisation
+behaviour); the manga reader gained a true e-ink monochrome preset and lost its unbounded panning
+and its main-thread preload; and the poster → header morph key is now rail-scoped (`?from=` on the
+detail route), closing the duplicate-key risk §2bc left open. `PlayerActivity`'s sheet headings moved
+onto `MaterialTheme.typography` (no more `Bold` 16 sp literals) and its round controls use
+`CircleShape`. Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **306/306**. No
+version bump, no APK, nothing pushed. Detail in §2bd.
+
+Previous focus: **motion, gestures & haptics (Phase 2, §2bc) — Android only.** Shared-element morph from a
+poster into the detail header (the `SharedTransitionLayout` scaffolding existed but nothing consumed
+it), one haptic vocabulary (`MoovioHaptics`: `select`/`toggle`/`commit`) wired into the player's
+brightness+volume drags, the primary CTA, the heart, season chips and Library long-press, a single
+`Motion.settle()` spring driving the carousel, both nav controls and the morph, and the four residual
+surfaces (`PillSegmentedControl`, `FloatingPillNavBar`, `LibraryScreen`, `NsfwHubScreen`) moved onto
+`AppRadius`/typography. `PosterPalette.kt` + `PaletteCacheTest` deleted and the root Gradle build
+repaired (`:desktop` was requesting a versioned Kotlin plugin after `kotlin.android` had already put
+Kotlin on the root classpath). Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓
+**306/306** · `./gradlew help` at the repo root ✓. No version bump, no APK rebuilt, nothing pushed.
+Detail in §2bc.
+
+Previous focus: **UI/UX design-system pass (§2bb) — Android only.** The Compose component layer was rebuilt
+on a quiet "projection booth" direction: `MoovioColors` (now `@Immutable`) gained a `hairline` token
+and a contrast-derived `actionFill`/`onAction` pair, `GlassSurface` became the flat `SurfaceCard`,
+the artwork-derived radial washes / accent CTA glow / five-hue resolution badges / duplicated
+rating pills / full-pill radii are gone, the type scale dropped from Bold(700) to Medium(500), and
+`@Immutable` was added to the models that pass through the lazy grids. No version bump, no APK
+rebuilt, nothing pushed — `dist/` still holds v1.10.4. `desktop/` and `desktop-win/` untouched.
+Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **309/309**. Detail in §2bb.
+
+Previous focus: **v1.10.2 released — repository layer (§2ba).** Runtime not included (blocked; see §2ba).
 The four requested repos are pre-seeded and NSFW-aware,
 Keiyoushi's real protobuf index is parsed (1425 extensions, 389 NSFW), Aniyomi APK URLs resolve,
 and Aniyomi/Mihon extensions install/enable/update into app-private storage with an `nsfw = 1`
@@ -953,6 +1040,486 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   tabs. (No `FLAG_ACTIVITY_*` flags, launch modes or `finishAffinity()` exist anywhere in the
   app, so nothing needed removing — the tab nav already uses `saveState`/`restoreState` and the
   ViewModels are scoped to their `NavBackStackEntry` via `novaViewModel`.)
+
+---
+
+## 2bb. UI/UX design-system pass — Android only (2026-10-30)
+
+**Topic:** rebuild the reusable Compose UI layer (tokens → surfaces → components → Home + Detail) on
+a direction derived from the product, without touching business logic, unit tests, the desktop
+projects or the shipped v1.10.4 build.
+**Scope guard:** `app/src/main/java/com/moovio/app/ui/**` + `data/model/Models.kt` only.
+`desktop/` and `desktop-win/` have **no** diff; `settings.gradle.kts` is byte-identical; no version
+bump, no `dist/` change, nothing committed or pushed.
+
+### Direction
+A private library for everything you watch and read, used on a phone in the dark.
+Character: nocturnal, exact, unhurried. World: a projection booth — near-black neutrals, one violet
+light source, artwork as the only colour on screen. Moments: the featured still, and the poster wall.
+Signature: the violet progress rule (hero / continue-watching / reader), reused and not decorated.
+The violet is kept because it is the real brand colour (launcher icon `#FF7C5CFF`), not because a
+gradient looked good.
+
+### Audit — what was actually wrong (measured, not assumed)
+The bones were already deliberate (three text roles from one ramp, `AppSpacing`/`Motion` tokens,
+tabular figures, reduced motion, 48 dp targets, shimmer skeletons). Three clusters were not:
+
+| Sign | Where it lived |
+|---|---|
+| Poster-tinted radial wash over the artwork | `HomeScreen` hero 24 % alpha, `DetailScreen` header 32 % |
+| Scrims seeded from `palette.darkVibrantColor` (hue gradient into the page) | both heroes |
+| Primary CTA re-tinted per title (`palette.vibrantColor`) | `DetailScreen` |
+| Accent-coloured drop shadow on the CTA (12 dp, alpha → 0.45) | `PrimaryActionButton` |
+| "Glass" surface: gradient fill + 10 dp shadow + 20 % white rim highlight | `GlassSurface` (≈25 call sites) |
+| 140 dp accent radial halo behind empty-state icons | `EmptyState` |
+| Five hues + 35 % coloured borders on one badge | `ResolutionBadge` |
+| Rating printed twice per poster (amber pill + meta line) | `PosterCard` |
+| Bold(700) on every display/headline role, negative tracking at 20 sp | `MoovioTypography` |
+| `FEATURED` uppercase with 0.8 sp tracking, tinted by the artwork | `HeroSlide` |
+| `RoundedCornerShape(50)` on nav bar, segments, chips, badges, buttons, search clear | 20+ sites |
+| `List<String>` / `List<MediaItem>` model fields, unannotated | `MediaItem`, `CatalogRow`, `WatchEntry` |
+
+### What changed, by pass
+1. **Color** — `MoovioSurfaceGlass` deleted; `MoovioAmoledBackground/Surface/Elevated` extracted as
+   named tokens (the #000 swap used to be inline literals in `Theme.kt`, and cards now go true black
+   too); `ActionInk`; `Color.contrastWith()` + `Color.actionFill()` return a (fill, content) pair per
+   accent so all 8 user-selectable accents stay ≥ 4.5:1 (white on amber was ~1.8:1). M3
+   `primary/onPrimary` now come from that pair, `secondary` is neutral (was cyan), error is toned
+   (`#E5484D` dark / `#DC2626` light).
+2. **Type** — display/headline roles Bold(700) → Medium(500); negative tracking reserved for 32 sp+;
+   `headlineSmall` 20 sp/−0.2 → 19 sp/0; `labelSmall` 10.5 sp/0.8 → 11 sp/0.2; `bodyMedium` 13.5 → 14;
+   `labelMedium` 11.5 → 12. `FEATURED` → `Featured` at white 72 %.
+3. **Spacing / radius** — new `AppRadius` (chip 6 / control 10 / card 12 / panel 16) and
+   `AppSpacing.tight` + `.page`; Home's `16/28/44/24/14/6 dp` literals replaced with tokens.
+4. **Components** — `GlassSurface` → `SurfaceCard` (solid `surfaceElevated` + hairline; light theme
+   keeps a 2 dp neutral shadow), renamed at all ~25 call sites; `PosterCard` gained a hairline edge
+   and lost its bottom scrim and rating pill (rating now once, in the meta line, tabular);
+   `EmptyState` halo → 64 dp hairline tile; `RatingBadge` neutral; `ResolutionBadge` 5 hues → 2 roles
+   (high tiers accent, rest muted); `TagChip`/`SourceBadge`/`SearchField`/empty-state button off
+   radius 50; search field 52 → 48 dp with a single-colour glyph; `LoadingRow` skeleton width now
+   `AppSpacing.railCard` so the feed stops jumping when real rows land.
+5. **Home** — hero wash gone; one neutral scrim (0.60 top → clear middle → page colour bottom) plus
+   removal of the second 130 dp gradient that was stacked over the logo row; Play/Watchlist are
+   radius-10 controls (off-white fill + hairline outline) with no Bold; dots 24/7 → 20/6.
+6. **Detail** — accent is `moovio.accent` again (not artwork-derived); header halo and palette-tinted
+   scrim gone, duplicate 104 dp top scrim removed; `PrimaryActionButton` loses the glow, gets radius
+   10, 48 dp height and `actionFill`/`onAction` (progress bar tinted from `onAction`).
+7. **Performance / stability** — `@Immutable` on `MediaItem`, `CatalogRow`, `WatchEntry` (their `List`
+   fields made them unstable, so rail items could never skip) and on `MoovioColors`; the hero and
+   detail header no longer call `rememberPosterPalette`, removing a per-slide/per-title bitmap pixel
+   read; two full-width overdraw layers (the duplicate top scrims) deleted. Coil hardware bitmaps
+   stay on — `allowHardware(false)` remains only inside the palette sampler, where it is required.
+   No `Modifier.graphicsLayer` blurs / `renderEffect` glass was added: expensive inside lazy grids.
+
+### Files
+`ui/theme/Color.kt`, `ui/theme/Theme.kt`, `ui/theme/Tokens.kt`, `ui/components/Components.kt`,
+`ui/screens/home/HomeScreen.kt`, `ui/screens/detail/DetailScreen.kt`, `data/model/Models.kt` — plus the
+mechanical `GlassSurface` → `SurfaceCard` rename in `AddonManagerScreen`, `LibraryScreen`,
+`MangaScreen`, `NsfwHubScreen`, `SettingsScreen`, `HomeOrderScreen`, `SourcesScreen`.
+15 files, +460 / −388.
+
+### Verification
+`:app:compileDebugKotlin` ✓ (BUILD SUCCESSFUL, no warnings in the touched files) ·
+`:app:testDebugUnitTest` ✓ **309/309** across 35 classes, `failures=0`, `errors=0` — the same
+baseline v1.10.4 records, no test edited, skipped or deleted. Post-pass grep: `radialGradient` 0,
+accent-coloured shadows 0, `vibrantColor` only inside `PosterPalette.kt`.
+**Not verified:** nothing was rendered (no emulator run, no Chrome in this environment), so the
+visual pass and the new type scale still need a device. `assembleDebug/Release` not run and no APK
+rebuilt — `dist/` remains v1.10.4.
+
+### Deliberately not done (next session)
+- 30 `RoundedCornerShape(50)` and 22 `FontWeight.Bold` remain in `PlayerActivity`,
+  `NsfwHubScreen`, `LibraryScreen`, `FloatingPillNavBar` and `PillSegmentedControl` — outside the
+  brief's Home/Detail/components scope.
+- `PosterPalette.kt` is now unused by the UI. Kept rather than deleted because `PaletteCacheTest`
+  (3 cases) covers it; removing both is a clean follow-up.
+- Root `./gradlew` fails at configuration **independently of this change**:
+  `desktop/build.gradle.kts` declares `org.jetbrains.kotlin.jvm version "2.0.20"`, which collides with
+  the Kotlin plugin already on the root classpath ("already on the classpath with an unknown
+  version"). The verifications above were run with `include(":desktop")` temporarily removed and
+  `settings.gradle.kts` restored byte-identically afterwards (`git diff` empty). One-line fix
+  available in the desktop module; not applied here because this session is Android-only.
+
+---
+
+## 2bc. Phase 2 — motion, gestures & haptics (2026-10-30)
+
+**Topic:** natural motion physics, a poster → detail shared-element morph, and structured tactile
+feedback across the touch points people repeat — without adding layout jank or a bouncy-spring
+vocabulary that contradicts the quiet direction §2bb settled on.
+**Scope guard:** `app/src/main/java/com/moovio/app/ui/**` (plus two new files there),
+`app/build.gradle.kts` and the two `build.gradle.kts` files needed to make the root build configure.
+`desktop-win/` has no diff. No version bump, no `dist/` change, nothing committed or pushed.
+
+### What the brief assumed vs. what the code actually had
+Audited before editing, because three of its four workstreams were already partly built:
+
+| Brief item | Reality found |
+|---|---|
+| Implement shared element transitions | `SharedTransitionLayout` + `ProvideSharedScope` already installed on **every** `NavHost` destination, but **zero** `sharedBounds`/`sharedElement` modifiers existed anywhere — the morph was scaffolding with no consumer, so navigation still cross-faded |
+| Structured haptics into the player | Seek scrubbing already ticked once per whole second (`lastScrubHapticSec`); brightness/volume drags were **silent**, and cues were written inline as raw `performHapticFeedback` calls in 4 files |
+| Low-bouncy springs on the carousel | The two nav controls already used `DampingRatioLowBouncy` + `StiffnessMediumLow` — the exact overshoot the §2bb direction removes. The carousel was on the pager's default snap |
+| Spring swipe-to-dismiss for sheets | All seven sheets are M3 `ModalBottomSheet`, whose drag-to-dismiss is already spring-driven — nothing to add |
+
+### Direction (unchanged from §2bb)
+A private library for everything you watch and read, used on a phone in the dark. Character:
+nocturnal, exact, unhurried. World: a projection booth — near-black neutrals, one violet light source,
+artwork as the only colour. **Moments:** the poster → header morph, and the featured still.
+**Signature:** the violet progress rule.
+Motion follows from the character: weight, not bounce. A page or an indicator **decelerates into
+place and stops**; it never overshoots and wobbles back.
+
+### 1. Shared element (navigation physics)
+- New `ui/components/SharedPoster.kt`: `Modifier.sharedPoster(key)` reads the two locals published by
+  `ui/nav/SharedTransition.kt`, keys the state as `"poster:$key"` and sets
+  `boundsTransform = BoundsTransform { _, _ -> Motion.settle<Rect>() }`. Returns `this` untouched when
+  no scope is in the tree, so previews/tests need no guard.
+- Applied at both ends: `PosterCard`'s artwork `Box` (source — covers Home, Browse, Library, Search
+  rails) and `DetailHeader`'s backdrop `AsyncImage` (destination). Keyed on `MediaItem.key`, which is
+  what makes the two ends of a navigation match.
+
+### 2. Haptic engine
+- New `ui/theme/Haptics.kt`: `@Stable class MoovioHaptics` with `select()` (light tick, `TextHandleMove`),
+  `toggle()` (same weight, for state that flips) and `commit()` (`LongPress`, for a long press that
+  opens a destructive confirmation) + `rememberMoovioHaptics()`. `HapticFeedback` is an interface, so
+  the class stays testable.
+- `PlayerActivity`: brightness/volume drags now tick once per **10 % band** (`lastLevelStep`, reset in
+  `onDragStart`) — per-pixel ticks are unreadable and one long drone is worse than silence. The five
+  pre-existing raw calls (double-tap seek, hold-to-boost, scrub-per-second, speed HUD) now route
+  through the helper.
+- `PrimaryActionButton` press, the header heart, and season chips (skipped when already selected).
+- Long press on a Library card fires `commit()` from inside `PosterCard`, so all three Library grids
+  got it from one change.
+
+### 3. Motion physics
+- New `Motion.settle<T>(stiffness = Spring.StiffnessLow)` — `DampingRatioNoBouncy` + low stiffness,
+  generic so one curve drives `Dp` offsets, `Float` scroll targets and the morph's `Rect`.
+- Carousel auto-advance: `animateScrollToPage(…, animationSpec = Motion.settle())`.
+- `PillSegmentedControl` + `FloatingPillNavBar` indicators moved off `DampingRatioLowBouncy` onto
+  `settle(StiffnessMediumLow)` — quicker than a page change, still no overshoot.
+
+### 4. Residual surfaces + build
+- `PillSegmentedControl`: panel radius 16 / indicator 12 (the nested step for a 4 dp inset),
+  selection is a neutral `textPrimary` 10 % wash instead of an accent fill, one label weight.
+- `FloatingPillNavBar`: 64 dp (was 66, off the 4 dp grid), no 85 %-alpha glass, `surfaceElevated` +
+  hairline, no shadow on dark, 12-radius indicator, 20 dp icons, 4 dp inset.
+- `LibraryScreen`: deleted the dead local `LibrarySegmentedControl` duplicate (nothing called it — the
+  screen already used the shared control) and moved the filter chips to `AppRadius.chip` with a
+  surface step + hairline instead of an accent tint.
+- `NsfwHubScreen`: "Private" pill → hairline chip, two accent washes → `surfaceElevated`, three
+  `Bold` dropped, remove discs now `CircleShape` (intent, not a 9999 radius).
+- `PosterPalette.kt` **deleted** (zero references outside its own file) with `PaletteCacheTest.kt`
+  (3 cases) and the now-unused `androidx.palette` dependency.
+- Root `build.gradle.kts` declares `org.jetbrains.kotlin.jvm 2.0.20 apply false`;
+  `desktop/build.gradle.kts` drops its versions. Reproduced first: *"the plugin is already on the
+  classpath with an unknown version"* — `:desktop` asked for a **versioned** Kotlin plugin after
+  `kotlin.android` had already put Kotlin on the root classpath. `settings.gradle.kts` needed no change.
+
+### Files
+New: `ui/components/SharedPoster.kt`, `ui/theme/Haptics.kt`. Deleted:
+`ui/theme/PosterPalette.kt`, `test/…/PaletteCacheTest.kt`. Edited: `ui/theme/Tokens.kt`,
+`ui/components/Components.kt`, `ui/components/PillSegmentedControl.kt`, `ui/nav/FloatingPillNavBar.kt`,
+`ui/player/PlayerActivity.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/detail/DetailScreen.kt`,
+`ui/screens/library/LibraryScreen.kt`, `ui/screens/nsfw/NsfwHubScreen.kt`, `app/build.gradle.kts`,
+`build.gradle.kts`, `desktop/build.gradle.kts`.
+
+### Verification
+`:app:compileDebugKotlin` ✓ BUILD SUCCESSFUL · `:app:testDebugUnitTest` ✓ **306/306**, `failures=0`,
+`errors=0` (309 − the 3 `PaletteCacheTest` cases that went with the deleted class) · `./gradlew help`
+at the repo root ✓ exit 0, which was failing at configuration before the plugin fix.
+**Not verified:** nothing was rendered (no emulator, no device, no Chrome here), so the morph, the
+springs and the haptics are compile-verified only. Frame drops were **not** measured — no device, so
+"zero frame-drops" is unproven; what is true is that no new per-frame state reads were added.
+
+### Open risk
+A title can appear twice on Home (featured banner **and** a rail), so two composables can register
+`poster:<key>` at once — the case Compose documents as unsupported. Expected behaviour is that the
+tapped copy wins, not a crash, but it has not been proven on a device. If the morph starts from the
+wrong copy, the fix is a per-source key passed down from each rail.
+
+**Resolved in §2bd:** `sharedPoster(key, rail)` + `?from=<rail>` on the detail route make the key
+`poster:<rail>:<itemKey>` on both ends, so two rails can show the same title without colliding.
+
+### Deliberately not done
+- 19 `RoundedCornerShape(50)` remain (`PlayerActivity` 9, `Components.kt` 4, `HomeScreen` 4,
+  `AddonManagerScreen` 1, `SearchScreen` 1) and 14 `FontWeight.Bold` (`PlayerActivity` 13,
+  `MainActivity` 1). Most are genuine circles (6–26 dp dots, icon discs) or player chrome, which this
+  phase was not asked to touch.
+- `PosterCard` still carries a 14 dp-odd `AppRadius` poster shape unchanged; no motion was added to
+  grids, so `HomeScreen`/`BrowseScreen`/`NsfwHubScreen` lazy grids keep their recomposition behaviour.
+- `PillSegmentedControl` keeps its now-inaccurate name — renaming a shared composable would touch
+  every call site for a word.
+
+---
+
+## 2bd. Phase 3 — media player, manga reader, diagnostics & audio (2026-10-30)
+
+**Scope:** the Phase 3 directive's four workstreams, Android only. Three of them were not what the
+brief assumed — recorded first, because they changed what was built.
+
+### What the brief assumed vs. what the code had
+
+| Assumption | Reality |
+|---|---|
+| Stats for nerds is a text chip to "refactor into" a canvas | It was already a `Column` of `StatsLine` rows inside `PlayerScreen`, rebuilt from `Player` getters on every parent recomposition |
+| Add a `Spatializer` toggle on API 32+ | `Spatializer` exposes `isAvailable`/`isEnabled` and **no setter** — the enable switch is user-only, in system settings. An app can only mark its stream as spatialisable |
+| Reader needs "vertical parallax" and a zoom lock | Zoom lock already worked (`zoomLock` keeps `MutableZoom` across pages). There is no vertical gesture surface in a horizontally paged reader, so no parallax was invented |
+| 3-page preload may stall the UI thread | `loader.enqueue` is already async; the loop that built the requests ran on the main dispatcher |
+| Duplicate shared-transition keys are a risk | Confirmed: `poster:<itemKey>` collided whenever one title sat in two rails of the same feed |
+
+### 1. Canvas diagnostics HUD — `ui/player/StatsHud.kt` (new)
+
+- `StatsHud(player, modifier)` runs its own `LaunchedEffect` loop at 250 ms and keeps the reading in
+  a local `mutableStateOf(StreamReading)`, reading `totalBufferedDuration`, `bufferedPercentage`,
+  `videoFormat`/`audioFormat`, `videoSize`, `videoDecoderCounters.droppedBufferCount` and
+  `playbackState`. The bandwidth estimate comes from an `AnalyticsListener` subscribed **inside** the
+  HUD (`DisposableEffect` on the player), so the number it drives cannot invalidate anything outside
+  this subtree — the previous shape hoisted every counter into `PlayerScreen` and recomposed the
+  whole control overlay each tick.
+- Drawn on a `Canvas`: a **buffer-ahead sparkline** over a 40-sample window (= 10 s at 250 ms) with a
+  hairline mid-line, then three `labelSmall` + `tnum` rows — buffer ahead/percent, stream + download
+  bitrate, resolution · fps · dropped — and the codec string. The sparkline is the buffer, not the
+  bitrate: "is this stream keeping up" is a shape question, and the bitrates read fine as numbers.
+- One accent, used only for the line. `StreamReading` is `@Immutable` and rebuilt once per tick.
+
+### 2. Spatial audio (Speed & Audio sheet)
+
+- `SettingsStore`: `MANGA_*` neighbour `audioSpatial` (boolean, default off) with `setAudioSpatial`;
+  `MoovioApp` keeps an app-lifetime subscription like the other player settings, and
+  `PlayerActivity` reads it before the player is built, so the choice survives recreation.
+- `applySpatialAudio` builds `androidx.media3.common.AudioAttributes` with
+  `C.SPATIALIZATION_BEHAVIOR_AUTO` (on) or `..._NEVER` (off) and hands it to `ExoPlayer` — applied
+  once after `player = exo` and again on toggle. Guarded by `SDK_INT >= S_V2`.
+- The row only appears when `spatializer.isAvailable && spatializer.isEnabled`, so it is never a
+  switch that moves without changing anything. Copy says "Device 3D audio, when headphones support it".
+- Boost (`LoudnessEnhancer` 1000 mB) and normalize (400 mB) are unchanged and still re-attach on
+  `onAudioSessionIdChanged`, which the attribute change above can trigger.
+
+### 3. Manga reader
+
+- **E-ink preset** — new `MANGA_EINK` setting, `SwitchRow` in Settings → Manga Reader, threaded
+  through `SettingsViewModel`. `mangaFilter(invert, grayscale, warm, eink)` short-circuits on `eink`:
+  saturation 0 followed by contrast 1.45 pivoted on mid-grey (`out = 1.45·in − 57.4`), which is the
+  range an e-ink panel resolves. It **replaces** invert/sepia rather than stacking with them.
+- **Bounded panning** — `MutableZoom.panBy`/`clampPan` limit the offset to how far the page actually
+  overflows the box at the current scale, so a long drag can no longer push the artwork off screen
+  and leave a blank reader. Re-clamped after a pinch, so zooming out pulls a far-panned page back.
+- **Preload off the main thread** — the webtoon preload loop now runs inside
+  `withContext(Dispatchers.IO)`; `enqueue` still does its own dispatching.
+
+### 4. Rail-scoped morph keys (§2bc's open risk, closed)
+
+- `Modifier.sharedPoster(key, rail)` keys on `poster:<rail>:<key>` when a rail is given and
+  `poster:<key>` otherwise.
+- `PosterCard`/`MediaRow` take `rail`; `HomeScreen` passes `home:<row title>`, `AnimeScreen`
+  `anime:<row title>`, `MangaScreen` `manga:<row title>`, `NsfwHubScreen` `nsfw:<row title>`.
+- `Routes.detail(item, from)` appends `?from=<rail>`, `Routes.DETAIL` gained a nullable `from`
+  argument, `MoovioNav` reads it and passes it to `DetailScreen(..., fromRail)`, which hands it to
+  `DetailHeader`'s backdrop. Both ends of the morph therefore share one unique key.
+- Cards outside a rail (library, search, collection, detail's own related row) pass `null` on both
+  ends and keep the item-only key.
+
+### 5. Player chrome on the tokens
+
+- Sheet headings (`Quality`, `Audio`, `Subtitles`, `Sleep timer`, `Episodes`, `Open in external
+  player`) use `MaterialTheme.typography.titleMedium` instead of `Bold` + hard-coded 16 sp; the
+  in-sheet sub-headings use `titleSmall`; every remaining `FontWeight.Bold`/`SemiBold` in the file is
+  now `Medium` (0 Bold left, was 13).
+- Round 40 dp speed buttons and the 48 dp screen-lock button use `CircleShape`; the two 6 dp gesture
+  bars keep `RoundedCornerShape(50)` because a capsule is the intended shape there.
+
+### Files
+
+New: `ui/player/StatsHud.kt`.
+Changed: `ui/player/PlayerActivity.kt`, `ui/player/MangaReaderActivity.kt`,
+`ui/components/SharedPoster.kt`, `ui/components/Components.kt`, `ui/nav/MoovioNav.kt`,
+`ui/screens/detail/DetailScreen.kt`, `ui/screens/home/HomeScreen.kt`,
+`ui/screens/anime/AnimeScreen.kt`, `ui/screens/manga/MangaScreen.kt`,
+`ui/screens/nsfw/NsfwHubScreen.kt`, `ui/screens/settings/SettingsScreen.kt`, `ui/vm/ViewModels.kt`,
+`data/local/SettingsStore.kt`, `MoovioApp.kt`.
+
+### Verified / not verified
+
+- `:app:compileDebugKotlin` ✅ (clean apart from pre-existing deprecation warnings).
+- `:app:testDebugUnitTest` ✅ **306/306**, 0 failures, 0 errors (34 report files).
+- **Not verified:** anything that needs a device — the HUD's tick cost, the morph starting from the
+  correct copy now that keys are unique, spatial audio on real headphones, e-ink output on an e-ink
+  panel, and the reader's pan clamp under a real pinch. No frame timing was measured.
+
+### Deliberately not done
+- No vertical parallax in the paged reader (no vertical gesture surface exists; adding one would
+  fight the pager's horizontal drag).
+- `LoudnessEnhancer`/`Spatializer` state is not mirrored back into the sheet — the sheet reflects the
+  app's choice, not the OS's runtime state.
+- `MainActivity` still has one `FontWeight.Bold`; it is not player chrome.
+
+---
+
+## 2be. Phase 4 — encrypted backups, smart search & release readiness (2026-10-30)
+
+**Scope:** close ISSUE-15, add local natural-language search, put a floor under download storage, and
+finish the housekeeping a release would need. Android only; `desktop/` and `desktop-win/` untouched.
+
+### What the brief assumed vs. what the code had
+
+| Assumption | Reality |
+|---|---|
+| Backups are encrypted with `EncryptedSharedPreferences`/`MasterKey` | They were plain JSON, secrets included. `androidx.security:security-crypto` is **deprecated upstream** (1.1.0-alpha) and would not have helped anyway: the file is not a preferences blob |
+| A legacy plaintext file can be "gracefully" handled silently | It holds live tracker tokens, so silently accepting it is the bug, not the fix. It imports only after an explicit confirmation |
+| Search has no filter support to extend | It had type filters and a sort selector in the UI, but the query string went to providers verbatim |
+| The downloader needs orphan cleanup built | `DownloadCacheMaintenance` and `clearTemporaryFiles()` already existed — what was missing was a *trigger* and a user-set floor |
+
+### 1. ISSUE-15 — encrypted backups
+
+- **New `data/integrations/BackupCrypto.kt`** — two pieces, both dependency-free JCE:
+  - `BackupFormat`: container layout `MAGIC("MOOVIO-BACKUP-1") || IV(12) || ciphertext+tag(16)`, with
+    `isEncrypted()` so an import can tell a container from a legacy `.json` by content, not extension.
+  - `BackupCipher(keyProvider)`: `AES/GCM/NoPadding`, 256-bit, a **fresh random IV per export** (IV
+    reuse would break GCM outright), 128-bit tag. `keyProvider` is injected so the real cipher runs in
+    JVM tests.
+  - `AndroidBackupKey`: 256-bit AES key generated once in the Android KeyStore
+    (`AndroidKeyStore`, alias `moovio_backup_aes`, no user-auth gate — a restore must work without a
+    biometric prompt).
+- **`BackupManager`** now: `exportTo` writes the encrypted container; new `inspect(uri)` returns
+  `BackupInspection.Encrypted` or `BackupInspection.LegacyPlaintext` **before** touching any store;
+  `importFrom(uri, allowPlaintext = false)` refuses a plaintext file unless the caller opted in
+  (`PLAINTEXT_NEEDS_CONFIRMATION`). Payload `version` is 2. Snapshot assembly was factored into one
+  `snapshot()` so export and its "N items" report can't disagree.
+- **Settings** — export is `application/octet-stream` / `moovio-backup.mbackup`; the import picker
+  accepts both types and routes a plaintext file to an **"Unencrypted backup"** dialog explaining
+  what it contains before offering *Restore*.
+- **Trade-off, documented in code:** the key never leaves the install, so an encrypted backup is not
+  portable between devices. That is deliberate (it is what makes the file safe at rest), and it is
+  why the legacy path still exists.
+
+### 2. Smart search — `data/search/SmartQuery.kt` (new)
+
+- `SmartSearchParser.parse(raw, currentYear)` → `SmartQuery(text, type, yearFrom, yearTo, minRating,
+  genre, sort)`. Recognises: type words (movie/film, tv/series/show, anime, manga/comic), 18 genres
+  (incl. the `sci-fi`/`science fiction`/`sci fi` spellings), a year (`2024`), a decade (`2020s`), a
+  two-year range, `high rating`/`top`/`best` (floor 7.0), an explicit score (`rating 8.5`),
+  `recent`/`latest`/`new` (last two years) and `classic`/`retro` (pre-1990).
+- **Year heuristic:** a four-digit token counts as a year only up to `currentYear + 1`, so
+  "Blade Runner 2049" stays a title instead of becoming a filter for an unreleased year.
+- **Routing:** the compiled *type* reaches the network (the repository already searches per type);
+  year, rating and genre are applied to the merged result via `applyTo()` — add-on catalogs accept no
+  such parameters, so narrowing locally is the honest half. `summary()` gives one muted line under
+  the field ("Anime · 2024 · rated 7+ · best rated first") and is null for plain text.
+- **Pipeline untouched:** `SearchViewModel.search()` still cancels the previous job, waits
+  `SEARCH_DEBOUNCE_MS` (350) and publishes only the newest `generation`. The parser runs before the
+  debounce, and a query made only of filters ("high rating") publishes an empty list rather than
+  asking a provider for its whole catalog.
+
+### 3. Storage floor (ISSUE-18 prep)
+
+- `DownloadCacheMaintenance.isBelowLimit(free, limit)` / `shouldSweep(free, limit, orphanCount)` —
+  pure, and deliberately conservative: a negative `usableSpace` (a mount that just vanished) never
+  triggers a sweep, and a limit of 0 means off.
+- `VideoDownloadManager.sweepOrphansIfLowOnSpace(thresholdMb)` deletes only chunks no `SimpleCache`
+  index references — never a completed or in-progress download — and returns bytes reclaimed.
+- `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off), a Settings → Downloads row that steps
+  0/256/512/1024/2048/4096 MB, and a boot-time call from `MoovioApp`'s app scope.
+
+### 4. Release readiness
+
+- `versionCode` 24 / `versionName` 1.11.0 in `app/build.gradle.kts`. **No APK was built and nothing
+  was pushed**, so `dist/` still holds v1.10.4 and the updater will report 1.11.0 as available to a
+  build made from this tree.
+- Unused-import pass over the touched files: removed `Flow` (`SettingsStore`), `Switch` and
+  `FontWeight` (`SettingsScreen`), `Close` (`SearchScreen`) and `asStateFlow` (`ViewModels`). The
+  `getValue`/`setValue` imports stay — they are what makes `by remember` delegation compile even
+  though the names never appear in the source, so a name-only scan flags them as dead.
+
+### Files
+
+New: `data/integrations/BackupCrypto.kt`, `data/search/SmartQuery.kt`,
+`test/…/BackupCryptoTest.kt`, `test/…/SmartSearchParseTest.kt`.
+Changed: `data/integrations/BackupManager.kt`, `data/download/DownloadCacheMaintenance.kt`,
+`data/download/VideoDownloadManager.kt`, `data/local/SettingsStore.kt`,
+`ui/screens/settings/SettingsScreen.kt`, `ui/screens/search/SearchScreen.kt`,
+`ui/vm/ViewModels.kt`, `MoovioApp.kt`, `app/build.gradle.kts`.
+
+### Verified / not verified
+
+- `:app:compileDebugKotlin` ✅ (deprecation warnings only, all pre-existing).
+- `:app:testDebugUnitTest` ✅ **327/327**, 0 failures, 0 errors, 0 skipped (+21: 8 crypto, 13 parser).
+- Crypto tests cover both halves of the requirement: encrypted payloads round-trip with the exact
+  bytes, tampering and a foreign key are rejected, and a legacy plaintext export is recognised as
+  *not* a container and still parses into a payload with its cookie/token intact.
+- **Not verified:** the KeyStore path itself (generation, and reopening the key after process death)
+  needs a device — the JVM tests drive the same `BackupCipher` with a generated key. Also unverified:
+  the SAF pickers' MIME filtering on a real file manager, and the boot sweep against a genuinely full
+  device.
+
+### Deliberately not done
+- No `androidx.security:security-crypto` dependency (deprecated, and wrong shape for a file backup).
+- No passphrase/portable-key option: encrypted backups are per-install by design.
+- The parser does not strip stop words like "from"/"the", so a sentence-style query keeps its
+  filler words; stripping them would damage real titles more often than it helps ("From Dusk Till
+  Dawn", "The Batman").
+- ISSUE-18's actual fix (exporting HLS downloads to a custom folder) is untouched — only its storage
+  cleanup prerequisite landed.
+
+---
+
+## 2bf. v1.11.0 released — the four-phase overhaul (2026-10-30)
+
+**Topic:** the release that carries Phases 1–4, closes ISSUE-15 and lands the download-storage
+prerequisite. Android only; `desktop/` and `desktop-win/` untouched.
+
+**Build**
+- `versionCode` 24 / `versionName` 1.11.0 (`app/build.gradle.kts`).
+- `:app:assembleRelease` ✅ (2 m 30 s, `--offline`) signed through `signingConfigs.release`, whose
+  material comes from the untracked `local.properties` (`moovio.storeFile` / `storePassword` /
+  `keyAlias` / `keyPassword`) — never from the repo.
+- APK: **44,129,211 bytes**, SHA-256 `8B212EF4E1A423A1718FFEBE5D22B1914EEF37CDA1962E580C013E91EA547311`.
+- Verified in the archive with `aapt dump badging`: `package com.moovio.app`, `versionCode 24`,
+  `versionName 1.11.0`, `minSdk 24`, `targetSdk 34`, `compileSdk 36`, `application-label 'Moovio'`.
+- Verified with `apksigner verify --print-certs`: V2 signer `CN=Moovio, OU=Release, O=Moovio, C=US`,
+  certificate SHA-256 `2EDB949B325BF13B6B5CA695FF3E3068F9DA5F24C4873BA0F12D2A7D99351379` — the same
+  key v1.10.0 shipped with, so an in-place upgrade from 1.10.x is possible.
+- Artifacts: `dist/app-release.apk` and `dist/Moovio.apk` (byte-identical, one SHA-256). The site CTA
+  fetches `releases/latest/download/app-release.apk`, so that exact asset name has to exist.
+- **Not pushed, not tagged, no GitHub Release.** The upload step is manual and still outstanding, so
+  the in-app updater and the website both keep serving v1.10.4 until it is done.
+
+**Size / code**
+- Main sources: **172 Kotlin files, 34,074 lines**.
+- Test sources: **36 Kotlin files, 4,787 lines**, 327 cases.
+
+**Phases in this release**
+
+| Phase | Section | What shipped |
+|---|---|---|
+| 1 | §2bb | Design system: `MoovioColors` `@Immutable` + `hairline`/`actionFill`, flat `SurfaceCard`, `AppRadius`, type scale 700 → 500, tinted washes and glowing CTAs removed, **AMOLED tokens** for True Black (surfaces and cards both go #000) |
+| 2 | §2bc | Motion: poster → detail **shared-element morph** (`Modifier.sharedPoster`, `Motion.settle<Rect>()`), `MoovioHaptics` (`select`/`toggle`/`commit`) across player drags, CTA, heart, season chips and Library long-press |
+| 3 | §2bd | Diagnostics & reader: **canvas `StatsHud`** with its own 250 ms ticker (buffer sparkline, bitrates, dropped frames, codec), spatial-audio attributes on API 32+, e-ink reader preset, bounded panning, rail-scoped morph keys |
+| 4 | §2be | Security & search: **AES-256-GCM encrypted backups** (KeyStore key, legacy plaintext import behind a confirmation), **offline natural-language query compiler** (`anime 2024 high rating`, `scifi movies`, `recent action`), download free-space floor |
+
+**Release-note highlights (copy for the tag body)**
+- AMOLED theme tokens: True Black now reaches surfaces and cards, not just the background.
+- Shared-element morph: a poster grows into the detail header instead of the screens cross-fading.
+- `MoovioHaptics`: one haptic vocabulary — stepped ticks on brightness/volume drags, toggles, and a
+  heavier cue on long-press.
+- Canvas `StatsHud`: the "stats for nerds" panel is drawn, and a stats tick no longer recomposes the
+  player's controls.
+- Encrypted backups: exports are AES-256-GCM containers bound to the install's KeyStore key; old
+  plaintext backups still restore, after a warning that says what they contain.
+- Offline smart search: typed filters (type, year, decade, rating floor, genre, recency) compile
+  locally before the 350 ms debounce, and the screen shows what it understood.
+
+**Closed by this release:** ISSUE-15 (plaintext backup secrets) — §2be; the ISSUE-18 storage
+prerequisite (orphan sweep under a user free-space floor) — §2be. **Still open:** ISSUE-18 itself
+(HLS export to a custom folder), ISSUE-16 (wrong tracker ids), ISSUE-17 (NSFW unlock persistence),
+ISSUE-26 (no CI).
+
+**Deferred / unverified**
+- Aniyomi/Mihon **extension execution** (the toolchain, not the APK downloader) is still the next
+  phase; `MangaExtensionRepository` only resolves and downloads APKs today.
+- No device pass has been run for any of the four phases: the morph, haptics, HUD tick cost, e-ink
+  output, KeyStore re-open after process death, the boot sweep on a full disk and every spring are
+  compile- and unit-verified only. No frame timing has been measured, before or after.
+- The Sudachi/emulator and tracker ids work are untouched.
 
 ---
 
@@ -4827,10 +5394,15 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   `Cookie` header, unencrypted, in a file the user picks anywhere on the device.
 - **Risk:** anyone with read access to the exported file (cloud backup, shared folder) gets
   working tracker sessions.
-- **Fix:** encrypt the backup with a user-held key (or at minimum omit secrets and re-prompt for
-  them on restore), and warn in the export dialog.
-- **Files:** `data/integrations/BackupManager.kt`
-- **Status:** open — not part of the §2ax pipeline (it was reported there, not fixed there).
+- **Fix:** done in §2be — AES-256-GCM with a key generated in the Android KeyStore
+  (`data/integrations/BackupCrypto.kt`). Container is `MAGIC + 12-byte IV + ciphertext/tag`, so an
+  exported file carries no readable secrets and a tampered one fails the tag. A legacy plaintext file
+  still imports, but only after a dialog that names what it contains.
+- **Files:** `data/integrations/BackupManager.kt`, `data/integrations/BackupCrypto.kt`,
+  `ui/screens/settings/SettingsScreen.kt`
+- **Status:** **closed (§2be)** — compile + unit verified (encrypted round trip, tamper and
+  foreign-key rejection, legacy plaintext recognition/parse). The KeyStore path itself is
+  device-only, so it is still unverified on hardware.
 
 ### 🟠 ISSUE-16 — Scrobbling posts foreign ids to AniList / MAL / Kitsu
 - **Symptom:** a movie watched in the app is scrobbled with a TMDB id where the provider expects
@@ -4849,6 +5421,12 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
 - **Files:** `data/local/SettingsStore.kt` (`:142`), `ui/screens/nsfw/NsfwHubScreen.kt`
 
 ### 🟠 ISSUE-18 — HLS downloads cannot be exported to a custom folder
+
+> **Prerequisite done (§2be, shipped in v1.11.0):** the downloader now reclaims orphaned cache
+> chunks when free space drops under a user-set floor (`DownloadCacheMaintenance.isBelowLimit` /
+> `shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace`, `SettingsStore.LOW_SPACE_MB`
+> default 1024 MB, swept at boot from `MoovioApp`). The export-to-custom-folder part below is still
+> **open**.
 - **Symptom:** "Copy downloads to folder" produces nothing for HLS titles.
 - **Root cause:** Media3 caches HLS segments under per-segment keys, but the exporter looks the
   download up by the download id, so `getCachedSpans` is empty and the export bails out.
@@ -5145,7 +5723,12 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-22 | **Full rename to Moovio (§2aw):** `com.novastream.app` → `com.moovio.app` (namespace + `applicationId`, 1118 references across 193 files) and every brand token renamed (`MoovioApp`, `MoovioTheme`, `LocalMoovioColors`, `MoovioExtension`, `MoovioDownloadService`, `moovioViewModel`, `Ns*` → `Moovio*` colour tokens, `ns_*` XML colours); OAuth scheme `novastream://oauth` → `moovio://oauth`; `Theme.NovaStream` → `Theme.Moovio`; `rootProject.name` = Moovio; README rewritten (stale version/test-count/TMDB-key claims corrected); roadmap retitled; website package renamed `moovio-website`; **the OpenGraph wordmark still rendered "NexusStream" — now "Moovio"**; stale `dist/NexusStream.apk` + `dist/NovaStream.apk` deleted. Verified structurally (package/dir parity, import resolution, manifest/theme/resource references) — **and then compiled**: `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **281/281**, `:app:assembleDebug` ✅ (53,038,688 bytes) after `local.properties` was pointed at the real SDK (`sdk.dir` had pointed at a non-existent Linux path). |
 | 2026-10-22 | **Security / stability remediation (§2ax):** (1) **release key rotated** — a fresh 4096-bit RSA key (`alias moovio`) at `~/.moovio/moovio-release.jks` outside the repo; `keystore/novastream.jks` + `keystore.properties` deleted; `build.gradle.kts` reads the material only from `local.properties` / `MOOVIO_*` env vars and a release build without it now fails fast with an actionable message; (2) **OAuth state validation** — 128-bit random nonce in `state`, constant-time compare, one-shot consumption (a foreign app could previously push its own authorization code into the user's tracker list); (3) **updater signature check** — `installApk` verifies package + trusted signer before the system installer sees the file; (4) **CloudStream shims repaired** — app context published to `com.lagradost.api`, `CommonActivity` attached (provider toasts were no-ops), `CloudStreamApp.initialize` called at app start, provider settings now use a Jackson mapper configured like the library's (Gson dropped null fields → providers' inlined Jackson read failed and silently lost settings); (5) **download removal no longer starts a foreground service** (Android 12+ `ForegroundServiceStartNotAllowedException` was swallowed, so watched downloads were never reclaimed); (6) **saved manga reading position restored** (the pager captured its initial page before the position loaded → every chapter opened on page 1); (7) `FLAG_SECURE` applied to the player; (8) home-row order screen keys made unique (duplicate titles crashed the LazyColumn); (9) poster-palette extraction and extension JSON parsing moved off the main thread, detail-screen history collected once per screen instead of once per episode row. |
 | 2026-10-22 | **Git history purged of the old key:** `git filter-repo --path keystore --invert-paths`; `main` force-pushed with `--force-with-lease` pinned to the old head `a1b3f4a`; **all 16 release tags rewritten and force-pushed** (two of them still pointed into the pre-rewrite history and would have kept the key blob reachable); reflog expired, object store re-packed — blob `681a2046…` is no longer a valid object locally and no reachable ref on GitHub points at the old commits. GitHub still serves the orphaned blob by SHA until its own GC runs, which is why the key was rotated. Verified: `git diff origin/main HEAD` = exactly the 213-file change set (no content lost by the rewrite). |
+| 2026-10-30 | **UI/UX design-system pass, Android only (§2bb):** `MoovioColors` now `@Immutable` with `hairline` + contrast-derived `actionFill`/`onAction` (all 8 accents ≥ 4.5:1); `GlassSurface` → flat `SurfaceCard` at ~25 call sites; removed the poster-tinted radial washes (Home 24 % / Detail 32 %), the accent CTA glow, the 140 dp empty-state halo, the five-hue resolution badge, the duplicated rating pill and the pill-everywhere radii (new `AppRadius`); type scale Bold(700) → Medium(500) with tracking only at 32 sp+; `FEATURED` → `Featured`; `@Immutable` on `MediaItem`/`CatalogRow`/`WatchEntry`; palette extraction dropped from both heroes. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **309/309**. No version bump, no APK, not pushed. `desktop/` + `desktop-win/` untouched. |
 | 2026-10-22 | **v1.10.0 released (§2ay):** the first Moovio-named release — `versionCode` 19 / `versionName` 1.10.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **292/292** (281 + 11 new: `OAuthAndSignatureSecurityTest` 6, `ProviderSettingsCodecTest` 5), `:app:assembleDebug` ✅, `:app:assembleRelease` ✅ (signed with the **rotated** key — signer SHA-256 `2EDB949B…351379`, DN `CN=Moovio, OU=Release, O=Moovio, C=US`) → `dist/Moovio.apk` + `dist/app-release.apk` (43,946,885 bytes, SHA-256 `ED8C5418…39D54F`); archive verified in-place (`package com.moovio.app`, `versionCode 19`, `versionName 1.10.0`, minSdk 24 / targetSdk 34, label `Moovio`). Pushed (`main` + tag `v1.10.0`), **GitHub Release `Moovio v1.10.0` published with `app-release.apk` + `Moovio.apk` attached and marked Latest** — `releases/latest/download/app-release.apk` now serves v1.10.0 (re-downloaded and hash-matched end to end). Website hero/footer/nav → v1.10.0, stats → 292, install size → ≈44 MB (`next build` ✅, 8/8 static pages). **Upgrade note in the release body: v1.10.0 cannot be installed over v1.9.0** (package id *and* signing key changed) — old installs must be removed, and their settings/library/downloads do not carry over. |
+| 2026-10-30 | **Phase 2 — motion, gestures & haptics (§2bc):** wired the poster → detail **shared-element morph** (new `Modifier.sharedPoster`: `SharedTransitionLayout`/`ProvideSharedScope` were installed on every destination but nothing consumed them, so navigation still cross-faded) with `Motion.settle<Rect>()` as its bounds transform, sourced from `PosterCard`'s artwork and landed on `DetailHeader`'s backdrop; new `MoovioHaptics` (`select`/`toggle`/`commit`, `@Stable`, remembered) replacing raw `performHapticFeedback` calls in 4 files and driving the player's brightness/volume drags per 10 % band, the primary CTA, the heart, season chips and Library long-press (from inside `PosterCard`); new `Motion.settle<T>()` (`DampingRatioNoBouncy` + `StiffnessLow`) for the carousel auto-advance, both nav indicators and the morph — the brief's `DampingRatioLowBouncy` was already in use on the nav controls and was removed, not extended. `PillSegmentedControl` (16/12 radii, neutral selection wash), `FloatingPillNavBar` (64 dp, no glass, no dark shadow), `LibraryScreen` (dead `LibrarySegmentedControl` duplicate deleted, chips on `AppRadius`) and `NsfwHubScreen` (hairline chip, 3 `Bold` dropped) finished the §2bb cleanup; `PosterPalette.kt` + `PaletteCacheTest` (3 cases) + `androidx.palette` deleted; root Gradle repaired (`:desktop` asked for a versioned Kotlin plugin after `kotlin.android` had claimed it). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**, `./gradlew help` at root ✅. No version bump, no APK, not pushed. Rendered/motion verification and frame-drop measurement still need a device; duplicate `poster:<key>` across Home rails is the open risk. |
+| 2026-10-30 | **Phase 3 — media player, manga reader, diagnostics & audio (§2bd):** "Stats for nerds" rebuilt as `ui/player/StatsHud.kt`, a `Canvas` HUD that owns its own 250 ms ticker (buffer-ahead sparkline over 40 samples = 10 s, buffered %, stream + download bitrate, resolution/fps/dropped, codec metadata) so a tick can no longer recompose the control overlay. **Spatial audio is offered honestly**: `Spatializer` has no setter, so the sheet row (shown only when `isAvailable && isEnabled`) sets the stream's `AudioAttributes` spatialisation behaviour (`C.SPATIALIZATION_BEHAVIOR_AUTO`/`_NEVER`) on the ExoPlayer, applied at player creation and on toggle, persisted as `audioSpatial`. Reader: new e-ink monochrome preset (`MANGA_EINK`, saturation 0 + contrast 1.45) that replaces invert/sepia, `MutableZoom.panBy`/`clampPan` bounding the pan to the page's real overflow, and the 3-page webtoon preload moved onto `Dispatchers.IO`. Morph keys are now rail-scoped — `sharedPoster(key, rail)`, `rail` threaded through `PosterCard`/`MediaRow` from Home/Anime/Manga/NSFW, and `?from=<rail>` on the detail route read back into `DetailHeader` — which closes §2bc's duplicate-key risk. Player chrome: sheet headings on `titleMedium`/`titleSmall`, every `Bold`/`SemiBold` (13) dropped to `Medium`, round 40 dp/48 dp controls on `CircleShape`. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**. No version bump, no APK, not pushed. Device passes (HUD cost, morph origin, spatial audio, e-ink panel, pan clamp) and all frame-timing measurement are still outstanding. |
+| 2026-10-30 | **Phase 4 — encrypted backups, smart search & release readiness (§2be):** **ISSUE-15 closed.** New `data/integrations/BackupCrypto.kt` — `BackupFormat` (`MOOVIO-BACKUP-1` magic + 12-byte IV + GCM tag) and `BackupCipher` (AES-256-GCM, fresh IV per export, injected key provider), with the key generated in `AndroidBackupKey` (AndroidKeyStore, no user-auth gate) — no `security-crypto` dependency added. `BackupManager` exports the container, gained `inspect(uri)` returning `Encrypted` vs `LegacyPlaintext` *before* any store is touched, and `importFrom(…, allowPlaintext = false)` refuses a plaintext file unless the caller opted in; Settings shows an "Unencrypted backup" confirmation, exports as `moovio-backup.mbackup` (`application/octet-stream`) and accepts both formats on import. New `data/search/SmartQuery.kt`: offline parser for type words, 18 genres, a year/decade/range (`2024`, `2020s`, two years), a rating floor (`high rating` = 7.0, `rating 8.5`), `recent`/`classic` and sorting, wired into `SearchViewModel` *before* the 350 ms debounce (cancellation + generation guard unchanged); type routes to the API, year/rating/genre narrow the merged result locally, and a muted one-line `summary()` shows what was understood. A four-digit token only counts as a year up to `currentYear + 1`, so "Blade Runner 2049" stays a title. Storage: `DownloadCacheMaintenance.isBelowLimit`/`shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace` (orphaned chunks only, never a playable download), `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off) with a Settings → Downloads ladder and a boot-time sweep in `MoovioApp`. `versionCode` 24 / `versionName` 1.11.0. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (+21: 8 crypto, 13 parser). No APK built, nothing pushed. Unverified on hardware: the KeyStore path, SAF MIME filtering, the boot sweep on a full disk. |
+| 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **No tag and no GitHub Release** — the updater still serves v1.10.4 until the asset is uploaded. |
 
 ---
 
@@ -5169,6 +5752,50 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
      most often.
 0b. **CI** — no workflow exists, so "292 tests, all green" is asserted rather than enforced
    (ISSUE-26).
+0c. **Design-system follow-ups (new, §2bb) —** (a) device pass on the new type scale and surfaces:
+   Home hero legibility under the logo row, `SurfaceCard` in dark **and** light, True AMOLED
+   (cards now go #000 too), a bright accent (Amber/Neon Purple) on the CTA to confirm the derived
+   `actionFill` ink, poster hairlines on 3-across grids, and the stream sheet's two-role
+   `ResolutionBadge`; (b) **done in §2bc** — `NsfwHubScreen`, `LibraryScreen`, `FloatingPillNavBar`
+   and `PillSegmentedControl` are on the tokens now; `PlayerActivity`'s 13 `Bold` and 9 pill radii
+   were finished in §2bd, leaving only `MainActivity` (1 `Bold`); (c) **done** —
+   `PosterPalette.kt` deleted with its 3 tests and the `androidx.palette` dependency; (d) **done** —
+   the root `./gradlew` configures again.
+0d. **Phase 2 follow-ups (new, §2bc) —** (a) device pass on the poster → header morph: confirm the
+   frame actually grows from 2:3 into the wide header with no flash, and that it still lands when the
+   source poster was inside a `LazyRow` that had scrolled; (b) **check duplicate keys** — a title on
+   Home can sit in both the featured banner and a rail, so two composables can register
+   `poster:<key>` (the case Compose documents as unsupported); thread a per-rail key through
+   `sharedPoster` if the morph starts from the wrong copy; (c) feel the haptics on real hardware
+   (brightness/volume bands, heart, season chips, Library long press) and the `settle()` springs at
+   60/120 Hz; (d) measure frame timing in `HomeScreen`/`BrowseScreen`/`NsfwHubScreen` if anything
+   looks uneven — no frame-drop measurement has been taken, before or after.
+   **Status:** (b) is now **fixed in §2bd** (rail-scoped keys via `?from=`); (a), (c) and (d) still
+   need hardware.
+0e. **Phase 3 follow-ups (new, §2bd) —** (a) watch the HUD on a device: confirm 250 ms ticks cost
+   nothing visible and that the bitrate sparkline settles instead of jittering on a churning stream;
+   (b) spatial audio on real headphones — a device whose `Spatializer` is *off* should hide the row
+   entirely, one that is on should audible-pan with the switch; (c) e-ink preset on an actual e-ink
+   panel (and on a normal screen, where it should read as hard monochrome, not grey); (d) the
+   reader's new pan clamp under a real pinch near the page edge; (e) with rail keys in place, check
+   that the morph now starts from the copy that was tapped when the same title appears twice on Home,
+   including when the tapped rail had been scrolled.
+0f. **Phase 4 follow-ups (new, §2be) —** (a) on a device: export a backup, confirm the file is
+   opaque, then restore it after a process death — that is the only way to prove the KeyStore key is
+   re-openable; (b) open an old v1 `.json` backup and confirm the confirmation dialog appears and
+   *Cancel* leaves the library untouched; (c) try the SAF picker in a real file manager — the export
+   is `application/octet-stream` and some managers grey it out for the import filter; (d) the boot
+   sweep needs a device that is genuinely under the floor (fill the cache, set the floor above free
+   space) to prove it reclaims only orphans; (e) smart search on real catalog data: "anime 2024 high
+   rating" and "scifi movies" through add-ons that return partial metadata, where a missing `year`
+   drops an item when a year filter is active — decide whether that should fall back to no filter.
+0g. **Release follow-through for v1.11.0 (new, §2bf) —** the APK is built and verified but **not
+   published**. To finish the release: tag `v1.11.0` on the commit that contains the four phases,
+   push it, and publish a GitHub Release with `app-release.apk` + `Moovio.apk` attached and marked
+   Latest (the site CTA and the in-app updater both resolve
+   `releases/latest/download/app-release.apk`). Until then `dist/` is ahead of what users get. All
+   four phases remain **device-unverified** — §7 0d/0e/0f lists exactly what to poke on hardware
+   first (morph origin, HUD tick cost, KeyStore re-open, boot sweep).
 1. **Manual verification pass** on a device/emulator:
    - Fresh install → Home populates; open a movie → stream sources listed (Torrentio / TPB+).
    - Settings → Add-ons → CloudStream repo → provider list is **no longer empty**.

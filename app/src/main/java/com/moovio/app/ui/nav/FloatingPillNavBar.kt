@@ -2,7 +2,6 @@ package com.moovio.app.ui.nav
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,19 +34,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.LocalMoovioColors
+import com.moovio.app.ui.theme.Motion
+import com.moovio.app.ui.theme.rememberMoovioHaptics
 
 /** One entry in the floating bar. */
 data class FloatingNavItem(val label: String, val icon: ImageVector)
 
 /** Visible height of the floating capsule itself (margins/insets are added around it). */
-val FloatingNavBarHeight: Dp = 66.dp
+val FloatingNavBarHeight: Dp = 64.dp
 
 /**
  * Bottom content padding a tab screen should add so its last row clears the floating bar.
@@ -60,12 +59,14 @@ val FloatingNavBarHeight: Dp = 66.dp
 val LocalFloatingNavBottomPadding = staticCompositionLocalOf { 0.dp }
 
 /**
- * A modern floating pill navigation bar.
+ * The floating bottom navigation bar.
  *
- * Replaces the edge-to-edge docked Material `NavigationBar` with a capsule that floats 16 dp above
- * the gesture inset: translucent glass surface, hairline outline, soft shadow, and a spring-driven
- * pill indicator that slides behind the active tab. It stays on screen permanently — scrolling no
- * longer hides it.
+ * It stays a floating bar — it overlays scrolling content and needs the inset — but no longer a
+ * glass pill: the 85%-alpha surface let posters shimmer through the labels, and a 66dp capsule was
+ * the only 9999-radius shape left in the nav. It is now a 64dp panel radius (16) on a solid raised
+ * surface with a hairline, a 12-radius selection wash in neutral text ink, and one icon and label
+ * weight whether or not a tab is selected. Colour is reserved for content, so the bar stops
+ * competing with the artwork behind it.
  */
 @Composable
 fun FloatingPillNavBar(
@@ -76,9 +77,10 @@ fun FloatingPillNavBar(
 ) {
     if (items.isEmpty()) return
     val moovio = LocalMoovioColors.current
-    // Phase 36: one tactile tick per tab switch (skipped for the already-active tab).
-    val haptic = LocalHapticFeedback.current
-    val shape = RoundedCornerShape(50)
+    // One tactile tick per tab switch (skipped for the already-active tab).
+    val haptics = rememberMoovioHaptics()
+    val shape = RoundedCornerShape(AppRadius.panel.dp)
+    val itemShape = RoundedCornerShape(AppRadius.card.dp)
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Surface(
@@ -87,21 +89,18 @@ fun FloatingPillNavBar(
             .padding(start = 20.dp, end = 20.dp, bottom = navInset + 16.dp)
             .height(FloatingNavBarHeight),
         shape = shape,
-        // Glass backdrop: the surface tint at 85% so scrolled content reads faintly through it.
-        color = moovio.surface.copy(alpha = 0.85f),
+        color = moovio.surfaceElevated,
         contentColor = moovio.textPrimary,
-        border = BorderStroke(1.dp, moovio.outline.copy(alpha = 0.25f)),
-        shadowElevation = 6.dp,
+        border = BorderStroke(1.dp, moovio.hairline),
+        // Dark depth comes from the surface step plus the hairline; only the light theme needs a
+        // shadow to lift a white bar off a white page.
+        shadowElevation = if (moovio.isDark) 0.dp else 2.dp,
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize().padding(6.dp)) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(4.dp)) {
             val itemWidth = maxWidth / items.size
-            // Sliding active indicator, offset by whole item widths with a low-bounce spring.
             val indicatorOffset by animateDpAsState(
                 targetValue = itemWidth * selectedIndex,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
+                animationSpec = Motion.settle(stiffness = Spring.StiffnessMediumLow),
                 label = "navIndicatorOffset",
             )
             Box(
@@ -109,8 +108,8 @@ fun FloatingPillNavBar(
                     .offset(x = indicatorOffset)
                     .width(itemWidth)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(50))
-                    .background(moovio.accent.copy(alpha = 0.16f)),
+                    .clip(itemShape)
+                    .background(moovio.textPrimary.copy(alpha = 0.10f)),
             )
             Row(Modifier.fillMaxSize()) {
                 items.forEachIndexed { index, item ->
@@ -119,12 +118,12 @@ fun FloatingPillNavBar(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(50))
+                            .clip(itemShape)
                             .clickable {
                                 if (index != selectedIndex) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    haptics.select()
+                                    onSelect(index)
                                 }
-                                onSelect(index)
                             },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -132,15 +131,14 @@ fun FloatingPillNavBar(
                         Icon(
                             imageVector = item.icon,
                             contentDescription = item.label,
-                            tint = if (selected) moovio.accent else moovio.textTertiary,
-                            modifier = Modifier.size(22.dp),
+                            tint = if (selected) moovio.textPrimary else moovio.textTertiary,
+                            modifier = Modifier.size(20.dp),
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = item.label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) moovio.accent else moovio.textTertiary,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) moovio.textPrimary else moovio.textTertiary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )

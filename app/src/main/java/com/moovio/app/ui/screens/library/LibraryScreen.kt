@@ -54,7 +54,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -76,7 +75,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import com.moovio.app.ui.components.ConfirmRemoveDialog
 import com.moovio.app.ui.components.EmptyState
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.components.PillSegmentedControl
 import com.moovio.app.ui.components.PosterCard
 import com.moovio.app.ui.components.SectionHeader
@@ -84,9 +83,11 @@ import com.moovio.app.ui.nav.LocalFloatingNavBottomPadding
 import com.moovio.app.ui.nav.Routes
 import com.moovio.app.ui.player.MangaReaderActivity
 import com.moovio.app.ui.player.PlayerActivity
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.AppSpacing
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.theme.Motion
+import com.moovio.app.ui.theme.rememberMoovioHaptics
 import com.moovio.app.ui.theme.tnum
 import com.moovio.app.ui.vm.LibraryViewModel
 import com.moovio.app.ui.vm.LocalContainer
@@ -475,7 +476,7 @@ private fun StatsTab(favorites: List<MediaItem>, history: List<WatchEntry>) {
             }
         } else {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                GlassSurface(Modifier.fillMaxWidth()) {
+                SurfaceCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         stats.topGenres.forEach { (genre, count) ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -499,54 +500,11 @@ private fun StatsTab(favorites: List<MediaItem>, history: List<WatchEntry>) {
 @Composable
 private fun StatCard(label: String, value: String) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth()) {
+    SurfaceCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             // Tabular figures so stat numbers keep a stable width as they load/change.
             Text(value, style = MaterialTheme.typography.headlineMedium.tnum, color = moovio.accent)
             Text(label, style = MaterialTheme.typography.labelMedium, color = moovio.textTertiary)
-        }
-    }
-}
-
-/**
- * A compact pill segmented control, matching the Browse tab's control so the two-level navigation
- * feels consistent.
- */
-@Composable
-private fun LibrarySegmentedControl(
-    labels: List<String>,
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val moovio = LocalMoovioColors.current
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(moovio.surfaceElevated)
-            .border(BorderStroke(1.dp, moovio.outline.copy(alpha = 0.6f)), RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        labels.forEachIndexed { index, label ->
-            val active = index == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (active) moovio.accent.copy(alpha = 0.18f) else androidx.compose.ui.graphics.Color.Transparent)
-                    .clickable { onSelect(index) }
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (active) moovio.accent else moovio.textSecondary,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                )
-            }
         }
     }
 }
@@ -563,7 +521,8 @@ private fun LibraryFilterBar(
     modifier: Modifier = Modifier,
 ) {
     val moovio = LocalMoovioColors.current
-    val shape = RoundedCornerShape(50)
+    val shape = RoundedCornerShape(AppRadius.chip.dp)
+    val haptics = rememberMoovioHaptics()
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = AppSpacing.screen),
@@ -573,14 +532,16 @@ private fun LibraryFilterBar(
             val filter = LibraryFilter.entries[index]
             val active = index == selected
             // Animate the selected chip's fill + outline so switching filters reads as one control
-            // changing state rather than two chips blinking.
+            // changing state rather than two chips blinking. Selection is a surface step and a
+            // brighter hairline; the accent tint that used to fill the chip has gone back to the
+            // single primary action.
             val chipBg by animateColorAsState(
-                targetValue = if (active) moovio.accent.copy(alpha = 0.18f) else moovio.surfaceElevated,
+                targetValue = if (active) moovio.surfaceElevated else androidx.compose.ui.graphics.Color.Transparent,
                 animationSpec = tween(Motion.FAST),
                 label = "chipBg",
             )
             val chipBorder by animateColorAsState(
-                targetValue = if (active) moovio.accent else moovio.outline.copy(alpha = 0.6f),
+                targetValue = if (active) moovio.textSecondary.copy(alpha = 0.5f) else moovio.hairline,
                 animationSpec = tween(Motion.FAST),
                 label = "chipBorder",
             )
@@ -589,14 +550,18 @@ private fun LibraryFilterBar(
                     .clip(shape)
                     .background(chipBg)
                     .border(BorderStroke(1.dp, chipBorder), shape)
-                    .clickable { onSelect(index) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                    .clickable {
+                        if (!active) {
+                            haptics.select()
+                            onSelect(index)
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Text(
                     filter.label,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (active) moovio.accent else moovio.textSecondary,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    color = if (active) moovio.textPrimary else moovio.textSecondary,
                 )
             }
         }
@@ -607,7 +572,7 @@ private fun LibraryFilterBar(
 @Composable
 private fun DownloadsStorageCard(videoCount: Int, chapterCount: Int, totalBytes: Long) {
     val moovio = LocalMoovioColors.current
-    GlassSurface(Modifier.fillMaxWidth()) {
+    SurfaceCard(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Download, null, tint = moovio.accent, modifier = Modifier.size(28.dp))
             Spacer(Modifier.width(12.dp))
@@ -649,7 +614,7 @@ private fun MangaDownloadRow(d: MangaDownload, onClick: () -> Unit) {
     val moovio = LocalMoovioColors.current
     val manager = LocalContainer.current.mangaDownloadManager
     // Full-width rows: span the grid line so the card fills the row instead of being cell-sized.
-    GlassSurface(
+    SurfaceCard(
         Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 4.dp),
         onClick = onClick,
     ) {
@@ -732,7 +697,7 @@ private fun MangaDownloadRow(d: MangaDownload, onClick: () -> Unit) {
 private fun VideoDownloadRow(d: VideoDownload, onClick: () -> Unit) {
     val moovio = LocalMoovioColors.current
     val manager = LocalContainer.current.videoDownloadManager
-    GlassSurface(
+    SurfaceCard(
         Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen, vertical = 4.dp),
         onClick = onClick,
     ) {

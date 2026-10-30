@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.SearchOff
@@ -83,6 +82,7 @@ fun SearchScreen(nav: NavHostController, initialQuery: String = "") {
     val loading by vm.loading.collectAsStateSafe()
     val section by vm.section.collectAsStateSafe()
     val recents by vm.recentSearches.collectAsStateSafe()
+    val compiled by vm.compiled.collectAsStateSafe()
 
     // Only kick off the initial search when we don't already have results (e.g. restoring the
     // tab) — re-running it would clear the visible list and flash a loading state.
@@ -138,6 +138,16 @@ fun SearchScreen(nav: NavHostController, initialQuery: String = "") {
             },
             modifier = Modifier.padding(horizontal = AppSpacing.screen),
         )
+        // What the parser understood, as one quiet line. Present only when the typed query carried
+        // filters, so plain typing looks exactly as it did before.
+        compiled?.summary()?.let { summary ->
+            Text(
+                summary,
+                style = MaterialTheme.typography.labelMedium,
+                color = moovio.textTertiary,
+                modifier = Modifier.padding(start = AppSpacing.screen, top = 8.dp),
+            )
+        }
         LazyRow(
             contentPadding = PaddingValues(horizontal = AppSpacing.screen, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

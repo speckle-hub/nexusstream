@@ -33,7 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.moovio.app.ui.components.EmptyState
-import com.moovio.app.ui.components.GlassSurface
+import com.moovio.app.ui.components.SurfaceCard
 import com.moovio.app.ui.components.LoadingRow
 import com.moovio.app.ui.components.MediaRow
 import com.moovio.app.ui.components.SectionHeader
@@ -106,7 +106,7 @@ fun MangaScreen(nav: NavHostController, embedded: Boolean = false) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(installed, key = { it.pkg }) { ext ->
-                        GlassSurface(modifier = Modifier.width(200.dp)) {
+                        SurfaceCard(modifier = Modifier.width(200.dp)) {
                             Column(Modifier.padding(14.dp)) {
                                 Text(ext.name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 2)
                                 Spacer(Modifier.height(4.dp))
@@ -143,11 +143,13 @@ fun MangaScreen(nav: NavHostController, embedded: Boolean = false) {
 
         items(rows) { row ->
             // Same card width as Home so a Manga rail card is the same size as a Home rail card.
+            val rail = "manga:${row.title}"
             MediaRow(
                 row.title,
                 row.items,
-                onClick = { nav.navigate(Routes.detail(it)) },
+                onClick = { nav.navigate(Routes.detail(it, rail)) },
                 cardWidth = AppSpacing.railCard,
+                rail = rail,
             )
         }
     }

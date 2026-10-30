@@ -38,8 +38,8 @@ android {
         applicationId = "com.moovio.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 23
-        versionName = "1.10.4"
+        versionCode = 24
+        versionName = "1.11.0"
         vectorDrawables { useSupportLibrary = true }
         // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
         buildConfigField(
@@ -151,7 +151,6 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
     testImplementation("junit:junit:4.13.2")

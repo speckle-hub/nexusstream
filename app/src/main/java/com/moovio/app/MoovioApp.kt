@@ -88,12 +88,21 @@ class MoovioApp : Application(), ImageLoaderFactory {
         collectSafely(container.settings.maxParallel) {
             DownloadManagerProvider.setMaxParallel(this@MoovioApp, it)
         }
+        // Reclaim doomed cache chunks at boot when the device is already under the user's
+        // free-space floor. Only bytes no download index references are removed, so nothing
+        // playable is ever deleted here.
+        appScope.launch {
+            runCatching {
+                container.videoDownloadManager.sweepOrphansIfLowOnSpace(container.settings.lowSpaceMb.value)
+            }
+        }
         // Some engine code reads these via `settings.x.value` (PlayerActivity, MangaReaderActivity,
         // NewContentWorker). With WhileSubscribed(5000) sharing, a stale initial default would be
         // returned if nothing had ever subscribed, so keep a lightweight app-lifetime subscription.
         listOf(
             container.settings.autoplay, container.settings.subsEnabled, container.settings.playerSpeed,
-            container.settings.audioBoost, container.settings.audioNormalize, container.settings.subtitleSyncMs,
+            container.settings.audioBoost, container.settings.audioNormalize, container.settings.audioSpatial,
+            container.settings.subtitleSyncMs,
             container.settings.autoDeleteWatched, container.settings.subtitleScale, container.settings.subtitleColor,
             container.settings.subtitleBg, container.settings.subtitleOffset, container.settings.preferredQuality,
             container.settings.autoDownloadNext, container.settings.autoDownloadWifiOnly,

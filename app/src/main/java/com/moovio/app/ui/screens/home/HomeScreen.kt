@@ -1,6 +1,5 @@
 package com.moovio.app.ui.screens.home
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
@@ -80,10 +79,13 @@ import com.moovio.app.ui.nav.LocalFloatingNavBottomPadding
 import com.moovio.app.ui.nav.Routes
 import com.moovio.app.ui.screens.settings.applyRowOrder
 import com.moovio.app.ui.screens.settings.applyRowVisibility
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.AppSpacing
 import com.moovio.app.ui.theme.LocalMoovioColors
-import com.moovio.app.ui.theme.rememberPosterPalette
+import com.moovio.app.ui.theme.Motion
+import com.moovio.app.ui.theme.rememberMoovioHaptics
 import com.moovio.app.ui.theme.rememberReducedMotion
+import com.moovio.app.ui.theme.tnum
 import com.moovio.app.ui.vm.HomeViewModel
 import com.moovio.app.ui.vm.LocalContainer
 import com.moovio.app.ui.vm.collectAsStateSafe
@@ -140,7 +142,7 @@ fun HomeScreen(nav: NavHostController) {
         modifier = Modifier.fillMaxSize().clipToBounds(),
         // No top padding: when a hero is present it must draw edge-to-edge behind the status bar.
         // When there isn't one, the top bar itself supplies the status-bar inset.
-        contentPadding = PaddingValues(bottom = 28.dp + LocalFloatingNavBottomPadding.current),
+        contentPadding = PaddingValues(bottom = AppSpacing.page + LocalFloatingNavBottomPadding.current),
     ) {
         // ---- Featured carousel (full-bleed, behind the status bar) -----------
         if (featured.isNotEmpty()) {
@@ -163,8 +165,11 @@ fun HomeScreen(nav: NavHostController) {
             }
             if (loading) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        ShimmerBox(Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(20.dp))
+                    Box(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.screen)) {
+                        ShimmerBox(
+                            Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                            RoundedCornerShape(AppRadius.panel.dp),
+                        )
                     }
                 }
             }
@@ -220,11 +225,15 @@ fun HomeScreen(nav: NavHostController) {
         }
 
         items(rows) { row ->
+            // Rail identity travels both into the card's shared-element key and into the detail
+            // route, so the morph matches even when the same title sits in two Home rows.
+            val rail = "home:${row.title}"
             MediaRow(
                 title = row.title,
                 items = row.items,
-                onClick = { nav.navigate(Routes.detail(it)) },
+                onClick = { nav.navigate(Routes.detail(it, rail)) },
                 cardWidth = AppSpacing.railCard,
+                rail = rail,
                 trailing = {
                     SeeAll { nav.navigate(Routes.collection(row.type)) }
                 },
@@ -235,20 +244,8 @@ fun HomeScreen(nav: NavHostController) {
     // Floating app title / controls over the top of the hero, below the status bar. The hero's own
     // top scrim (plus the extra one below) keeps the logo legible over bright artwork.
     if (featured.isNotEmpty()) {
-        // Extra dark gradient right behind the logo/controls so they stay legible no matter how
-        // bright the banner underneath is.
-        Box(
-            Modifier
-                .align(Alignment.TopStart)
-                .zIndex(10f)
-                .fillMaxWidth()
-                .height(130.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent)
-                    )
-                )
-        )
+        // No second gradient here any more: the hero's own scrim is now strong enough under the
+        // logo row, so the top of the screen is one layer instead of two stacked blacks.
         HomeTopBar(
             onAddons = { nav.navigate(Routes.ADDONS) },
             onRefresh = { vm.refresh() },
@@ -315,7 +312,12 @@ private fun FeaturedCarousel(
         while (true) {
             delay(5000)
             if (!pagerState.isScrollInProgress) {
-                pagerState.animateScrollToPage((pagerState.currentPage + 1) % items.size)
+                // Spring rather than a rigid tween: low stiffness so the next banner glides in and
+                // decelerates, non-bouncy so it never overshoots and wobbles back.
+                pagerState.animateScrollToPage(
+                    page = (pagerState.currentPage + 1) % items.size,
+                    animationSpec = Motion.settle(),
+                )
             }
         }
     }
@@ -339,7 +341,7 @@ private fun FeaturedCarousel(
         CarouselDots(
             count = items.size,
             selected = pagerState.currentPage,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = AppSpacing.screen),
         )
     }
 }
@@ -354,10 +356,10 @@ private fun CarouselDots(count: Int, selected: Int, modifier: Modifier = Modifie
     ) {
         repeat(count) { i ->
             val active = i == selected
-            val width by animateDpAsState(if (active) 24.dp else 7.dp, label = "dotWidth")
+            val width by animateDpAsState(if (active) 20.dp else 6.dp, label = "dotWidth")
             Box(
                 Modifier
-                    .padding(horizontal = 3.dp)
+                    .padding(horizontal = 4.dp)
                     .height(6.dp)
                     .width(width)
                     .clip(RoundedCornerShape(50))
@@ -394,10 +396,6 @@ private fun HeroSlide(
     val moovio = LocalMoovioColors.current
     val haptic = LocalHapticFeedback.current
     val img = item.backdrop ?: item.poster
-    // Dynamic theming: the accent + scrim shift to match each banner's artwork as it changes.
-    val palette = rememberPosterPalette(img)
-    val glow by animateColorAsState(palette?.vibrantColor ?: moovio.accent, label = "heroAccent")
-    val scrim by animateColorAsState(palette?.darkVibrantColor ?: Color.Black, label = "heroScrim")
 
     // Immersive portrait-ish height, clamped so tablets/landscape never stretch it into the feed.
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -414,20 +412,19 @@ private fun HeroSlide(
         } else {
             ShimmerBox(Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
         }
-        // Ambient halo tinted by the artwork's vibrant swatch.
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.radialGradient(listOf(glow.copy(alpha = 0.24f), Color.Transparent))
-            )
-        )
-        // Top + bottom scrims: the art fades into the page background at both edges.
+        // One neutral scrim. It is strong under the logo row, clear through the middle so the still
+        // is untouched, and opaque to the page colour at the bottom so the banner has no hard edge.
+        // The artwork is the only thing allowed to bring colour to this screen — the previous
+        // version also laid a poster-tinted radial wash over the whole frame, which muted the very
+        // image it was meant to show off.
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.55f),
-                    0.20f to Color.Transparent,
-                    0.48f to Color.Transparent,
-                    0.76f to scrim.copy(alpha = 0.60f),
+                    0f to Color.Black.copy(alpha = 0.60f),
+                    0.12f to Color.Black.copy(alpha = 0.30f),
+                    0.34f to Color.Transparent,
+                    0.62f to Color.Transparent,
+                    0.86f to Color.Black.copy(alpha = 0.55f),
                     1f to moovio.background,
                 )
             )
@@ -438,28 +435,30 @@ private fun HeroSlide(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 // Bottom room for the overlaying pagination dots.
-                .padding(start = 24.dp, end = 24.dp, bottom = 44.dp),
+                .padding(start = AppSpacing.section, end = AppSpacing.section, bottom = 44.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Sentence case in a quiet white: an eyebrow label states context, it does not need
+            // wide tracking and a per-title accent colour to be noticed.
             Text(
-                "FEATURED",
-                style = MaterialTheme.typography.labelSmall,
-                color = glow,
+                "Featured",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.72f),
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AppSpacing.tight))
             Text(
                 item.title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.tight))
             Text(
                 heroMeta(item),
-                color = Color.White.copy(alpha = 0.85f),
-                style = MaterialTheme.typography.labelLarge,
+                color = Color.White.copy(alpha = 0.82f),
+                style = MaterialTheme.typography.labelLarge.tnum,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -472,37 +471,42 @@ private fun HeroSlide(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // Off-white fill with near-black ink is the primary action on a dark theme; the
+                // accent is reserved for state (selection, progress) rather than painted over art.
                 Button(
                     onClick = { onClick(item) },
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
-                    contentPadding = PaddingValues(horizontal = 26.dp, vertical = 11.dp),
+                    shape = RoundedCornerShape(AppRadius.control.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.94f),
+                        contentColor = Color(0xFF0B0B0D),
+                    ),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
                 ) {
-                    if (item.isReadable) {
-                        Icon(Icons.AutoMirrored.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
-                    } else {
-                        Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp))
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (item.isReadable) "Read" else "Play", fontWeight = FontWeight.Bold)
+                    Icon(
+                        if (item.isReadable) Icons.AutoMirrored.Filled.MenuBook else Icons.Filled.PlayArrow,
+                        null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(AppSpacing.tight))
+                    Text(if (item.isReadable) "Read" else "Play")
                 }
                 OutlinedButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onToggleFavorite(item)
                     },
-                    shape = RoundedCornerShape(50),
+                    shape = RoundedCornerShape(AppRadius.control.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.55f)),
-                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 ) {
                     Icon(
                         if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         null,
                         modifier = Modifier.size(18.dp),
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (isFavorite) "Saved" else "Watchlist", fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(AppSpacing.tight))
+                    Text(if (isFavorite) "Saved" else "Watchlist")
                 }
             }
         }
@@ -539,7 +543,7 @@ private fun HomeTopBar(
             .fillMaxWidth()
             // Status-bar inset here so the logo/controls clear the system bar in both layouts.
             .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = AppSpacing.screen, vertical = AppSpacing.tight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -582,8 +586,8 @@ private fun ContinueWatchingRow(
             } else null,
         )
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = AppSpacing.screen),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.item),
         ) {
             items(entries, key = { it.item.key }) { entry ->
                 Column(
@@ -657,7 +661,7 @@ private fun ContinueWatchingRow(
                             }
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AppSpacing.tight))
                     Text(
                         entry.item.title,
                         style = MaterialTheme.typography.bodyMedium,
@@ -671,6 +675,6 @@ private fun ContinueWatchingRow(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.tight))
     }
 }
