@@ -16,7 +16,9 @@
 > **Published** — commit `4caee5f` on `main`, tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked
 > **Latest** with `app-release.apk` + `Moovio.apk` attached, so
 > `releases/latest/download/app-release.apk` now 302s to v1.11.0 and the re-downloaded asset
-> hash-matches `dist/`. `desktop/` and `desktop-win/` were **not** touched.
+> hash-matches `dist/`. The site's own copy is still desktop-first (v0.1.0 badge, ≈180 MB, 24+
+> tests) although its Android button already serves 1.11.0 — deferred by decision (§7 0h).
+> `desktop/` and `desktop-win/` were **not** touched.
 >
 > Previous, 2026-10-30 — **Phase 4: encrypted backups, smart
 > search & release readiness (§2be), Android only: ISSUE-15 closed (AES-256-GCM backup container,
@@ -1525,6 +1527,8 @@ ISSUE-26 (no CI).
 - No device pass has been run for any of the four phases: the morph, haptics, HUD tick cost, e-ink
   output, KeyStore re-open after process death, the boot sweep on a full disk and every spring are
   compile- and unit-verified only. No frame timing has been measured, before or after.
+- The website's own copy is desktop-first (v0.1.0 badge, ≈180 MB, 24+ tests) even though its Android
+  button already serves 1.11.0 — deferred by decision, tracked in §7 0h.
 - The Sudachi/emulator and tracker ids work are untouched.
 
 ---
@@ -5800,8 +5804,20 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
    and `releases/latest/download/app-release.apk` 302ing to it, so the updater and the site CTA
    already serve this build. **Still outstanding:** a device pass on all four phases (morph origin,
    haptic feel, HUD tick cost, e-ink output, KeyStore re-open after process death, boot sweep on a
-   full disk — §7 0d/0e/0f), no frame timing measured, and the **website still advertises v1.10.4 /
-   306 tests** — its hero, footer and stats need their own commit to say 1.11.0 / 327.
+   full disk — §7 0d/0e/0f) and no frame timing measured. The website copy update is **deferred by
+   decision** to a later session — tracked separately in §7 0h.
+0h. **Website copy is the last stale surface (deferred by decision, 2026-10-30) —** nothing on the
+   site says v1.10.4 — it has been rewritten as a *desktop-first* landing page. The hero badge reads
+   "Moovio Desktop v0.1.0", its proof row says "≈180 MB ZIP / MSI", an assurance chip says "24+ unit
+   tests", `Stats.tsx` shows `0.1.0 / 180 MB / 24+ / 0 Electron`, and `DownloadCta.tsx`'s spec list is
+   Windows-only (JDK 21, libmpv). Meanwhile the Android button (`APK_URL` in `website/lib/utils.ts`)
+   already resolves `releases/latest`, so it serves v1.11.0 today. The next session's question is
+   therefore editorial, not technical: does the site lead with the Android 1.11.0 release or with the
+   desktop client? Whichever wins, update `Hero.tsx` (badge + proof row + tests chip), `Stats.tsx`,
+   `DownloadCta.tsx` and the version line in `Footer.tsx`, then `npm run build`. The desktop download
+   URLs stay pinned at `v0.1.1` in `utils.ts` and need no change unless desktop ships again. Facts if
+   Android leads: version 1.11.0, **327** tests, APK 44.1 MB. No URL changes either way. The repo
+   rename (`speckle-hub/nexusstream` → `moovio`) is a separate item (§7 0).
 1. **Manual verification pass** on a device/emulator:
    - Fresh install → Home populates; open a movie → stream sources listed (Torrentio / TPB+).
    - Settings → Add-ons → CloudStream repo → provider list is **no longer empty**.
@@ -5810,7 +5826,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
    - Manga → open a licensed title (e.g. One Piece) → chapter list shows only readable chapters.
 2. Run the device pass in step 1, then archive a release build: `./gradlew :app:assembleRelease`
    (signing material comes from the untracked `local.properties` / `MOOVIO_*` env vars — §5).
-3. Test suites live in `app/src/test/java/com/moovio/app/` — **292 tests** across 33 files; the
+3. Test suites live in `app/src/test/java/com/moovio/app/` — **327 tests** across 36 files; the
    full per-file breakdown is in §1. If more clients need coverage (the CloudStream shims, `Http`,
    `SettingsStore`, the download managers, the extension engine), extract the pure logic and add
    cases there — the shims are the highest-risk untested code in the repo.
