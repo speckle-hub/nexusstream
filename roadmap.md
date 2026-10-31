@@ -1565,6 +1565,62 @@ ISSUE-26 (no CI).
 
 ---
 
+## 2bj. Website rebuild — unslop pass, Android-first (2026-10-31)
+
+**Topic:** the site sold a v0.1.0 Windows build while 1.11.1 was the live Android release, and it
+was assembled out of the tells that make a landing page read as generated. `website/` only; no app
+code, no desktop code touched.
+
+**Direction:** a projection booth — matte black, one amber beam, the screen is the only bright
+thing. Character: dark, exact, unhurried. The phone's Home feed is the bright element, the source
+diagram is the second moment, and the signature is a 1 px beam plus timecode section markers
+(`00:04:12` instead of `01 — FEATURES`).
+
+**Audit → what was removed**
+- Violet gradient text (`One app.`, `Stream everywhere.`) → flat paper, one amber beam rule.
+- Violet glow shadows (`shadow-glow-accent`), radial blobs and `from-void` fades → hairline rules,
+  with one warm light falloff kept inside the product view because it describes the artwork.
+- Pulsing dots (`animate-pulse-soft`) in four places → none; nothing loops.
+- Uppercase tracked `.eyebrow` labels → sentence case, mono timecodes.
+- Glyph "icons" in the mockup sidebars (`◍ ▶ ▱ ✦ ▩ ⚙`) → lucide, 16 px, 1.5 stroke, one set.
+- 3D tilt cards with glare, a 36 s marquee, blurred-rise stagger (`filter: blur(3px)`), digit
+  pop-in and hover scale → deleted along with `ui/tilt`, `ui/drag-rail`, `ui/pop-number`,
+  `ui/reveal`; one 560 ms entrance on the hero and colour-only hovers remain.
+- 700-weight display headings → 500; hierarchy comes from size and colour.
+- Copy ("premium", "glassmorphism", "gradient glows", "24+ tests", "≈180 MB", `v0.1.0` in three
+  places) → factual, from one constants file.
+- Three competing hero CTAs (MSI / ZIP / APK) → one primary action and one quiet text link.
+- Gradient logo tile and gradient dot → flat plate, the real M glyph, one hairline.
+
+**Structure:** Navbar → Hero (split, code-built phone Home feed) → Sources (new: three ecosystems
+converging into one player, with the honest Aniyomi/Mihon caveat) → Features (six, numbered, no
+cards) → Showcase (Home / Player / Reader) → Numbers → FAQ (native `<details>`, no JS) → Download
+(Android primary, desktop secondary) → Footer. The marquee became the Sources diagram.
+
+**Facts now quoted:** Android 1.11.1, 44.1 MB APK, Android 7.0 (minSdk 24), 335 tests, 14 built-in
+SFW sources, desktop v0.1.1. All of them live in `website/lib/utils.ts` so they cannot drift
+between sections again.
+
+**Files.** New: `components/sections/Sources.tsx`. Rewritten: `tailwind.config.ts`,
+`app/globals.css`, `app/layout.tsx`, `app/page.tsx`, `app/opengraph-image.tsx`, `app/not-found.tsx`,
+`lib/utils.ts`, all nine section components and `LogoMark`. Deleted: `components/ui/*` (7 files),
+`components/PhoneMockup.tsx`, `components/sections/EcosystemMarquee.tsx`.
+
+**Verified:** `npm run build` ✅ (Next 15.5.27, static, 9 routes) — `/` **108 kB** first load JS,
+2.23 kB page JS. Grep confirms no imports of the deleted modules and no old colour/glow/marquee
+classes left in `app/` or `components/`.
+
+**Not verified:** there is no browser on this machine, so the page has never been seen rendered —
+the layout, phone frame and diagram are code-reviewed only, and no Lighthouse/CLS run exists.
+**Not committed or pushed**, Vercel untouched.
+
+**Left alone:** `package.json` still lists the now-unused deps (`framer-motion`,
+`@heroui/react`, `three`, `@designcodeio/threeui`, the radix packages, `cva`, `clsx`,
+`tailwind-merge`). Unused code is not bundled, but pruning them needs an `npm install` and a
+lockfile refresh, so it is a follow-up rather than part of this pass.
+
+---
+
 ## 2bi. v1.11.1 released — performance, navigation & download-crash guard (2026-10-31)
 
 **Topic:** the release carrying §2bh and §2bg. Android only; `desktop/` and `desktop-win/` untouched.
@@ -5908,6 +5964,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-22 | **v1.10.0 released (§2ay):** the first Moovio-named release — `versionCode` 19 / `versionName` 1.10.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **292/292** (281 + 11 new: `OAuthAndSignatureSecurityTest` 6, `ProviderSettingsCodecTest` 5), `:app:assembleDebug` ✅, `:app:assembleRelease` ✅ (signed with the **rotated** key — signer SHA-256 `2EDB949B…351379`, DN `CN=Moovio, OU=Release, O=Moovio, C=US`) → `dist/Moovio.apk` + `dist/app-release.apk` (43,946,885 bytes, SHA-256 `ED8C5418…39D54F`); archive verified in-place (`package com.moovio.app`, `versionCode 19`, `versionName 1.10.0`, minSdk 24 / targetSdk 34, label `Moovio`). Pushed (`main` + tag `v1.10.0`), **GitHub Release `Moovio v1.10.0` published with `app-release.apk` + `Moovio.apk` attached and marked Latest** — `releases/latest/download/app-release.apk` now serves v1.10.0 (re-downloaded and hash-matched end to end). Website hero/footer/nav → v1.10.0, stats → 292, install size → ≈44 MB (`next build` ✅, 8/8 static pages). **Upgrade note in the release body: v1.10.0 cannot be installed over v1.9.0** (package id *and* signing key changed) — old installs must be removed, and their settings/library/downloads do not carry over. |
 | 2026-10-30 | **Phase 2 — motion, gestures & haptics (§2bc):** wired the poster → detail **shared-element morph** (new `Modifier.sharedPoster`: `SharedTransitionLayout`/`ProvideSharedScope` were installed on every destination but nothing consumed them, so navigation still cross-faded) with `Motion.settle<Rect>()` as its bounds transform, sourced from `PosterCard`'s artwork and landed on `DetailHeader`'s backdrop; new `MoovioHaptics` (`select`/`toggle`/`commit`, `@Stable`, remembered) replacing raw `performHapticFeedback` calls in 4 files and driving the player's brightness/volume drags per 10 % band, the primary CTA, the heart, season chips and Library long-press (from inside `PosterCard`); new `Motion.settle<T>()` (`DampingRatioNoBouncy` + `StiffnessLow`) for the carousel auto-advance, both nav indicators and the morph — the brief's `DampingRatioLowBouncy` was already in use on the nav controls and was removed, not extended. `PillSegmentedControl` (16/12 radii, neutral selection wash), `FloatingPillNavBar` (64 dp, no glass, no dark shadow), `LibraryScreen` (dead `LibrarySegmentedControl` duplicate deleted, chips on `AppRadius`) and `NsfwHubScreen` (hairline chip, 3 `Bold` dropped) finished the §2bb cleanup; `PosterPalette.kt` + `PaletteCacheTest` (3 cases) + `androidx.palette` deleted; root Gradle repaired (`:desktop` asked for a versioned Kotlin plugin after `kotlin.android` had claimed it). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**, `./gradlew help` at root ✅. No version bump, no APK, not pushed. Rendered/motion verification and frame-drop measurement still need a device; duplicate `poster:<key>` across Home rails is the open risk. |
 | 2026-10-30 | **Phase 3 — media player, manga reader, diagnostics & audio (§2bd):** "Stats for nerds" rebuilt as `ui/player/StatsHud.kt`, a `Canvas` HUD that owns its own 250 ms ticker (buffer-ahead sparkline over 40 samples = 10 s, buffered %, stream + download bitrate, resolution/fps/dropped, codec metadata) so a tick can no longer recompose the control overlay. **Spatial audio is offered honestly**: `Spatializer` has no setter, so the sheet row (shown only when `isAvailable && isEnabled`) sets the stream's `AudioAttributes` spatialisation behaviour (`C.SPATIALIZATION_BEHAVIOR_AUTO`/`_NEVER`) on the ExoPlayer, applied at player creation and on toggle, persisted as `audioSpatial`. Reader: new e-ink monochrome preset (`MANGA_EINK`, saturation 0 + contrast 1.45) that replaces invert/sepia, `MutableZoom.panBy`/`clampPan` bounding the pan to the page's real overflow, and the 3-page webtoon preload moved onto `Dispatchers.IO`. Morph keys are now rail-scoped — `sharedPoster(key, rail)`, `rail` threaded through `PosterCard`/`MediaRow` from Home/Anime/Manga/NSFW, and `?from=<rail>` on the detail route read back into `DetailHeader` — which closes §2bc's duplicate-key risk. Player chrome: sheet headings on `titleMedium`/`titleSmall`, every `Bold`/`SemiBold` (13) dropped to `Medium`, round 40 dp/48 dp controls on `CircleShape`. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**. No version bump, no APK, not pushed. Device passes (HUD cost, morph origin, spatial audio, e-ink panel, pan clamp) and all frame-timing measurement are still outstanding. |
+| 2026-10-31 | **Website rebuilt (§2bj):** the desktop-first page was rebuilt as an Android-first §1.11.1 page on a new direction (projection booth: matte ramp, one amber beam, no gradients/glows/pulse/marquee/tilt). New `Sources.tsx` replaces the marquee with a three-ecosystems diagram and states the Aniyomi/Mihon runtime caveat. Hero is a split with a code-built phone Home feed; FAQ is native `<details>` (no JS); `ui/tilt`, `ui/drag-rail`, `ui/pop-number`, `ui/reveal`, `ui/button`, `ui/card`, `ui/separator`, `PhoneMockup` and `EcosystemMarquee` deleted; version/size/test/source facts centralised in `lib/utils.ts`. `npm run build` ✅ static, 9 routes, `/` **108 kB** first load JS. Not committed, not deployed; no browser on this machine, so unrendered. |
 | 2026-10-31 | **v1.11.1 released (§2bi):** bundles §2bh (Browse → Anime row cache, supervisor-scoped progressive search with a 300 ms debounce, 5 s per-host adult probe ceiling, Home-on-launch, exit confirmation) and §2bg (download enqueue crash guard + `VideoDownloadManagerTest`). `versionCode` 25 / `versionName` 1.11.1; `:app:assembleRelease` ✅ signed with the same key as v1.11.0 → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `39C64244…EA4599`); `output-metadata.json` confirms `com.moovio.app` / 25 / 1.11.1; `apksigner` V2 cert SHA-256 `2EDB949B…351379`. `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **335/335** (37 suites). **Published** — commit `a300aee`, tag `v1.11.1`, GitHub Release with both assets; `releases/latest/download/app-release.apk` verified hash-matching. |
 | 2026-10-31 | **Performance & navigation pass (§2bh):** Browse → Anime reads a 10-minute per-section row cache before the network and fetches on `Dispatchers.IO`; section row fetches run under `supervisorScope`; search debounce 350 → 300 ms, and `globalSearch` / `searchInternal` / `searchNsfwAnime` fan out as independent supervisor children with progressive `onUpdate` publishing; `AdultHttp.probeClient` caps connect/read/write at 5 s per host and `StreamRepository` bounds the built-in NSFW-anime chain at 5 s; the last-tab restore is removed so a launch always lands on Home (process-death restore detected via a retained ViewModel), and Back at the graph root opens an "Exit Moovio?" confirmation. `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **335/335**. No version bump, no APK. |
 | 2026-10-30 | **Phase 4 — encrypted backups, smart search & release readiness (§2be):** **ISSUE-15 closed.** New `data/integrations/BackupCrypto.kt` — `BackupFormat` (`MOOVIO-BACKUP-1` magic + 12-byte IV + GCM tag) and `BackupCipher` (AES-256-GCM, fresh IV per export, injected key provider), with the key generated in `AndroidBackupKey` (AndroidKeyStore, no user-auth gate) — no `security-crypto` dependency added. `BackupManager` exports the container, gained `inspect(uri)` returning `Encrypted` vs `LegacyPlaintext` *before* any store is touched, and `importFrom(…, allowPlaintext = false)` refuses a plaintext file unless the caller opted in; Settings shows an "Unencrypted backup" confirmation, exports as `moovio-backup.mbackup` (`application/octet-stream`) and accepts both formats on import. New `data/search/SmartQuery.kt`: offline parser for type words, 18 genres, a year/decade/range (`2024`, `2020s`, two years), a rating floor (`high rating` = 7.0, `rating 8.5`), `recent`/`classic` and sorting, wired into `SearchViewModel` *before* the 350 ms debounce (cancellation + generation guard unchanged); type routes to the API, year/rating/genre narrow the merged result locally, and a muted one-line `summary()` shows what was understood. A four-digit token only counts as a year up to `currentYear + 1`, so "Blade Runner 2049" stays a title. Storage: `DownloadCacheMaintenance.isBelowLimit`/`shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace` (orphaned chunks only, never a playable download), `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off) with a Settings → Downloads ladder and a boot-time sweep in `MoovioApp`. `versionCode` 24 / `versionName` 1.11.0. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (+21: 8 crypto, 13 parser). No APK built, nothing pushed. Unverified on hardware: the KeyStore path, SAF MIME filtering, the boot sweep on a full disk. |
@@ -5979,7 +6036,9 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
    haptic feel, HUD tick cost, e-ink output, KeyStore re-open after process death, boot sweep on a
    full disk — §7 0d/0e/0f) and no frame timing measured. The website copy update is **deferred by
    decision** to a later session — tracked separately in §7 0h.
-0h. **Website copy is the last stale surface (deferred by decision, 2026-10-30) —** nothing on the
+0h. **DONE 2026-10-31 — the site was rebuilt (§2bj): Android-first, booth palette, 108 kB first load
+   JS.** What shipped and what is still unverified is in §2bj; the note below records what it fixed.
+   **Website copy is the last stale surface (deferred by decision, 2026-10-30) —** nothing on the
    site says v1.10.4 — it has been rewritten as a *desktop-first* landing page. The hero badge reads
    "Moovio Desktop v0.1.0", its proof row says "≈180 MB ZIP / MSI", an assurance chip says "24+ unit
    tests", `Stats.tsx` shows `0.1.0 / 180 MB / 24+ / 0 Electron`, and `DownloadCta.tsx`'s spec list is

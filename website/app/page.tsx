@@ -1,6 +1,6 @@
 import { Navbar } from "@/components/sections/Navbar";
 import { Hero } from "@/components/sections/Hero";
-import { EcosystemMarquee } from "@/components/sections/EcosystemMarquee";
+import { Sources } from "@/components/sections/Sources";
 import { Features } from "@/components/sections/Features";
 import { Showcase } from "@/components/sections/Showcase";
 import { Stats } from "@/components/sections/Stats";
@@ -10,11 +10,11 @@ import { Footer } from "@/components/sections/Footer";
 
 export default function Page() {
   return (
-    <div className="relative min-h-screen bg-void text-paper antialiased">
+    <div className="min-h-screen bg-ink text-paper antialiased">
       <Navbar />
       <main>
         <Hero />
-        <EcosystemMarquee />
+        <Sources />
         <Features />
         <Showcase />
         <Stats />

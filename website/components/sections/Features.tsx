@@ -1,104 +1,58 @@
-"use client";
-
-import {
-  Play,
-  BookOpen,
-  Download,
-  Shield,
-  Palette,
-  Lock,
-  Monitor,
-} from "lucide-react";
-import { Stagger } from "../ui/reveal";
-import { Tilt } from "../ui/tilt";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-
-const cards = [
+const features = [
   {
-    icon: Monitor,
-    title: "Native Windows client",
-    tag: "Desktop",
-    body: "Built with Kotlin + Compose Multiplatform — not Electron, not a stretched phone UI. Wide grids, large hero art, hover states, and keyboard-first navigation on a real desktop window.",
+    title: "Playback that tolerates a bad source",
+    body: "Every provider runs under a five-second ceiling and mirrors are raced, so the first playable link wins. If a stream dies mid-episode, failover keeps your position.",
   },
   {
-    icon: Play,
-    title: "libmpv playback",
-    tag: "Player",
-    body: "Hardware-accelerated video (D3D11 auto-safe), fullscreen, Space/arrows/F/Esc shortcuts, quality/audio/subtitle tracks, resume position, and software-rendered frames so Compose controls draw on top.",
+    title: "One library, kept on the device",
+    body: "Favourites, continue watching, continue reading and watch progress live in local storage. Nothing is uploaded, and there is no account to lose.",
   },
   {
-    icon: Shield,
-    title: "PIN-gated NSFW area",
-    tag: "Privacy",
-    body: "Fully separate from home, search and library. PBKDF2-HMAC-SHA256 PIN (4–8 digits), session-only unlock, and adult add-ons that never leak into normal feeds.",
+    title: "Downloads that work offline",
+    body: "Video and manga chapters download in the background to a folder you choose. A free-space floor stops a full disk from breaking a download mid-file.",
   },
   {
-    icon: Download,
-    title: "Stremio add-on client",
-    tag: "Extensions",
-    body: "Install any Stremio add-on by manifest URL. Pre-seeded defaults (Torrentio, OpenSubtitles v3, Kitsu). One failing add-on never breaks the app — per-add-on timeouts and error isolation.",
+    title: "Search that reads the words",
+    body: "Type anime 2024 high rating or scifi movies and the query is compiled on the device into type, year, rating and genre before any source is asked.",
   },
   {
-    icon: BookOpen,
-    title: "Local library & resume",
-    tag: "Library",
-    body: "Favorites and Continue Watching persist as atomic JSON under %APPDATA%\\Moovio. Remove with confirmation, auto-resume at your saved position, and 5-second progress persistence during playback.",
+    title: "A private area that stays private",
+    body: "The adult section sits behind a PIN or biometric lock, unlocks for the session only, and its results are excluded from Home, Search and Library by default.",
   },
   {
-    icon: Palette,
-    title: "Cinematic dark theme",
-    tag: "Design",
-    body: "Deep void surfaces, violet accent, glassmorphism, gradient glows, and smooth enter/exit animations on navigation, cards and the hero carousel.",
+    title: "The small things, finished",
+    body: "Trackers for Trakt, AniList and MyAnimeList, encrypted backups, sleep timer, subtitle styling, Chromecast handoff and a reader with page-turn physics.",
   },
 ];
 
 export function Features() {
   return (
-    <section id="features" className="relative border-t border-rule">
-      <div className="mx-auto max-w-editorial px-5 py-20 sm:px-8 md:py-28">
-        <Stagger
-          items={[
-            <p key="rubric" className="eyebrow text-accent-soft">
-              01 — Features
-            </p>,
-            <h2
-              key="h2"
-              className="display mt-4 max-w-3xl font-display font-bold text-paper"
-              style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)" }}
-            >
-              Everything a flagship does.{" "}
-              <span className="text-muted">Nothing it charges for.</span>
-            </h2>,
-            <p key="intro" className="mt-6 max-w-xl text-[16px] leading-relaxed text-muted md:text-[18px]">
-              Desktop-native playback, a PIN-gated private area, Stremio
-              add-ons, and a library that actually persists. Finished surfaces
-              — no placeholders.
-            </p>,
-          ]}
-        />
+    <section id="features" className="border-b border-rule">
+      <div className="shell py-24 md:py-28">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="mono text-[12px] text-amber">00:11:38</p>
+            <h2 className="mt-5 max-w-[22ch] text-[clamp(1.9rem,3.6vw,2.9rem)] font-medium leading-[1.1] tracking-[-0.02em] text-paper">
+              What the player does when the network does not.
+            </h2>
+          </div>
+          <p className="max-w-[34ch] text-[14px] leading-[1.6] text-muted">
+            Six things that decide whether a streaming app is usable on a phone, not just
+            pleasant in a screenshot.
+          </p>
+        </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c) => (
-            <Tilt key={c.title} max={6} allowScroll cardClassName="rounded-2xl">
-              <Card variant="elevated" className="group hover:border-accent/30 transition-colors duration-300">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-rule bg-white/[0.04] text-accent-soft">
-                      <c.icon className="h-5 w-5" />
-                    </div>
-                    <span className="eyebrow text-[9px] text-faint">{c.tag}</span>
-                  </div>
-                  <h3 className="mt-5 font-display text-[18px] font-semibold leading-snug tracking-tight text-paper">
-                    {c.title}
-                  </h3>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[14.5px] leading-relaxed text-muted">
-                    {c.body}
-                  </p>
-                </CardContent>
-              </Card>
-            </Tilt>
+        <div className="mt-14 grid gap-x-10 gap-y-0 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((f, i) => (
+            <article key={f.title} className="border-t border-rule py-7">
+              <p className="mono text-[11px] text-faint">
+                {String(i + 1).padStart(2, "0")}
+              </p>
+              <h3 className="mt-3 text-[15.5px] font-medium leading-[1.35] text-paper">
+                {f.title}
+              </h3>
+              <p className="mt-2.5 text-[14px] leading-[1.6] text-muted">{f.body}</p>
+            </article>
           ))}
         </div>
       </div>

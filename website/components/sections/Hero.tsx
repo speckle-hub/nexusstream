@@ -1,288 +1,145 @@
-"use client";
-
-import { m } from "framer-motion";
-import {
-  ArrowDownToLine,
-  Github,
-  Monitor,
-  FileText,
-  Download,
-  ShieldCheck,
-  Star,
-} from "lucide-react";
 import Link from "next/link";
+import { Home, Library, Play, Search, Settings } from "lucide-react";
 import {
-  DESKTOP_ZIP_URL,
-  DESKTOP_MSI_URL,
+  ANDROID_APK_SIZE,
+  ANDROID_MIN_SDK,
+  ANDROID_VERSION,
   APK_URL,
-  GITHUB_URL,
-  cn,
+  DESKTOP_MSI_URL,
+  DESKTOP_VERSION,
+  TEST_COUNT,
 } from "@/lib/utils";
-import { Stagger } from "../ui/reveal";
-import { LogoMark } from "./LogoMark";
 
-const SPRING = { type: "spring", bounce: 0, duration: 0.5 } as const;
+const facts = [
+  ["Minimum", ANDROID_MIN_SDK],
+  ["Tests", `${TEST_COUNT} unit`],
+  ["Account", "Not required"],
+];
 
-const proof = [
-  ["OS", "Windows 10/11 x64"],
-  ["Install", "≈180 MB ZIP / MSI"],
-  ["JDK", "Bundled (JDK 21)"],
-  ["Account", "None"],
+const posters = [
+  { title: "Nine Rivers", tone: "#191A1C", progress: 62 },
+  { title: "Paper Lanterns", tone: "#201C17", progress: 18 },
+  { title: "Salt & Static", tone: "#181A18", progress: 84 },
 ];
 
 export function Hero() {
   return (
-    <section id="top" className="relative overflow-hidden pt-16">
-      {/* Backdrop: grid + violet glows */}
-      <div aria-hidden className="hero-grid absolute inset-0" />
-      <div
-        aria-hidden
-        className="absolute left-1/2 top-[-300px] h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-accent/20 blur-[140px]"
-      />
-      <div
-        aria-hidden
-        className="absolute right-[-200px] top-[35%] h-[420px] w-[420px] rounded-full bg-signal/10 blur-[120px]"
-      />
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-52 bg-gradient-to-t from-void to-transparent"
-      />
+    <section id="top" className="relative border-b border-rule">
+      <div className="shell">
+        <div className="grid gap-16 pb-20 pt-28 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-12 lg:pb-28 lg:pt-36">
+          <div>
+            <p className="rise mono text-[12px] text-muted">
+              Android {ANDROID_VERSION} · 31 October 2026
+            </p>
 
-      <div className="relative mx-auto max-w-editorial px-5 sm:px-8">
-        <div className="grid items-center gap-14 pb-20 pt-14 md:pt-24 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8 lg:pb-32">
-          <Stagger
-            className="max-w-2xl"
-            items={[
-              <span
-                key="badge"
-                className="eyebrow mb-10 inline-flex items-center gap-2.5 rounded-full border border-rule bg-white/[0.04] py-2 pl-3 pr-4 text-muted"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-soft" />
-                Moovio Desktop v0.1.0 — native Windows client
-              </span>,
+            <span aria-hidden className="beam rise rise-2 mt-7 w-14" />
 
-              <h1 key="h1" className="display text-paper" style={{ fontSize: "clamp(3rem, 8vw, 6rem)" }}>
-                <span className="block font-display font-bold">Every stream.</span>
-                <span className="text-gradient block font-display font-bold">One app.</span>
-              </h1>,
+            <h1 className="rise rise-2 mt-8 max-w-[13ch] text-[clamp(2.6rem,6vw,4.5rem)] font-medium leading-[1.04] tracking-[-0.03em] text-paper">
+              Every source. One player.
+            </h1>
 
-              <p key="deck" className="mt-8 max-w-xl text-[17px] leading-relaxed text-muted md:text-[20px]">
-                A premium native Windows streaming client built with
-                <span className="text-paper">Kotlin + Compose Multiplatform</span>
-                and <span className="text-paper">libmpv</span>. Dark cinematic
-                UI, glass surfaces, animated navigation, hardware-accelerated
-                playback, and Stremio add-on support — not Electron, not a
-                stretched phone UI.
-              </p>,
+            <p className="rise rise-3 mt-7 max-w-[52ch] text-[16.5px] leading-[1.65] text-muted">
+              Moovio plays movies, TV, anime and manga from the sources you already use:
+              Stremio add-ons, CloudStream extensions and fourteen built-in scrapers. One
+              search, one library, one player, no account.
+            </p>
 
-              <div key="ctas" className="mt-12 flex flex-wrap items-center gap-4">
-                <ButtonDesktop
-                  href={DESKTOP_MSI_URL}
-                  icon={<Monitor className="h-4 w-4" />}
-                  label="Windows Installer (MSI)"
-                  variant="default"
-                />
-                <ButtonDesktop
-                  href={DESKTOP_ZIP_URL}
-                  icon={<FileText className="h-4 w-4" />}
-                  label="Portable ZIP"
-                  variant="outline"
-                />
-                <ButtonDesktop
-                  href={APK_URL}
-                  icon={<Download className="h-4 w-4" />}
-                  label="Android APK"
-                  variant="ghost"
-                />
-              </div>,
+            <div className="rise rise-3 mt-9 flex flex-wrap items-center gap-x-7 gap-y-4">
+              <Link href={APK_URL} className="btn btn-primary">
+                Download for Android
+                <span className="mono text-[11px] opacity-70">{ANDROID_APK_SIZE}</span>
+              </Link>
+              <Link href={DESKTOP_MSI_URL} className="link-quiet text-[14px]">
+                Windows build <span className="mono text-[12px]">v{DESKTOP_VERSION}</span>
+              </Link>
+            </div>
 
-              <div key="assure" className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px] text-faint">
-                <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-                  Hardware decode (D3D11)
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Star className="h-3.5 w-3.5 text-accent-soft" />
-                  24+ unit tests, all green
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse-soft" />
-                  No account, no ads
-                </span>
-              </div>,
+            <dl className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-rule pt-6">
+              {facts.map(([k, v]) => (
+                <div key={k}>
+                  <dt className="mono text-[11px] text-faint">{k}</dt>
+                  <dd className="mt-2 text-[14px] text-paper">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
 
-              <div key="proof" className="mt-12 block border-t border-rule pt-6">
-                <dl className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4">
-                  {proof.map(([k, v]) => (
-                    <div key={k}>
-                      <dt className="eyebrow text-[10px] text-faint">{k}</dt>
-                      <dd className="tabular mt-2 font-display text-[16px] font-semibold tracking-tight text-paper">
-                        {v}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>,
-            ]}
-          />
-
-          <m.div
-            initial={{ opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...SPRING, delay: 0.3 }}
-            className="relative flex justify-center"
-          >
-            <div
-              aria-hidden
-              className="absolute bottom-4 left-1/2 h-28 w-[80%] -translate-x-1/2 rounded-full bg-accent/30 blur-3xl"
-            />
-            <DesktopMockup />
-          </m.div>
+          <div className="rise rise-3 flex justify-center lg:justify-end">
+            <PhoneView />
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-function ButtonDesktop({
-  href,
-  icon,
-  label,
-  variant,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-  variant: "default" | "outline" | "ghost";
-}) {
+/**
+ * The real Home feed at phone scale. This is the page's one rich surface: the still and the
+ * poster wall carry the colour, everything around them is a hairline and a label.
+ */
+function PhoneView() {
   return (
-    <Link
-      href={href}
-      className={cn(
-        "press inline-flex items-center justify-center gap-2.5 rounded-xl px-8 py-4 text-[15px] font-semibold tracking-tight transition-colors",
-        variant === "default"
-          ? "bg-primary text-primary-foreground shadow-glow-accent hover:bg-primary/90"
-          : variant === "outline"
-            ? "border border-input bg-background/30 text-paper hover:border-white/50 hover:bg-white/[0.06]"
-            : "bg-white/[0.04] text-paper hover:bg-white/[0.08]",
-      )}
-    >
-      {icon}
-      {label}
-    </Link>
-  );
-}
+    <div className="w-full max-w-[308px]">
+      <div className="rounded-[34px] border border-rule bg-ink-raised p-2 shadow-[0_30px_60px_-40px_rgba(0,0,0,0.9)]">
+        <div className="overflow-hidden rounded-[26px] border border-rule-soft bg-ink">
+          <div className="flex items-center justify-between px-4 pt-3">
+            <span className="mono text-[10px] text-faint">9:41</span>
+            <span className="mono text-[10px] text-faint">5G</span>
+          </div>
 
-/** Desktop app mockup: native window frame with sidebar + home feed. */
-function DesktopMockup() {
-  return (
-    <div className="relative flex flex-col w-full max-w-[720px] aspect-video rounded-[28px] border border-white/10 bg-[#0a0a11] shadow-card shadow-glow-soft overflow-hidden">
-      {/* Title bar */}
-      <div className="flex items-center gap-2 px-5 py-3 bg-[#07070b]/60 backdrop-blur border-b border-white/5">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-3 w-3 rounded-full bg-white/10"
-            style={{
-              backgroundColor:
-                i === 1 ? "#ff5f56" : i === 2 ? "#ffbd2e" : "#27c93f",
-            }}
-          />
-        ))}
-        <div className="ml-4 flex-1" />
-        <div className="flex items-center gap-1 text-[10px] text-muted">
-          Moovio · v0.1.0
-        </div>
-      </div>
+          <div className="flex items-center justify-between px-4 pb-3 pt-5">
+            <span className="text-[15px] font-medium text-paper">Home</span>
+            <Search className="h-4 w-4 text-muted" strokeWidth={1.5} />
+          </div>
 
-      {/* App content */}
-      <div className="flex flex-col h-full">
-        {/* Sidebar */}
-        <div className="flex h-full border-r border-white/5 bg-[#07070b]/40">
-          <div className="flex h-full flex-col py-4">
-            <div className="flex items-center gap-2 px-4 py-3">
-              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-accent via-accent/80 to-accent/60 flex items-center justify-center">
-                <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2 12s3-4 10-4 10 4 10 4" />
-                  <circle cx="6" cy="12" r="3" />
-                </svg>
+          <div className="mx-4 overflow-hidden rounded-[12px] border border-rule-soft">
+            <div className="relative h-[124px] w-full">
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "radial-gradient(120% 95% at 78% 0%, #3D2C19 0%, #191410 52%, #0C0B0A 100%)",
+                }}
+              />
+              <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-amber px-2 py-[3px] text-[10px] font-medium text-ink">
+                <Play className="h-2.5 w-2.5" strokeWidth={2} />
+                Play
               </div>
-              <span className="font-display text-xs font-bold tracking-wider text-paper">MOOVIO</span>
-            </div>
-            <nav className="flex-1 px-3 space-y-1">
-              {[
-                { label: "Home", icon: "◍", active: true },
-                { label: "Movies", icon: "▶" },
-                { label: "TV", icon: "▱" },
-                { label: "Anime", icon: "✦" },
-                { label: "Library", icon: "▩" },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-[13px]",
-                    item.active
-                      ? "bg-accent/10 text-paper border border-accent/20"
-                      : "text-muted hover:bg-white/05 hover:text-paper",
-                  )}
-                >
-                  <span className="text-xs">{item.icon}</span>
-                  {item.label}
-                </div>
-              ))}
-            </nav>
-            <div className="mt-auto px-3 py-4">
-              <div className="flex items-center gap-2 px-2 py-2 rounded-xl border border-white/5 bg-white/[0.02]">
-                <Monitor className="h-4 w-4 text-accent-soft" />
-                <div className="flex-1">
-                  <div className="text-[11px] font-medium text-paper">Windows Desktop</div>
-                  <div className="text-[10px] text-muted">v0.1.0 · Stremio ready</div>
-                </div>
+              <div className="absolute inset-x-3 bottom-3">
+                <p className="text-[13px] font-medium text-paper">Aurora Protocol</p>
+                <p className="mono mt-1 text-[10px] text-muted">2026 · S1 E4 · 47 min</p>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Main content */}
-        <div className="flex-1 overflow-hidden bg-[#07070b]/20 relative">
-          {/* Hero artwork area */}
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 via-violet-700/10 to-fuchsia-700/5" />
-          <div
-            className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_20%,rgba(124,92,255,0.25),transparent_50%)]"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#07070b]/90 via-transparent to-transparent" />
-
-          {/* Overlay content */}
-          <div className="absolute inset-0 flex flex-col justify-between p-8 pointer-events-none">
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                <span className="text-[10px] font-medium text-muted">Featured</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center">
-                  <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 12s3-4 10-4 10 4 10 4"/><circle cx="6" cy="12" r="3"/></svg>
+          <div className="px-4 pt-4">
+            <p className="mono text-[10px] text-faint">Continue watching</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {posters.map((p) => (
+                <div key={p.title}>
+                  <div
+                    className="relative aspect-[2/3] overflow-hidden rounded-[8px] border border-rule-soft"
+                    style={{
+                      background: `linear-gradient(180deg, ${p.tone} 0%, #0C0C0B 100%)`,
+                    }}
+                  >
+                    <span className="absolute inset-x-1.5 bottom-2 line-clamp-2 text-[9px] leading-[1.25] text-paper/90">
+                      {p.title}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-px w-full bg-rule">
+                    <div className="h-px bg-amber/70" style={{ width: `${p.progress}%` }} />
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
+          </div>
 
-            <div className="mt-auto mb-4">
-              <h2 className="text-[2.5rem] font-display font-bold text-paper leading-[1.1]">Aurora Protocol</h2>
-              <div className="mt-2 flex items-center gap-2 text-xs text-muted">
-                <span>Series · 2026 · 9.2</span>
-                <span className="h-1 w-1 rounded-full bg-accent" />
-                <span>S1 · E4</span>
-              </div>
-              <div className="mt-4 flex items-center gap-3">
-                <button className="flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-primary/90">
-                  <svg className="h-4 w-4 text-[#0a0a11]" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  Play
-                </button>
-                <button className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-[13px] font-semibold text-muted hover:bg-white/[0.1]">
-                  Sources
-                </button>
-              </div>
-            </div>
+          <div className="mt-4 flex items-center justify-around border-t border-rule-soft py-3">
+            <Home className="h-4 w-4 text-paper" strokeWidth={1.5} />
+            <Search className="h-4 w-4 text-faint" strokeWidth={1.5} />
+            <Library className="h-4 w-4 text-faint" strokeWidth={1.5} />
+            <Settings className="h-4 w-4 text-faint" strokeWidth={1.5} />
           </div>
         </div>
       </div>

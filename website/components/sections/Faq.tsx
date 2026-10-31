@@ -1,95 +1,83 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 import { GITHUB_URL } from "@/lib/utils";
-import { Stagger } from "../ui/reveal";
 
 const faqs = [
   {
-    q: "What is Moovio Desktop?",
-    a: "A premium native Windows streaming client built with Kotlin + Compose Multiplatform and libmpv. It plays streams from Stremio add-ons, shows metadata from Cinemeta and AniList, and keeps a local library — all in a dark cinematic desktop window, not Electron.",
+    q: "What is Moovio?",
+    a: "An Android app that plays movies, TV, anime and manga from sources you point it at: Stremio add-ons, CloudStream extensions and built-in scrapers. There is also a separate Windows client built with Compose Multiplatform and libmpv.",
   },
   {
-    q: "Which download should I get?",
-    a: "Choose the MSI installer if you want a proper installed app with Start Menu entry and uninstaller. Choose the portable ZIP if you want to unzip and run Moovio.exe from anywhere without installing. Both include libmpv.",
+    q: "Which download should I take?",
+    a: "For the phone, the signed APK from GitHub Releases: 44.1 MB, Android 7.0 or newer, installs in place over 1.11.0. The Windows client is a separate v0.1.1 build, available as an MSI installer or a portable ZIP.",
   },
   {
-    q: "Do I need Java installed?",
-    a: "No. The app bundles a JDK 21 runtime via jpackage, so it runs on any Windows 10/11 x64 machine without requiring a separate Java installation.",
+    q: "Do I need an account?",
+    a: "No. There is no sign-in, no sync service and no telemetry. Trackers for Trakt, AniList and MyAnimeList are optional and use your own client credentials.",
   },
   {
-    q: "Is Moovio free and open source?",
-    a: "Yes — free and open source (GPL-3.0 for the libmpv redistribution; the app itself is MIT). No accounts, no ads, no tracking. Metadata comes from free public APIs and playback capability comes from add-ons you install yourself.",
+    q: "Does Moovio come with content?",
+    a: "No. Nothing is bundled or hosted. Moovio is a player and a library: it shows what the add-ons and sources you install return, and whether a given source works depends on that source, not on the app.",
   },
   {
-    q: "How does the NSFW area work?",
-    a: "The NSFW section is fully separate from home, search and library. It's locked by a 4–8 digit PIN salted and hashed with PBKDF2-HMAC-SHA256, unlocks per-session only, and adult add-ons never surface outside the gated area.",
+    q: "How is the adult section handled?",
+    a: "It sits behind a PIN or biometric lock, unlocks for the current session only, and is excluded from Home, Search and Library unless you opt in from inside the hub. Adult sources sit behind a switch, and the tab says plainly when a source is unreachable instead of showing an empty grid.",
   },
   {
-    q: "Is there still an Android app?",
-    a: "Yes — Moovio for Android is still maintained and available as an APK from GitHub Releases. The desktop app is a separate project built specifically for Windows.",
+    q: "Is it open source?",
+    a: "Yes. The app is MIT-licensed and the repository is public, with 335 passing unit tests and release builds signed and attached to each GitHub release.",
   },
 ];
 
 export function Faq() {
-  const [open, setOpen] = useState<number | null>(0);
-
   return (
-    <section id="faq" className="border-t border-rule bg-void-deep/30">
-      <div className="mx-auto max-w-editorial px-5 py-20 sm:px-8 md:py-28">
-        <Stagger
-          items={[
-            <p key="rubric" className="eyebrow text-accent-soft">
-              04 — FAQ
-            </p>,
-            <h2
-              key="h2"
-              className="display mt-4 max-w-3xl font-display font-bold text-paper"
-              style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)" }}
+    <section id="faq" className="border-b border-rule">
+      <div className="shell py-24 md:py-28">
+        <div className="grid gap-10 lg:grid-cols-[0.72fr_1fr] lg:gap-16">
+          <div>
+            <p className="mono text-[12px] text-amber">00:36:22</p>
+            <h2 className="mt-5 max-w-[16ch] text-[clamp(1.9rem,3.6vw,2.9rem)] font-medium leading-[1.1] tracking-[-0.02em] text-paper">
+              Questions worth answering before you install.
+            </h2>
+            <p className="mt-5 max-w-[34ch] text-[14px] leading-[1.6] text-muted">
+              If something here is missing, the issue tracker is the right place for it.
+            </p>
+            <Link
+              href={`${GITHUB_URL}/issues`}
+              target="_blank"
+              rel="noreferrer"
+              className="link-quiet mt-4 inline-block text-[13.5px] underline decoration-rule underline-offset-4"
             >
-              The honest answers, <span className="text-muted">including the legal one.</span>
-            </h2>,
-          ]}
-        />
+              Open an issue
+            </Link>
+          </div>
 
-        <div className="mt-12 space-y-2">
-          {faqs.map((f, i) => {
-            const isOpen = open === i;
-            return (
-              <div
+          <div>
+            {faqs.map((f, i) => (
+              <details
                 key={f.q}
-                data-open={isOpen ? "true" : "false"}
-                className="t-acc border-b border-rule group"
+                className="group border-t border-rule last:border-b"
+                open={i === 0}
               >
-                <button
-                  type="button"
-                  onClick={() => setOpen(isOpen ? null : i)}
-                  aria-expanded={isOpen}
-                  className="press flex w-full items-start gap-4 py-5 text-left"
-                >
-                  <span className="eyebrow tabular mt-1 shrink-0 text-[10px] text-faint transition-colors group-hover:text-accent-soft">
+                <summary className="flex cursor-pointer list-none items-start gap-5 py-5 [&::-webkit-details-marker]:hidden">
+                  <span className="mono mt-1 shrink-0 text-[11px] text-faint">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="flex-1 font-display text-[17px] font-semibold leading-snug tracking-tight text-paper md:text-[19px]">
+                  <span className="flex-1 text-[15.5px] font-medium leading-[1.4] text-paper">
                     {f.q}
                   </span>
-                  <span className="t-acc-chevron shrink-0 text-muted">
-                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 6.5L8 10.5L12 6.5" />
-                    </svg>
+                  <span
+                    aria-hidden
+                    className="mt-0.5 shrink-0 text-[16px] leading-none text-muted transition-transform duration-200 group-open:rotate-45"
+                  >
+                    +
                   </span>
-                </button>
-                <div className="t-acc-panel">
-                  <div className="t-acc-panel-inner">
-                    <p className="pb-6 pr-8 text-[15px] leading-[1.65] text-muted">
-                      {f.a}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                </summary>
+                <p className="max-w-[62ch] pb-6 pl-[44px] pr-2 text-[14px] leading-[1.65] text-muted">
+                  {f.a}
+                </p>
+              </details>
+            ))}
+          </div>
         </div>
       </div>
     </section>

@@ -1,30 +1,23 @@
-"use client";
-
-import { Github, Scale } from "lucide-react";
 import Link from "next/link";
+import { Github } from "lucide-react";
 import {
-  DESKTOP_ZIP_URL,
-  DESKTOP_MSI_URL,
+  ANDROID_VERSION,
   APK_URL,
+  DESKTOP_MSI_URL,
+  DESKTOP_ZIP_URL,
   GITHUB_URL,
   RELEASES_URL,
 } from "@/lib/utils";
 import { LogoMark } from "./LogoMark";
 
-const colophon = [
+const columns = [
   {
-    head: "Desktop (Windows)",
+    head: "Download",
     links: [
-      { label: "MSI Installer", href: DESKTOP_MSI_URL },
+      { label: "Android APK", href: APK_URL },
+      { label: "Windows MSI", href: DESKTOP_MSI_URL },
       { label: "Portable ZIP", href: DESKTOP_ZIP_URL },
-      { label: "GitHub Releases", href: RELEASES_URL },
-    ],
-  },
-  {
-    head: "Android",
-    links: [
-      { label: "APK Download", href: APK_URL },
-      { label: "Android App", href: "#ecosystem" },
+      { label: "All releases", href: RELEASES_URL },
     ],
   },
   {
@@ -32,59 +25,53 @@ const colophon = [
     links: [
       { label: "Repository", href: GITHUB_URL },
       { label: "Issues", href: `${GITHUB_URL}/issues` },
-      { label: "Build logs", href: `${GITHUB_URL}/actions` },
+      { label: "Releases", href: RELEASES_URL },
     ],
   },
   {
     head: "On this page",
     links: [
+      { label: "Sources", href: "#sources" },
       { label: "Features", href: "#features" },
       { label: "Showcase", href: "#showcase" },
       { label: "FAQ", href: "#faq" },
-      { label: "Download", href: "#download" },
     ],
   },
 ];
 
 export function Footer() {
   return (
-    <footer className="border-t border-rule bg-void-deep/60">
-      <div className="mx-auto max-w-editorial px-5 py-16 sm:px-8 md:py-20">
-        <div className="grid gap-12 md:grid-cols-[1.3fr_2fr] md:gap-16">
+    <footer>
+      <div className="shell py-16">
+        <div className="grid gap-12 md:grid-cols-[1.2fr_2fr] md:gap-16">
           <div>
             <div className="flex items-center gap-2.5">
               <LogoMark className="h-8 w-8" />
-              <span className="font-display text-lg font-semibold tracking-tight text-paper">
+              <span className="text-[16px] font-medium tracking-[-0.01em] text-paper">
                 Moovio
               </span>
             </div>
-            <p className="mt-5 max-w-sm text-[14.5px] leading-relaxed text-muted">
-              Premium native Windows streaming client. Compose Multiplatform,
-              libmpv, Stremio add-ons, dark cinematic UI. Free and open source.
+            <p className="mt-5 max-w-[34ch] text-[14px] leading-[1.6] text-muted">
+              One player for the sources you already use. Free, open source, no account.
             </p>
-            <div className="mt-6 flex items-center gap-3">
+            <div className="mt-6 flex items-center gap-4">
               <Link
                 href={GITHUB_URL}
                 target="_blank"
                 rel="noreferrer"
                 aria-label="GitHub repository"
-                className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-rule text-muted hover:border-paper/40 hover:text-paper"
+                className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-rule text-muted transition-colors hover:border-paper/30 hover:text-paper"
               >
-                <Github className="h-4 w-4" />
+                <Github className="h-4 w-4" strokeWidth={1.5} />
               </Link>
-              <span className="eyebrow flex items-center gap-2 text-[10px] text-faint">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-soft" />
-                v0.1.0
-              </span>
+              <span className="mono text-[11px] text-faint">Android {ANDROID_VERSION}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3">
-            {colophon.map((c) => (
+            {columns.map((c) => (
               <nav key={c.head} aria-label={c.head}>
-                <h3 className="eyebrow border-b border-rule pb-3 text-[10px] text-faint">
-                  {c.head}
-                </h3>
+                <h3 className="border-b border-rule pb-3 text-[13px] text-paper">{c.head}</h3>
                 <ul className="mt-4 space-y-2.5">
                   {c.links.map((l) => (
                     <li key={l.label}>
@@ -92,7 +79,7 @@ export function Footer() {
                         href={l.href}
                         target={l.href.startsWith("http") ? "_blank" : undefined}
                         rel={l.href.startsWith("http") ? "noreferrer" : undefined}
-                        className="press text-[14px] text-muted transition-colors hover:text-paper"
+                        className="link-quiet text-[13.5px]"
                       >
                         {l.label}
                       </Link>
@@ -104,11 +91,11 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-4 border-t border-rule pt-6 text-[12.5px] text-faint md:flex-row md:items-center md:justify-between">
-          <p>© 2026 Moovio contributors. Desktop: MIT · libmpv: GPLv2+.</p>
-          <p className="flex items-center gap-2">
-            <Scale className="h-3.5 w-3.5" />
-            Not affiliated with Stremio, CloudStream, Aniyomi or Mihon.
+        <div className="mt-14 flex flex-col gap-3 border-t border-rule pt-6 text-[12.5px] leading-[1.6] text-faint md:flex-row md:items-start md:justify-between">
+          <p>© 2026 Moovio contributors. App MIT · libmpv GPLv2+.</p>
+          <p className="max-w-[56ch]">
+            No media is hosted or bundled. Moovio plays what your sources return. Not
+            affiliated with Stremio, CloudStream, Aniyomi or Mihon.
           </p>
         </div>
       </div>
