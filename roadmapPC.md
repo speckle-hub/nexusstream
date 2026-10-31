@@ -3,13 +3,13 @@
 > Living document for the **Windows desktop client** in `desktop-win/`. The Android app has its own
 > `roadmap.md`; the two are completely separate Gradle projects and share no build or configuration.
 >
-> **Status — 2026-10-25:** desktop **v0.1.1**, `main` @ `c37bc63`. The app builds and runs on
+> **Status — 2026-10-26:** desktop **v0.1.1**, `main` @ `27e022a`. The app builds and runs on
 > Windows x64 (`./gradlew run`), and **40 test cases execute green** — live metadata, headless UI
 > flows and unit-level playback tests (the real-playback test is gated and was not run with its
 > flag this session). Release **v0.1.1** published on GitHub with `Moovio-0.1.1-windows-x64.zip`
-> and `Moovio-0.1.1.msi`. Four commits touch this project: the v1.0 import
-> (`c2ee798`), the NSFW / add-on-labelling fix (`c28b4c6`), the playback + Continue Watching fix
-> (`465fedd`) and the v0.1.1 release bump (`c37bc63`).
+> and `Moovio-0.1.1.msi`. Five commits touch this project: the v1.0 import (`c2ee798`), the NSFW /
+> add-on-labelling fix (`c28b4c6`), the playback + Continue Watching fix (`465fedd`), the v0.1.1
+> release bump (`c37bc63`) and the search crash + fullscreen fix (`27e022a`).
 
 ---
 
@@ -170,13 +170,41 @@ and Windows packaging tasks (`fetchLibmpv`, `portableZip`, `packageMsi`).
 - Created tag `v0.1.1` and GitHub release with both assets attached.
 - Pushed commit `c37bc63` to `origin/main`.
 
+### 2026-10-26 — Search crash + fullscreen fix (`27e022a`)
+
+**1) Search crashed on duplicate Lazy list keys.**
+- *Root cause:* search/catalog results could contain the same media id more than once, and Lazy
+  lists keyed only by `it.key` (e.g. `SERIES:tt0773262`) collided, crashing with
+  `"Key ... was already used"`.
+- *Fix:* `CatalogRepository.search()` now ranks by relevance then dedupes by stable media id
+  (`type:id`), keeping the highest-ranked entry per title. SearchOverlay, CatalogScreen and
+  LibraryScreen favorites Lazy lists additionally use unique keys (`"${item.key}:$index"`)
+  as a belt-and-suspenders guard so any remaining duplicate media ids cannot crash Compose.
+- *Files:* `data/repo/CatalogRepository.kt`, `ui/screens/search/SearchOverlay.kt`,
+  `ui/screens/browse/CatalogScreen.kt`, `ui/screens/library/LibraryScreen.kt`.
+
+**2) Fullscreen did not fill the screen.**
+- *Root cause:* fullscreen relied only on Compose `WindowPlacement.Fullscreen`, which leaves the
+  native Windows title bar and borders — the windowed-looking fullscreen.
+- *Fix:* `WindowStyler` gains native `enterFullscreen()`/`exitFullscreen()` that strips/restores
+  the Win32 title bar and borders (`WS_CAPTION`, `WS_THICKFRAME`, min/max boxes) via
+  `SetWindowLong`/`SetWindowPos` with `SWP_FRAMECHANGED`. `App.kt` calls them alongside the
+  `WindowPlacement` toggle. F key, the fullscreen button and Esc all work; exit restores the
+  previous floating window state and video keeps its centered contain scaling.
+- *Files:* `ui/WindowStyler.kt`, `ui/App.kt`.
+
+**Verification:** `./gradlew test` → 40 executed, 40 passed (no regressions); both Lazy-list key
+guardrails and the native fullscreen code paths compile clean. Search "dexter" and other popular
+titles produce no crash and no duplicate cards; play a video → fullscreen fills the monitor →
+exit restores the normal player UI.
+
 ---
 
 ## 5. Verification & test coverage
 
 ```bash
 cd desktop-win
-./gradlew test        # 40 executed cases, all green as of 465fedd
+./gradlew test        # 40 executed cases, all green as of 27e022a
 ./gradlew run         # launches the app (blocks until the window closes)
 ```
 

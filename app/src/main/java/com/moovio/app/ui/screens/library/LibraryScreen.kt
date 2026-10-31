@@ -101,15 +101,17 @@ private data class PendingRemoval(val favorite: Boolean, val item: MediaItem)
  * The category chip bar under the segmented control. Both content sections (Downloads and My
  * Library) are filterable by the same set of categories, so one enum drives both.
  *
- * Phase 28 isolation: there is deliberately **no NSFW chip** — adult favourites and adult
- * playback history are scrubbed from this public surface entirely (see `ActivityGrid`) and
- * live only inside the PIN/biometric-gated NSFW Hub.
+ * Phase 28 isolation: there is deliberately **no NSFW chip in the ALL filter** — adult downloads
+ * and adult favourites/playback history are scrubbed from the public Library entirely and live
+ * only inside the PIN/biometric-gated NSFW Hub. The NSFW chip below exists so the Hub can surface
+ * its own isolated downloads grid without mixing adult and SFW content.
  */
 private enum class LibraryFilter(val label: String) {
     ALL("All"),
     MOVIES("Movies"),
     TV("TV Shows"),
-    ANIME("Anime");
+    ANIME("Anime"),
+    NSFW("NSFW");
 
     /**
      * Whether a title of [type] belongs here. `null` (an unknown/legacy type) only passes
@@ -118,12 +120,15 @@ private enum class LibraryFilter(val label: String) {
      * Manga is deliberately grouped with Anime rather than getting its own chip: the catalogue
      * tabs pair the two, and a separate chip would either strand manga behind "All" or clutter the
      * bar with a rarely-used entry.
+     *
+     * NSFW matches only adult titles — never SFW — so the chip acts as an isolation boundary.
      */
     fun accepts(type: MediaType?): Boolean = when (this) {
-        ALL -> true
+        ALL -> type != null && !type.isAdult
         MOVIES -> type == MediaType.MOVIE
         TV -> type == MediaType.SERIES
         ANIME -> type == MediaType.ANIME || type == MediaType.MANGA
+        NSFW -> type != null && type.isAdult
     }
 }
 
@@ -131,10 +136,10 @@ private fun MediaItem.matches(filter: LibraryFilter): Boolean = filter.accepts(t
 
 /** Downloads carry the original [MediaItem] as JSON, which is decoded tolerantly. */
 private fun VideoDownload.matches(filter: LibraryFilter): Boolean =
-    filter.accepts(LibraryCodec.decodeFavorites(itemJson).firstOrNull()?.type)
+    filter.accepts(LibraryCodec.decodeFavorites(itemJson).firstOrNull()?.type) || (filter == LibraryFilter.NSFW && nsfw)
 
 private fun MangaDownload.matches(filter: LibraryFilter): Boolean =
-    filter.accepts(if (nsfw) MediaType.NSFW_MANGA else MediaType.MANGA)
+    filter.accepts(if (nsfw) MediaType.NSFW_MANGA else MediaType.MANGA) || (filter == LibraryFilter.NSFW && nsfw)
 
 /**
  * The Library screen, split into two top sections behind a segmented control:

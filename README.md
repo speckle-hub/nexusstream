@@ -52,9 +52,11 @@ Built with **Kotlin 2.0 (K2) + Jetpack Compose 1.7 (Material 3)**, **Media3 ExoP
   auto-delete watched downloads, storage meter with orphan cleanup.
 
 ### Sources & extensions
-- **Source-neutral by default:** the app ships with **no stream providers and no provider
-  repositories preinstalled**. Only legal metadata (Cinemeta) and subtitle (OpenSubtitles v3)
-  add-ons are seeded; users add their own add-ons and repositories in the Add-on Manager.
+- **Source-neutral stream providers:** no stream providers ship preinstalled (`streamAddons` is
+  empty — users add Torrentio, TPB+, etc. via the Add-on Manager). Provider repositories *are*
+  pre-seeded (Phisher98, CXXX 18+, Yuzono, Keiyoushi) and their extensions appear in the
+  Add-on Manager for one-tap install; nothing is auto-installed from them. Only legal metadata
+  (Cinemeta) and subtitle (OpenSubtitles v3) add-ons are seeded as Stremio sources.
 - Add-on manager supports all four ecosystems for user-added sources: **Stremio** (full protocol),
   **CloudStream**, **Aniyomi** and **Mihon/Keiyoushi** repo formats.
 - Stream ranking (quality → seeders) with per-add-on timeouts, error reporting and a short
@@ -157,7 +159,7 @@ cryptic "missing required property storePassword".
 R8 minify is currently **off** (`proguard-rules.pro` is prepared — enabling is a one-line change).
 
 ### Notes
-- **Min SDK 24** · **Target SDK 34** · versionName `1.10.0` (`versionCode` 19).
+- **Min SDK 24** · **Target SDK 34** · versionName `1.11.2` (`versionCode` 26).
 - The GitHub repository is still `speckle-hub/nexusstream`; the release assets are published as
   `Moovio.apk` and `app-release.apk`.
 - `roadmap.md` is the project's living working document (full history, decisions log, device-test
@@ -165,9 +167,10 @@ R8 minify is currently **off** (`proguard-rules.pro` is prepared — enabling is
 
 ## Content neutrality
 
-Moovio is a **player and organizer**, not a content source. It ships with no stream providers, no
-provider repositories and no catalogs of its own — all media metadata comes from free public APIs
-(TMDB, AniList, MangaDex, Jikan, Cinemeta) and subtitles from OpenSubtitles. Any streaming
+Moovio is a **player and organizer**, not a content source. It ships with no stream providers and
+no catalogs of its own — all media metadata comes from free public APIs (TMDB, AniList, MangaDex,
+Jikan, Cinemeta) and subtitles from OpenSubtitles. Provider repositories (Phisher98, CXXX, Yuzono,
+Keiyoushi) are pre-seeded for convenience but nothing is auto-installed from them; any streaming
 capability comes exclusively from third-party add-ons that **the user chooses to install**; the
 project does not endorse or encourage infringing use, and asks users to respect the licenses of
 content in their region.

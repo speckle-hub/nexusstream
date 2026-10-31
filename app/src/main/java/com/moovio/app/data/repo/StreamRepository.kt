@@ -356,10 +356,11 @@ class StreamRepository(
 
     private companion object {
         /**
-         * Hard cap per add-on (Phase 32: 5 s fail-fast) so a hung host can't gate the stream list.
+         * Hard cap per add-on (Phase 32: 3 s fail-fast) so a hung host can't gate the stream list.
          * Every provider races concurrently and the first valid playable link yields immediately.
+         * Adult providers get an even tighter 3 s probe ceiling in [AdultHttp.verifyPlayable].
          */
-        const val STREAM_TIMEOUT_MS = 5_000L
+        const val STREAM_TIMEOUT_MS = 3_000L
 
         /** Subtitle fan-out gets the same fail-fast ceiling. */
         const val SUBTITLE_TIMEOUT_MS = 5_000L

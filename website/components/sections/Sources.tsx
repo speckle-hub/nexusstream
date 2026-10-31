@@ -4,7 +4,7 @@ import { SFW_SOURCE_COUNT } from "@/lib/utils";
 const sources = [
   {
     name: "Stremio add-ons",
-    note: "Any manifest URL. Torrentio and OpenSubtitles ship by default; one failing add-on never takes the list down.",
+    note: "Any manifest URL. Cinemeta and OpenSubtitles ship by default; one failing add-on never takes the list down.",
   },
   {
     name: "CloudStream extensions",

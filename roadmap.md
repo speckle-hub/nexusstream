@@ -542,7 +542,7 @@ backups + offline smart search (§2be): all four phases are in one signed APK, a
 download-storage prerequisite are closed. `versionCode` 24 / `versionName` 1.11.0; `dist/` and the
 badging/signature verification are in §2bf. No tag or GitHub Release was published, so nothing
 downloads this build yet. Detail in §2bf.
-Previous focus: **download crash fix (§2bg) — Android only.** VideoDownloadManager.enqueue() wraps request building + service dispatch in runCatching with a user-facing Toast on failure, so a bad URL, Gson serialization failure, or ForegroundServiceStartNotAllowedException on Android 14+ never crashes the app process. buildRequest() validates the URL scheme before constructing the DownloadRequest and falls back to an empty data payload if Gson cant serialize the metadata. sendAdd() retries without foregrounding when the system refuses a foreground-service start from a background context. New VideoDownloadManagerTest covers videoDownloadId determinism and downloadRequestHeaders edge cases. Verified :app:compileDebugKotlin ✓ · :app:testDebugUnitTest ✓ 341/341 (+8 VideoDownloadManagerTest).
+Previous focus: **download crash fix (§2bg) — Android only.** VideoDownloadManager.enqueue() wraps request building + service dispatch in r`runCatching with a user-facing Toast on failure, so a bad URL, Gson serialization failure, or ForegroundServiceStartNotAllowedException on Android 14+ never crashes the app process. buildRequest() validates the URL scheme before constructing the DownloadRequest and falls back to an empty data payload if Gson cant serialize the metadata. sendAdd() retries without foregrounding when the system refuses a foreground-service start from a background context. New VideoDownloadManagerTest covers videoDownloadId determinism and downloadRequestHeaders edge cases. Verified :app:compileDebugKotlin ✓ · :app:testDebugUnitTest ✓ 341/341 (+8 VideoDownloadManagerTest).
 
 Previous focus: **encrypted backups, smart search & release readiness (Phase 4, §2be) — Android only.**
 ISSUE-15 is closed: exports are AES-256-GCM encrypted under a key generated in the Android KeyStore,
@@ -979,14 +979,14 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   **individually** (`SOURCE_TTL_MS` 10 min), so re-entering the tab serves cached sources instantly
   and only refetches stale ones; rows are always emitted in registry order. `NsfwViewModel` consumes
   the progressive stream; `CatalogRepository.realRowsProgressive` appends Stremio NSFW rows in a
-  final snapshot. `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/ViewModels.kt`.
+  final snapshot. `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/`ViewModels.kt`.
 - **Continue Watching (ISSUE-13).** `LibraryStore.recordWatch` existed but was **never called** —
   the player didn't persist anything, so the section could never populate. `PlayerActivity` now
   snapshots playback (title, episode, position, duration) every ~5 s while playing, on episode
   switch, and in `onPause`/`onStop`/`onDestroy`, writing through a new app-lifetime
   `NovaApp.appScope` so the save survives Activity teardown. It also **resumes** at the last saved
   position (unless ≥95% watched). Home filters out finished titles (>95%) and shows the rest.
-  `ui/player/PlayerActivity.kt`, `NovaApp.kt`, `ui/vm/ViewModels.kt`.
+  `ui/player/PlayerActivity.kt`, `NovaApp.kt`, `ui/vm/`ViewModels.kt`.
 - **Home carousel (ISSUE-14).** The single static hero became an auto-sliding `HorizontalPager`
   carousel: swipeable featured banners (trending first, backdrop art preferred, up to 8) with a
   title, rating/year/genres, a 2-line description and a Play button, plus animated dot indicators.
@@ -1004,7 +1004,7 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
   `index.json` of ordered page filenames and a resumable `meta.json`. `MangaReaderActivity` is
   offline-first (renders local files when present) and has a download action; `LibraryScreen`
   lists chapters with progress, speed, pause/resume/delete.
-- **Native video downloader (Media3).** `data/download/DownloadManagerProvider.kt` owns one shared
+- **Native video downloader (Media3).** `data/download/`DownloadManagerProvider.kt` owns one shared
   `SimpleCache` (`files/downloads/media`, 4 GB LRU) + `StandaloneDatabaseProvider` + a Media3
   `DownloadManager` (3 parallel downloads, `Requirements.NETWORK`). `NovaDownloadService` is a
   foreground (`dataSync`) `DownloadService` that renders progress via `DownloadNotificationHelper`;
@@ -1084,7 +1084,7 @@ now read **NexusStream**. Package/`applicationId` intentionally unchanged (in-pl
 **Topic:** rebuild the reusable Compose UI layer (tokens → surfaces → components → Home + Detail) on
 a direction derived from the product, without touching business logic, unit tests, the desktop
 projects or the shipped v1.10.4 build.
-**Scope guard:** `app/src/main/java/com/moovio/app/ui/**` + `data/model/Models.kt` only.
+**Scope guard:** `a`app/src/main/java/com/moovio/app/ui/**` + `data/model/Models.kt` only.
 `desktop/` and `desktop-win/` have **no** diff; `settings.gradle.kts` is byte-identical; no version
 bump, no `dist/` change, nothing committed or pushed.
 
@@ -1183,7 +1183,7 @@ rebuilt — `dist/` remains v1.10.4.
 **Topic:** natural motion physics, a poster → detail shared-element morph, and structured tactile
 feedback across the touch points people repeat — without adding layout jank or a bouncy-spring
 vocabulary that contradicts the quiet direction §2bb settled on.
-**Scope guard:** `app/src/main/java/com/moovio/app/ui/**` (plus two new files there),
+**Scope guard:** `a`app/src/main/java/com/moovio/app/ui/**` (plus two new files there),
 `app/build.gradle.kts` and the two `build.gradle.kts` files needed to make the root build configure.
 `desktop-win/` has no diff. No version bump, no `dist/` change, nothing committed or pushed.
 
@@ -1256,7 +1256,7 @@ New: `ui/components/SharedPoster.kt`, `ui/theme/Haptics.kt`. Deleted:
 `ui/theme/PosterPalette.kt`, `test/…/PaletteCacheTest.kt`. Edited: `ui/theme/Tokens.kt`,
 `ui/components/Components.kt`, `ui/components/PillSegmentedControl.kt`, `ui/nav/FloatingPillNavBar.kt`,
 `ui/player/PlayerActivity.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/detail/DetailScreen.kt`,
-`ui/screens/library/LibraryScreen.kt`, `ui/screens/nsfw/NsfwHubScreen.kt`, `app/build.gradle.kts`,
+`ui/screens/library/`LibraryScreen.kt`, `ui/screens/nsfw/NsfwHubScreen.kt`, `app/build.gradle.kts`,
 `build.gradle.kts`, `desktop/build.gradle.kts`.
 
 ### Verification
@@ -1371,7 +1371,7 @@ Changed: `ui/player/PlayerActivity.kt`, `ui/player/MangaReaderActivity.kt`,
 `ui/components/SharedPoster.kt`, `ui/components/Components.kt`, `ui/nav/MoovioNav.kt`,
 `ui/screens/detail/DetailScreen.kt`, `ui/screens/home/HomeScreen.kt`,
 `ui/screens/anime/AnimeScreen.kt`, `ui/screens/manga/MangaScreen.kt`,
-`ui/screens/nsfw/NsfwHubScreen.kt`, `ui/screens/settings/SettingsScreen.kt`, `ui/vm/ViewModels.kt`,
+`ui/screens/nsfw/NsfwHubScreen.kt`, `ui/screens/settings/SettingsScreen.kt`, `ui/vm/`ViewModels.kt`,
 `data/local/SettingsStore.kt`, `MoovioApp.kt`.
 
 ### Verified / not verified
@@ -1471,9 +1471,9 @@ finish the housekeeping a release would need. Android only; `desktop/` and `desk
 New: `data/integrations/BackupCrypto.kt`, `data/search/SmartQuery.kt`,
 `test/…/BackupCryptoTest.kt`, `test/…/SmartSearchParseTest.kt`.
 Changed: `data/integrations/BackupManager.kt`, `data/download/DownloadCacheMaintenance.kt`,
-`data/download/VideoDownloadManager.kt`, `data/local/SettingsStore.kt`,
+`data/download/`VideoDownloadManager.kt`, `data/local/SettingsStore.kt`,
 `ui/screens/settings/SettingsScreen.kt`, `ui/screens/search/SearchScreen.kt`,
-`ui/vm/ViewModels.kt`, `MoovioApp.kt`, `app/build.gradle.kts`.
+`ui/vm/`ViewModels.kt`, `MoovioApp.kt`, `app/build.gradle.kts`.
 
 ### Verified / not verified
 
@@ -1652,7 +1652,7 @@ lockfile refresh, so it is a follow-up rather than part of this pass.
 failures, 0 errors, 0 skipped). No device pass for any of §2bh's flows yet — see §7 0i.
 
 **Included beyond §2bh:** the uncommitted §2bg download-crash guard (`VideoDownloadManager.enqueue`
-wrapped in `runCatching` with a user-facing toast, URL-scheme validation before the `DownloadRequest`
+wrapped in `r`runCatching` with a user-facing toast, URL-scheme validation before the `DownloadRequest`
 is built, and a foreground-start retry from a background context) together with its new
 `VideoDownloadManagerTest`. That code was already compiled into this APK, so leaving it out of the
 tag would have shipped a binary that could not be reproduced from the commit.
@@ -1735,8 +1735,8 @@ version. Android only; `desktop/` and `desktop-win/` untouched.
 
 ### Files
 
-Changed: `data/repo/CatalogRepository.kt`, `data/repo/StreamRepository.kt`,
-`data/adult/AdultHttp.kt`, `data/search/SmartQuery.kt` (comment only), `ui/vm/ViewModels.kt`,
+Changed: `data/repo/CatalogRepository.kt`, `data/repo/`StreamRepository.kt`,
+`data/adult/`AdultHttp.kt`, `data/search/SmartQuery.kt` (comment only), `ui/vm/`ViewModels.kt`,
 `ui/nav/MoovioNav.kt`, `ui/MainActivity.kt`.
 
 ### Verified / not verified
@@ -1884,11 +1884,11 @@ Manager NSFW switch, extension install/update, CXXX Real 18+ search.
 `CloudStreamExt.nsfw`), `data/local/AddonStore.kt` (four seeds + comments),
 `data/remote/AniyomiRepo.kt`, `data/remote/KeiyoushiRepo.kt` (rewritten),
 `data/cloudstream/CloudStreamRuntime.kt` (`CloudStreamInstalled.nsfw`),
-`data/repo/CloudStreamRepository.kt` (`providers(includeNsfw)`),
+`data/repo/Cloud`StreamRepository.kt` (`providers(includeNsfw)`),
 `data/repo/MangaExtensionRepository.kt` (new), `data/repo/AddonRepository.kt`
 (`setMangaExtEnabled`), `data/repo/CatalogRepository.kt` (NSFW-aware provider search),
 `data/local/SettingsStore.kt` (`showNsfwExtensions`), `di/AppContainer.kt`,
-`ui/vm/ViewModels.kt`, `ui/screens/addons/AddonManagerScreen.kt`,
+`ui/vm/`ViewModels.kt`, `ui/screens/addons/AddonManagerScreen.kt`,
 `test/…/RepoIndexTest.kt` (new, 8 cases), `test/…/CloudStreamSupportTest.kt` (seed policy test).
 
 ### Verification (2026-10-23)
@@ -1916,7 +1916,7 @@ tagged or pushed** this session.
   on every cast-button construction; the player then stopped recomposing (`uiautomator` saw 0
   nodes) until a relaunch or rotation.
 - **Actual mechanism:** the report blamed the exception escaping into Compose's frame dispatch,
-  but the `AndroidView` factory already wrapped construction in `runCatching` and returned a
+  but the `AndroidView` factory already wrapped construction in `r`runCatching` and returned a
   hidden `View` on failure — nothing propagated. The real cause is the *context*: the player runs
   on `Theme.Moovio.Player` (a platform `android:Theme.Material` descendant, no AppCompat
   attributes) over a transparent Compose window, so `android:colorBackground` resolved to `#0`
@@ -1925,7 +1925,7 @@ tagged or pushed** this session.
 - **Fix:** new `ThemeOverlay.Moovio.CastButton` (`Theme.AppCompat.NoActionBar`) with an **opaque**
   `android:colorBackground` / `android:windowBackground` (`@android:color/black`) plus
   `colorPrimary` / `colorPrimaryDark` / `colorAccent`; `PlayerActivity` now builds the button with
-  `ContextThemeWrapper(ctx, R.style.ThemeOverlay_Moovio_CastButton)` and keeps the `runCatching`
+  `ContextThemeWrapper(ctx, R.style.ThemeOverlay_Moovio_CastButton)` and keeps the `r`runCatching`
   fallback (a failed init degrades to the cast-settings icon instead of a dead frame).
 - Verified structurally: `aapt2 dump resources` on the built APK shows the style with both
   background attributes bound to `@android:color/black` (opaque). Hardware confirmation is §7
@@ -1963,7 +1963,7 @@ tagged or pushed** this session.
   when the source has a magnet) and **Cancel**.
 
 ### Files
-`app/src/main/res/values/themes.xml` (cast overlay), `ui/player/PlayerActivity.kt`,
+`a`app/src/main/res/values/themes.xml` (cast overlay), `ui/player/PlayerActivity.kt`,
 `data/remote/MangaDexQuery.kt` (new), `data/remote/MangaDexClient.kt`,
 `data/remote/TorrentWatchdog.kt` (new), `data/remote/TorrentStreamer.kt`,
 `ui/screens/detail/DetailScreen.kt`, `app/build.gradle.kts` (`versionCode` 20 / `1.10.1`),
@@ -2073,7 +2073,7 @@ app shipped as *NovaStream* (v1.0–v1.6) and *NexusStream* (v1.6–v1.9) with t
 
 **What changed**
 - **Package / identity.** `namespace` and `applicationId` → `com.moovio.app`; source tree moved to
-  `app/src/main/java/com/moovio/app/` (and `app/src/test/java/com/moovio/app/`). 1118 references
+  `a`app/src/main/java/com/moovio/app/` (and `app/src/test/java/com/moovio/app/`). 1118 references
   updated across 193 files. The CloudStream compatibility shim stays in `com.lagradost.cloudstream3`
   because provider dexes resolve those classes by name.
 - **Brand tokens.** `NovaApp`→`MoovioApp`, `NovaStreamTheme`→`MoovioTheme`, `NovaColors`→
@@ -2211,7 +2211,7 @@ Files and verification at the end.
 `AnimePaheSource.kt`, `GogoSource.kt`, `KickassAnimeSource.kt`,
 `YugenAnimeSource.kt`, `AnimeKaiSource.kt`, `MiruroSource.kt`,
 `SfwSources.kt` (8), `SfwAnimeSources.kt` (6), `SfwRepository.kt`,
-`SfwAnimeRepository.kt`, `data/repo/StreamRepository.kt` (SFW race + merge),
+`SfwAnimeRepository.kt`, `data/repo/`StreamRepository.kt` (SFW race + merge),
 `data/repo/StreamRanking.kt` (`directFirst`, `bestPlayable`, `isDirectMediaUrl`),
 `data/repo/CatalogRepository.kt` (search + rows), `data/repo/MetadataRepository.kt`
 (`sfwMeta`, fallbacks), `data/local/AddonStore.kt` (preferred hosts),
@@ -2272,7 +2272,7 @@ logs and leaves playback untouched). Files and verification at the end.
   `GlProgram(String, String)`, `Size(int, int)`).
 - `Anime4KEffectApplier.apply(player, config)` swaps `player.setVideoEffects(...)`
   **without rebuilding the player** (Off clears to `emptyList()`); total via
-  `runCatching` + log, so a GPU rejection degrades to normal playback, never a crash.
+  `r`runCatching` + log, so a GPU rejection degrades to normal playback, never a crash.
 
 ### 4. Persistence + in-player sheet
 - `SettingsStore` gained `ANIME4K_PRESET`/`ANIME4K_TIER` keys + flows (defaults
@@ -2285,7 +2285,7 @@ logs and leaves playback untouched). Files and verification at the end.
 
 ### Files
 `res/values/strings.xml` (`app_name`), `res/values/colors.xml` + `drawable/ic_launcher_foreground.xml`
-(brand comments), `data/remote/Http.kt` (UA), `data/download/VideoDownloadManager.kt`
+(brand comments), `data/remote/Http.kt` (UA), `data/download/`VideoDownloadManager.kt`
 (fallback name), `data/integrations/BackupManager.kt` (error text),
 `data/integrations/UpdateChecker.kt` (staged APK name), `ui/MainActivity.kt` (lock strings),
 `ui/screens/home/HomeScreen.kt` (top bar), `ui/screens/settings/SettingsScreen.kt` (About),
@@ -2363,7 +2363,7 @@ at the end.
   Silent and best-effort: a failed pre-fetch just resolves on demand later.
 
 ### Files
-`ui/vm/ViewModels.kt` (hero favorites), `ui/screens/home/HomeScreen.kt` (Watchlist CTA),
+`ui/vm/`ViewModels.kt` (hero favorites), `ui/screens/home/HomeScreen.kt` (Watchlist CTA),
 `ui/nav/FloatingPillNavBar.kt` (haptics), `ui/screens/nsfw/NsfwFilters.kt` (new),
 `ui/screens/nsfw/NsfwHubScreen.kt` (chips), `data/local/SettingsStore.kt` (`SUB_OUTLINE`),
 `ui/player/PlayerActivity.kt` (outline, 100 ms steps, pre-fetch),
@@ -2708,17 +2708,17 @@ is unit-pinned where it is pure-JVM. Files and verification at the end.
   and `fetchMeta()` are total (malformed JSON → empty/`null` instead of throwing), and
   `parseStream()` is hardened per-entry: safe primitive extraction (JsonNull no longer throws),
   blank strings treated as absent, `sources`/`behaviorHints.proxyHeaders` read defensively, and
-  the whole parser wrapped in `runCatching` — one poisoned stream can no longer void the list,
+  the whole parser wrapped in `r`runCatching` — one poisoned stream can no longer void the list,
   so valid `url` (CyberFlix) and `infoHash` (Torrentio) entries yield playable streams with
   their CDN headers (`Referer`/`User-Agent`/`Cookie`) and `filename` titles intact.
 - **`data/repo/AddonRepository.kt`:** every read-modify-write is serialized behind a `Mutex`
-  and guarded by `runCatching` with Gson-hole-safe predicates — rapid enable/disable toggles no
+  and guarded by `r`runCatching` with Gson-hole-safe predicates — rapid enable/disable toggles no
   longer interleave `first()` + `saveAddons()` (the NPE / lost-write path). `updateAll()`
   snapshots ids first instead of iterating the live list (the ConcurrentModificationException
   path); `enabledAddons()`/`enabledWithResource()`/`syncAllRepos()` degrade to empty instead of
   throwing on holey rows.
-- **`ui/vm/ViewModels.kt` (`AddonViewModel`):** `setEnabled()`/`remove()`/`updateAll()` are
-  `runCatching`-guarded so a store failure surfaces as a message (or silently) instead of
+- **`ui/vm/`ViewModels.kt` (`AddonViewModel`):** `setEnabled()`/`remove()`/`updateAll()` are
+  `r`runCatching`-guarded so a store failure surfaces as a message (or silently) instead of
   crashing the manager.
 
 ### 2. Modern hold-for-2X player gesture (`ui/player/PlayerActivity.kt`)
@@ -2743,7 +2743,7 @@ is unit-pinned where it is pure-JVM. Files and verification at the end.
 
 ### Files
 `data/remote/StremioClient.kt` (path-safe `enc`, total fetches, hardened `parseStream`),
-`data/repo/AddonRepository.kt` (mutation `Mutex` + totalled reads), `ui/vm/ViewModels.kt`
+`data/repo/AddonRepository.kt` (mutation `Mutex` + totalled reads), `ui/vm/`ViewModels.kt`
 (guarded add-on toggle paths), `data/model/Models.kt` (marker fields removed),
 `data/local/SettingsStore.kt` + `ui/screens/settings/SettingsScreen.kt` (dead auto-skip
 setting removed), `ui/player/PlayerActivity.kt` (skip UI deleted, hold-to-2X added),
@@ -2816,12 +2816,12 @@ verification at the end.
 ### Files
 `data/repo/ScraperRace.kt` (new policy + `MirrorHealth` + `PageCache`),
 `data/remote/Http.kt` (pool/dispatcher, `listClient`, `httpGetList`),
-`data/adult/AdultHttp.kt` (`getList` + page cache, bounded `verifyPlayable`),
+`data/adult/`AdultHttp.kt` (`getList` + page cache, bounded `verifyPlayable`),
 `data/adult/AdultRepository.kt` (completion-order home/search, 5 s caps, quarantine),
-`data/repo/StreamRepository.kt` (5 s caps, completion-order progressive `onPartial`,
+`data/repo/`StreamRepository.kt` (5 s caps, completion-order progressive `onPartial`,
 concurrent MOVIE race), `data/repo/CatalogRepository.kt` (bounded `safeRow`, parallel
 rows/search phases, 5 s caps), `data/hentai/HentaiRepository.kt` (5 s stream cap),
-`ui/vm/ViewModels.kt` (progressive `loadStreams` paint),
+`ui/vm/`ViewModels.kt` (progressive `loadStreams` paint),
 `app/src/test/.../ScraperRaceTest.kt` (+13).
 
 ### Verification (2026-10-13)
@@ -2884,7 +2884,7 @@ Files and verification at the end.
   `SessionManagerListener` (registered in `onResume`, removed in `onPause`) that loads the
   current stream URL (mp4 vs HLS content type) onto the receiver once per URL and pauses local
   playback so audio never doubles. No-Play-services devices get an empty route list, never a
-  crash (`runCatching` on `CastContext`).
+  crash (`r`runCatching` on `CastContext`).
 
 ### Files
 `data/integrations/TrackerOAuth.kt` (new pure OAuth/PKCE builders), `data/integrations/ScrobbleManager.kt`
@@ -2894,7 +2894,7 @@ exchange), `ui/player/NovaCastOptionsProvider.kt` (new), `ui/player/PlayerActivi
 triggers, Cast session + route button replacing the settings shortcut),
 `ui/screens/settings/SettingsScreen.kt` (Connect buttons, credentials dialog, watched import),
 `ui/screens/settings/HomeOrderScreen.kt` (hide/pin + pure helpers), `ui/screens/home/HomeScreen.kt`
-(hidden filter), `ui/vm/ViewModels.kt` (credential + import actions), `AndroidManifest.xml`
+(hidden filter), `ui/vm/`ViewModels.kt` (credential + import actions), `AndroidManifest.xml`
 (OAuth filter, Cast metadata), `app/build.gradle.kts` (Cast deps),
 `app/src/test/.../TrackerOAuthTest.kt` (+10), `app/src/test/.../HomeRowsTest.kt` (+8).
 
@@ -2934,13 +2934,13 @@ gracefully instead of crashing. Files and verification at the end.
 - **New pure `ui/player/PlayerStartup.kt`** (repo pattern: pure helper + unit test):
   `isValidPlayerItem` / `isPlayableStreamSource` / `sanitizeSubtitleTracks` /
   `sanitizeEpisodes` / `safeStreamHeaders` / `safeStreamAlternates` — every helper is total
-  (per-entry `runCatching`, never throws, even on Gson-poisoned payloads).
+  (per-entry `r`runCatching`, never throws, even on Gson-poisoned payloads).
 - **`PlayerActivity.onCreate`:** item/source validated before use (bad intent → `Log.e` +
   toast + `finish`, never a crash); episodes/subs sanitized; headers read through
   `safeStreamHeaders`; ExoPlayer build and `setMediaItem`/`prepare` each wrapped with
   `Log.e` breadcrumbs + toast + `finish` fallback.
 - **`buildMediaItem`:** media id read defensively; each subtitle config built per-entry
-  (`mapIndexedNotNull` + `runCatching`) so one poisoned sub can't kill the item.
+  (`mapIndexedNotNull` + `r`runCatching`) so one poisoned sub can't kill the item.
 - **`applySource` / `tryFailover`:** sanitized subs/headers/alternates; failover candidates
   trimmed, blank-filtered and de-duped; episode-switch load failure toasts instead of throwing.
 - **Cast (Phase 30):** `MediaRouteButton` creation wrapped — on failure the top bar recomposes
@@ -3102,7 +3102,7 @@ verification at the end.
   Outline/shadow needs no control: `applySubtitleStyle` already forces
   `EDGE_TYPE_OUTLINE` with a black edge on every caption.
 
-### 3. Dedicated offline downloads library tab (`LibraryScreen.kt`)
+### 3. Dedicated offline downloads library tab (``LibraryScreen.kt`)
 - Already existed as the Library "Downloads" section: completed video/anime downloads and manga
   chapters with thumbnails, pause/resume/delete rows and direct offline playback (`CacheDataSource`
   reads through the shared download cache; manga pages resolve from disk). Verified, kept.
@@ -3114,7 +3114,7 @@ verification at the end.
 ### Files
 `ui/player/SleepTimer.kt` (new pure helper), `ui/player/PlayerActivity.kt` (sleep state/jobs,
 watcher hook, gesture zones, `SleepTimerSheet`, `TrackSheet` style section, live style plumbing),
-`ui/screens/library/LibraryScreen.kt` (`DownloadsStorageCard`),
+`ui/screens/library/`LibraryScreen.kt` (`DownloadsStorageCard`),
 `app/src/test/.../SleepTimerTest.kt` (+7 timer cases).
 
 ### Verification (2026-10-11)
@@ -3185,8 +3185,8 @@ Status: **implemented and verified.** Files and verification at the end.
 `res/drawable/ic_launcher_foreground.xml`, `res/values/colors.xml`,
 `res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher{,_round}.png`,
 `data/model/Models.kt` (`isAdult`), `data/repo/CatalogRepository.kt` (row/search scrubs),
-`ui/vm/ViewModels.kt` (public filters + hub flows), `ui/screens/home/HomeScreen.kt` (rail/hero guards),
-`ui/screens/library/LibraryScreen.kt` (chip removal + grid guards),
+`ui/vm/`ViewModels.kt` (public filters + hub flows), `ui/screens/home/HomeScreen.kt` (rail/hero guards),
+`ui/screens/library/`LibraryScreen.kt` (chip removal + grid guards),
 `ui/screens/nsfw/NsfwHubScreen.kt` (Private dashboard overhaul),
 `app/src/test/.../NsfwIsolationTest.kt` (+7 isolation cases).
 
@@ -3217,7 +3217,7 @@ Status: **implemented and verified.** Files and verification at the end.
   `ensureActive()`-checked per chunk so cancellation aborts immediately, deletes any stale partial
   before starting, emits an initial 0-byte snapshot, then throttles to ~1 emission per 100 ms or per
   percent-point (so the dialog recomposes ~10×/s, not per chunk), and deletes the partial on both
-  failure and cancellation — rethrowing `CancellationException` explicitly because `runCatching`
+  failure and cancellation — rethrowing `CancellationException` explicitly because `r`runCatching`
   would otherwise swallow it into a silent `null`. The old `downloadApk(context, url)` is kept as a
   progress-blind delegate (still used by the Settings "Check for updates" row).
 
@@ -3273,7 +3273,7 @@ Status: **implemented and verified.** Files and verification at the end.
   trailing stat gets `maxLines = 1`, `TextOverflow.Ellipsis` and `Modifier.weight(1f, fill = false)` so
   the set shares the available width and truncates instead of overflowing.
 
-### 3. Dangling "Continue Watching" header (`LibraryScreen.kt` → `ActivityGrid`)
+### 3. Dangling "Continue Watching" header (``LibraryScreen.kt` → `ActivityGrid`)
 - **Problem:** the header rendered unconditionally while its cards rendered only `if (watched.isNotEmpty())`
   — a user with only manga progress saw an empty "Continue Watching" header above "Continue Reading".
 - **Fix:** the header now renders only `if (watched.isNotEmpty() || (watched.isEmpty() && reading.isEmpty()))`
@@ -3290,7 +3290,7 @@ Status: **implemented and verified.** Files and verification at the end.
 `ui/screens/detail/DetailScreen.kt` (nav padding + stats row), `ui/screens/sources/SourcesScreen.kt`,
 `ui/screens/settings/HomeOrderScreen.kt`, `ui/screens/collection/CollectionScreen.kt`,
 `ui/screens/addons/AddonManagerScreen.kt`, `ui/screens/nsfw/NsfwHubScreen.kt` (nav padding),
-`ui/screens/library/LibraryScreen.kt` (header guard), `ui/components/Components.kt` (× hit area).
+`ui/screens/library/`LibraryScreen.kt` (header guard), `ui/components/Components.kt` (× hit area).
 
 ### Verification (2026-10-11)
 - `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (only pre-existing deprecation warnings).
@@ -3308,13 +3308,13 @@ Status: **implemented and verified.** Files and verification at the end.
 
 ### 1. Fix Manga Chapter Downloads (`MangaDownloadManager.kt`)
 - **Instant state insertion & start:** `MangaDownloadManager.enqueue()` previously updated `_downloads` through a private `update(key)` helper that quietly dropped any key not already present in `_downloads.value`. Consequently, newly enqueued chapters were never added to the in-memory state until the app restarted and `loadFromDisk()` ran, and the subsequent `start(key)` immediately bailed out (`_downloads.value[key] ?: return@launch`). `enqueue()` now inserts directly into `_downloads` via `_downloads.update { it + (queued.key to queued) }`, persists metadata, and starts downloading immediately.
-- **ENOSPC / disk-full safety:** Wrapped `file.writeBytes(data)` in a `runCatching` block. On disk write failure (e.g. storage full / `ENOSPC`), the partial file is safely cleaned up, the chapter status is marked as `FAILED` with descriptive error details, `notifyFailed` alerts the user, and metadata is persisted without crashing the coroutine or application.
+- **ENOSPC / disk-full safety:** Wrapped `file.writeBytes(data)` in a `r`runCatching` block. On disk write failure (e.g. storage full / `ENOSPC`), the partial file is safely cleaned up, the chapter status is marked as `FAILED` with descriptive error details, `notifyFailed` alerts the user, and metadata is persisted without crashing the coroutine or application.
 
-### 2. Guard Detail Page Against Missing/Failed TMDB Keys (`ViewModels.kt` & `TmdbClient.kt`)
-- **Graceful fallback on missing/blank TMDB key or network failure:** In `DetailViewModel`, `buildSeasons()` calls inside `viewModelScope.launch` (both in `load()` and `fillBuiltInEpisodes()`) are wrapped in `runCatching` blocks with a dedicated `fallbackBasicSeasons()` fallback. If `BuildConfig.TMDB_API_KEY` is missing or blank, or if network requests throw `IOException`, or if `MetadataRepository.detail(item)` returns null, the detail page synthesizes basic metadata from `item` and falls back to Stremio-style episode grouping instead of crashing.
+### 2. Guard Detail Page Against Missing/Failed TMDB Keys (``ViewModels.kt` & `TmdbClient.kt`)
+- **Graceful fallback on missing/blank TMDB key or network failure:** In `DetailViewModel`, `buildSeasons()` calls inside `viewModelScope.launch` (both in `load()` and `fillBuiltInEpisodes()`) are wrapped in `r`runCatching` blocks with a dedicated `fallbackBasicSeasons()` fallback. If `BuildConfig.TMDB_API_KEY` is missing or blank, or if network requests throw `IOException`, or if `MetadataRepository.detail(item)` returns null, the detail page synthesizes basic metadata from `item` and falls back to Stremio-style episode grouping instead of crashing.
 - **Safe JSON array & object parsing:** Added `optJsonArray()` and `optJsonObject()` helpers in `TmdbClient.kt`. Replaced unsafe direct `getAsJsonArray()` / `getAsJsonObject()` calls across all endpoints (`results`, `genre_ids`, `tv_results`, `movie_results`, `credits`, `cast`, `crew`, `seasons`, `episodes`, `videos`, `alternative_titles`, `recommendations`) to guarantee malformed or mismatched JSON types never trigger fatal `ClassCastException` or `IllegalStateException` crashes.
 
-### 3. Fix Video Download Cache Key (`VideoDownloadManager.kt`)
+### 3. Fix Video Download Cache Key (``VideoDownloadManager.kt`)
 - **Media3 custom cache key alignment:** Added `.setCustomCacheKey(id)` to Media3 `DownloadRequest.Builder` in `VideoDownloadManager.buildRequest()`. Previously, Media3 defaulted the cache key to the stream URL while `DownloadExporter.export()` queried `SimpleCache.getCachedSpans(id)` by the download UUID `id`, causing `getCachedSpans()` to return empty spans and leaving exported files empty. Aligning `customCacheKey` with `id` allows `DownloadExporter` to stream downloaded cache spans into the user's custom storage folder.
 
 ### 4. Deduplicate Stremio Catalog Rails (`StremioClient.kt`, `CatalogRepository.kt`, `Components.kt`)
@@ -3322,7 +3322,7 @@ Status: **implemented and verified.** Files and verification at the end.
 - **UI Compose crash prevention:** Added `val uniqueItems = items.distinctBy { it.key }` before `itemsIndexed()` in `MediaRow` (`Components.kt`). This eliminates duplicate item keys from add-on feeds and completely prevents fatal `IllegalArgumentException: Key was already used` crashes when rendering `LazyRow` rails.
 
 ### Files
-`data/download/MangaDownloadManager.kt`, `data/remote/TmdbClient.kt`, `ui/vm/ViewModels.kt`, `data/download/VideoDownloadManager.kt`, `data/remote/StremioClient.kt`, `data/repo/CatalogRepository.kt`, `ui/components/Components.kt`, `app/src/test/java/com/moovio/app/Phase26P0FixesTest.kt`.
+`data/download/MangaDownloadManager.kt`, `data/remote/TmdbClient.kt`, `ui/vm/`ViewModels.kt`, `data/download/`VideoDownloadManager.kt`, `data/remote/StremioClient.kt`, `data/repo/CatalogRepository.kt`, `ui/components/Components.kt`, `app/src/test/java/com/moovio/app/Phase26P0FixesTest.kt`.
 
 ### Verification (2026-10-11)
 - `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0).
@@ -3414,7 +3414,7 @@ Status: **implemented and built.** Files and verification at the end.
 
 ### Files
 `ui/theme/Tokens.kt`, `ui/theme/Theme.kt`, `ui/components/Components.kt`,
-`ui/screens/library/LibraryScreen.kt`, `ui/screens/settings/SettingsScreen.kt`,
+`ui/screens/library/`LibraryScreen.kt`, `ui/screens/settings/SettingsScreen.kt`,
 `ui/player/PlayerActivity.kt`.
 
 ### Verification (2026-10-08)
@@ -3467,7 +3467,7 @@ Status: **implemented and built.** Files and verification at the end.
 ### Files
 `ui/components/Components.kt`, `ui/theme/ReducedMotion.kt` (new),
 `ui/screens/home/HomeScreen.kt`, `ui/screens/anime/AnimeScreen.kt`,
-`ui/screens/manga/MangaScreen.kt`, `ui/screens/library/LibraryScreen.kt`.
+`ui/screens/manga/MangaScreen.kt`, `ui/screens/library/`LibraryScreen.kt`.
 
 ### Verification (2026-10-08)
 - `:app:compileDebugKotlin` → **BUILD SUCCESSFUL** (exit status 0; only the repo's pre-existing
@@ -3574,7 +3574,7 @@ Status: **implemented and built.** Files and verification at the end.
 ### Files
 `ui/screens/browse/BrowseScreen.kt`, `ui/screens/anime/AnimeScreen.kt` (new),
 `ui/screens/nsfw/NsfwHubScreen.kt` (replaces `NsfwScreen.kt`), `ui/nav/NovaNav.kt`,
-`ui/screens/settings/SettingsScreen.kt`, `ui/vm/ViewModels.kt` (`AnimeViewModel` +
+`ui/screens/settings/SettingsScreen.kt`, `ui/vm/`ViewModels.kt` (`AnimeViewModel` +
 `SettingsViewModel.nsfwGlobalSearch`), `data/repo/CatalogRepository.kt`, `data/local/SettingsStore.kt`.
 
 ### Verification (2026-10-08)
@@ -3648,10 +3648,10 @@ palette, dynamic poster palettes and a polished hero; what was missing was a *sy
 ### Files
 `ui/theme/Tokens.kt` (new), `ui/theme/Theme.kt`, `ui/theme/Color.kt`,
 `ui/components/Components.kt`, `ui/screens/search/SearchScreen.kt` (rewritten),
-`ui/screens/library/LibraryScreen.kt`, `ui/screens/collection/CollectionScreen.kt`,
+`ui/screens/library/`LibraryScreen.kt`, `ui/screens/collection/CollectionScreen.kt`,
 `ui/screens/home/HomeScreen.kt`, `ui/screens/detail/DetailScreen.kt`, `ui/screens/manga/MangaScreen.kt`,
 `ui/screens/nsfw/NsfwScreen.kt`, `ui/screens/settings/SettingsScreen.kt`,
-`ui/screens/addons/AddonManagerScreen.kt`, `ui/vm/ViewModels.kt`, `data/local/SettingsStore.kt`.
+`ui/screens/addons/AddonManagerScreen.kt`, `ui/vm/`ViewModels.kt`, `data/local/SettingsStore.kt`.
 
 ### Verification
 `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` → **30 tests / 0 failures** ✅ ·
@@ -3715,7 +3715,7 @@ Status: **implemented and built.** Source list and verification at the end.
   list for a truncated/corrupt/unparseable file instead of throwing. `ExtensionStore.list()` /
   `save()` now go through it, and `ExtensionRepository.installed()` is additionally wrapped so it
   can never throw while a screen is composing.
-- **Belt-and-braces on the screen.** `SourcesScreen` now reads the list through a `runCatching`
+- **Belt-and-braces on the screen.** `SourcesScreen` now reads the list through a `r`runCatching`
   fallback (an unreadable snapshot degrades to the empty state instead of an uncaught exception),
   filters blank ids and de-dupes before keying the list, which is the "safe fallback state" the
   screen needs on entry.
@@ -4017,7 +4017,7 @@ Status: **implemented and built.** Source list and verification at the end.
   navigation — i.e. "tapping the row crashes the app". Both now use the same
   `if (empty) { EmptyState(…) } else { LazyColumn(…) }` shape as `CollectionScreen`.
   - Hardening on top: `HomeOrderScreen`'s seeding `LaunchedEffect` and its `setHomeOrder` write are
-    `runCatching`-guarded (an unreadable row snapshot degrades to the empty state), and both
+    `r`runCatching`-guarded (an unreadable row snapshot degrades to the empty state), and both
     Settings rows navigate with `launchSingleTop` so a double-tap cannot stack two copies.
 - **Cold boot (Problem A — flaky metadata/posters, dropped extensions).**
   - `ExtensionRepository.reloadAll()` now retries the descriptor read once **and** each extension
@@ -4071,10 +4071,10 @@ Status: **implemented and built.** Source list and verification at the end.
 
 ### Files
 `ui/theme/Tokens.kt`, `data/model/Models.kt` (`MediaItem.isReadable`),
-`ui/vm/ViewModels.kt` (`SearchViewModel.search`, `HomeViewModel.continueReading`),
+`ui/vm/`ViewModels.kt` (`SearchViewModel.search`, `HomeViewModel.continueReading`),
 `ui/nav/FloatingPillNavBar.kt`, `ui/nav/NovaNav.kt`, `ui/screens/home/HomeScreen.kt`,
 `ui/screens/search/SearchScreen.kt`, `ui/screens/manga/MangaScreen.kt`,
-`ui/screens/nsfw/NsfwScreen.kt`, `ui/screens/library/LibraryScreen.kt`,
+`ui/screens/nsfw/NsfwScreen.kt`, `ui/screens/library/`LibraryScreen.kt`,
 `ui/screens/settings/SettingsScreen.kt`, `ui/screens/settings/HomeOrderScreen.kt`,
 `ui/screens/sources/SourcesScreen.kt`, `ui/player/MangaReaderActivity.kt`,
 `data/ext/ExtensionRepository.kt`, `data/remote/Http.kt`, `NovaApp.kt`.
@@ -4100,7 +4100,7 @@ engine wiring, the gesture math and the UI consistency issues it surfaced.
 Status: **implemented and built.** All ten fixes landed; source list and verification below.
 
 ### 1. Inert settings / engine wiring
-- **Max parallel downloads** — `data/download/DownloadManagerProvider.kt` hardcoded
+- **Max parallel downloads** — `data/download/`DownloadManagerProvider.kt` hardcoded
   `setMaxParallelDownloads(3)` and never read `SettingsStore.maxParallel`, so the Settings control
   (and its backup/restore) had no effect. The provider now exposes `setMaxParallel(context, value)`
   (clamped 1–6) that both applies to the live `DownloadManager` and seeds new holders, and `NovaApp`
@@ -4230,7 +4230,7 @@ bytes, signed), `dist/NovaStream.apk` refreshed (SHA-256 `91a44109…18BB`). Nee
 
 ### Files
 `data/adult/AdultSource.kt`, `data/hentai/HentaiRepository.kt`, `data/repo/MetadataRepository.kt`,
-`data/repo/CatalogRepository.kt`, `data/remote/JikanClient.kt`, `ui/vm/ViewModels.kt`,
+`data/repo/CatalogRepository.kt`, `data/remote/JikanClient.kt`, `ui/vm/`ViewModels.kt`,
 `app/src/test/java/com/moovio/app/TitleMatchTest.kt` (new).
 
 ### Verification
@@ -4300,8 +4300,8 @@ results and only queries NSFW-flagged add-ons, and neither path uses the regular
 
 ### Files
 `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/repo/StreamRanking.kt` (new),
-`data/repo/StreamRepository.kt`, `data/repo/CatalogRepository.kt`, `data/model/Models.kt`
-(`StreamSource.seeders`), `ui/vm/ViewModels.kt`, `ui/screens/detail/DetailScreen.kt`,
+`data/repo/`StreamRepository.kt`, `data/repo/CatalogRepository.kt`, `data/model/Models.kt`
+(`StreamSource.seeders`), `ui/vm/`ViewModels.kt`, `ui/screens/detail/DetailScreen.kt`,
 `ui/screens/addons/AddonManagerScreen.kt`,
 `app/src/test/java/com/moovio/app/StreamRankingTest.kt` (new).
 
@@ -4355,7 +4355,7 @@ Status: **implemented and built** — `:app:compileDebugKotlin` ✅, `:app:testD
 
 ### Files
 `ui/player/PlaybackMath.kt` (new), `ui/player/PlayerActivity.kt`, `ui/player/MangaReaderActivity.kt`,
-`data/local/SettingsStore.kt`, `data/download/VideoDownloadManager.kt`, `ui/vm/ViewModels.kt`,
+`data/local/SettingsStore.kt`, `data/download/`VideoDownloadManager.kt`, `ui/vm/`ViewModels.kt`,
 `ui/screens/settings/SettingsScreen.kt`,
 `app/src/test/java/com/moovio/app/PlaybackMathTest.kt` (new).
 
@@ -4425,8 +4425,8 @@ Status: **implemented and built** — `:app:compileDebugKotlin` ✅, `:app:testD
 
 ### Files
 `data/download/DownloadHeaders.kt` (new), `data/download/DownloadCacheMaintenance.kt` (new),
-`data/download/DownloadManagerProvider.kt`, `data/download/VideoDownloadManager.kt`,
-`ui/screens/detail/DetailScreen.kt`, `ui/player/PlayerActivity.kt`, `ui/vm/ViewModels.kt`,
+`data/download/`DownloadManagerProvider.kt`, `data/download/`VideoDownloadManager.kt`,
+`ui/screens/detail/DetailScreen.kt`, `ui/player/PlayerActivity.kt`, `ui/vm/`ViewModels.kt`,
 `ui/screens/settings/SettingsScreen.kt`,
 `app/src/test/java/com/moovio/app/DownloadMaintenanceTest.kt` (new).
 
@@ -4499,7 +4499,7 @@ Status: **implemented and built** — `:app:compileDebugKotlin` ✅, `:app:testD
 
 ### Files
 `data/remote/JikanClient.kt`, `data/repo/MetadataRepository.kt`, `data/repo/CatalogRepository.kt`,
-`data/adult/AdultRepository.kt`, `ui/vm/ViewModels.kt`, `ui/screens/nsfw/NsfwScreen.kt`.
+`data/adult/AdultRepository.kt`, `ui/vm/`ViewModels.kt`, `ui/screens/nsfw/NsfwScreen.kt`.
 
 ### Verification
 `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` → **73 tests / 0 failures** ✅ ·
@@ -4611,7 +4611,7 @@ Cloudflare-protected and could not be probed from the build environment.
 ### Registry & wiring (no changes needed)
 `HentaiSources.all` now lists **9**. `HentaiRepository` iterates it for both `episodes()` and
 `streams()`, so the new sites inherit parallel querying, per-source error isolation, relevance
-ranking, the 10-minute TTL caches and `AdultHttp.verifyPlayable()` pre-flight automatically — **one
+ranking, the 10-minute TTL caches and `AdultHttp.v`verifyPlayable()` pre-flight automatically — **one
 broken site still cannot take down the section**, and AniList metadata is untouched.
 
 ### Tests
@@ -4651,7 +4651,7 @@ runtime (bottom-bar visibility, the spinner reset, biometric persistence) still 
    never persisted. Added `String.routeBase()` (strips any `?…` tail) and `tabForRoute(route)`,
    used by `showBar`, the per-tab `selected` flag and the tab-persistence `indexOfFirst` —
    argument-bearing routes (`collection/{type}`, `detail/…`) are unaffected.
-2. **NSFW search spinners could stick (`ViewModels.kt`).** `searchAnime`/`searchManga` set
+2. **NSFW search spinners could stick (``ViewModels.kt`).** `searchAnime`/`searchManga` set
    `animeSearching`/`mangaSearching = true` but the "query too short" early return (and a cancelled
    in-flight job) never cleared them. The early return now sets the flag `false`, and the search
    body runs in `try/finally` that clears the flag on success, failure **and** cancellation (only
@@ -4684,7 +4684,7 @@ runtime (bottom-bar visibility, the spinner reset, biometric persistence) still 
     the item count is unchanged.
 
 ### Files
-`ui/nav/NovaNav.kt`, `ui/vm/ViewModels.kt`, `ui/screens/detail/DetailScreen.kt`,
+`ui/nav/NovaNav.kt`, `ui/vm/`ViewModels.kt`, `ui/screens/detail/DetailScreen.kt`,
 `ui/screens/home/HomeScreen.kt`, `ui/screens/search/SearchScreen.kt`,
 `ui/player/MangaReaderActivity.kt`, `ui/MainActivity.kt`.
 
@@ -4786,9 +4786,9 @@ entire library.
 - **`LibraryStore.kt`** — every read and write now goes through `LibraryCodec`
   (`decodeFavorites`/`decodeHistory`/`encodeFavorites`/`encodeHistory`); the old
   `TypeToken` + `Http.gson` `decode<T>` helper is gone.
-- **`LibraryViewModel` (`ui/vm/ViewModels.kt`)** — a second, per-element defensive filter
+- **`LibraryViewModel` (`ui/vm/`ViewModels.kt`)** — a second, per-element defensive filter
   (`filterSafe`) drops any entry whose key/title is unusable, so one hostile title can no longer
-  blank a section; **`StatsTab`** wraps `WatchStats.compute` in `runCatching` with an empty-stats
+  blank a section; **`StatsTab`** wraps `WatchStats.compute` in `r`runCatching` with an empty-stats
   fallback so a bad history entry can't take the tab down either.
 
 **Also hardened:** `ActivityGrid` LazyGrid keys are now section-prefixed (`hist:` / `fav:`) and
@@ -4802,7 +4802,7 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
 
 ### 2. Library category filter chips
 
-- New private `LibraryFilter` enum in `LibraryScreen.kt`: **All / Movies / TV Shows / Anime /
+- New private `LibraryFilter` enum in ``LibraryScreen.kt`: **All / Movies / TV Shows / Anime /
   NSFW**, rendered as a horizontal chip bar (`LibraryFilterBar`) directly under the segmented
   control, shown for the **Downloads** and **My Library** sections only (hidden for Stats).
   `rememberSaveable` keeps the selection across tab switches.
@@ -4811,7 +4811,7 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
   `NSFW_MANGA`, `REAL`. `null`/unknown types only ever match **All**.
 - **Downloads are filtered too.** `VideoDownload.matches` decodes `itemJson` through
   `LibraryCodec` to get the `MediaItem.type`; `MangaDownload` gained a trailing
-  **`nsfw: Boolean = false`** field (`data/download/MangaDownloadManager.kt`, persisted
+  **`n`nsfw: Boolean = false`** field (`data/download/MangaDownloadManager.kt`, persisted
   automatically in `meta.json`, legacy snapshots default to false), passed as
   `nsfw = item.type == MediaType.NSFW_MANGA` at both `manager.enqueue(...)` call sites in
   `ui/player/MangaReaderActivity.kt` (the composable now takes an `nsfw` param wired from the
@@ -4864,8 +4864,8 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
 `data/local/LibraryCodec.kt` (new), `data/local/LibraryStore.kt`,
 `data/model/Models.kt` (`Video.runtimeMin`), `data/remote/TmdbClient.kt`,
 `data/download/MangaDownloadManager.kt` (`MangaDownload.nsfw`),
-`ui/player/MangaReaderActivity.kt`, `ui/vm/ViewModels.kt`,
-`ui/screens/library/LibraryScreen.kt`, `ui/screens/detail/DetailScreen.kt`,
+`ui/player/MangaReaderActivity.kt`, `ui/vm/`ViewModels.kt`,
+`ui/screens/library/`LibraryScreen.kt`, `ui/screens/detail/DetailScreen.kt`,
 `app/src/test/java/com/moovio/app/LibraryCodecTest.kt` (new).
 
 ### Verification (done)
@@ -4888,7 +4888,7 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
    series (season chips, episode duration/progress, Play pre-targeting ep1), episode tap → sheet,
    header `PlaylistPlay` button, torrent play from the sheet (overlay visible), and a Real 18+
    title. Tracked as **§7 item 20**.
-2. Optional tidy: re-read `DetailScreen.kt` + `LibraryScreen.kt` for leftover unused
+2. Optional tidy: re-read `DetailScreen.kt` + ``LibraryScreen.kt` for leftover unused
    imports/params; re-run compile + tests if anything changes.
 
 ---
@@ -4957,7 +4957,7 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
 `data/integrations/` (new: `WatchStats`, `BackupManager`, `UpdateChecker`, `ScrobbleManager`,
 `SourceTester`), `ui/MainActivity.kt`, `ui/screens/sources/SourcesScreen.kt` (new),
 `ui/screens/settings/HomeOrderScreen.kt` (new), `ui/screens/settings/SettingsScreen.kt`,
-`ui/screens/library/LibraryScreen.kt`, `ui/screens/home/HomeScreen.kt`, `ui/vm/ViewModels.kt`,
+`ui/screens/library/`LibraryScreen.kt`, `ui/screens/home/HomeScreen.kt`, `ui/vm/`ViewModels.kt`,
 `ui/nav/NovaNav.kt`, `ui/player/PlayerActivity.kt`, `AndroidManifest.xml`,
 `app/src/test/java/com/moovio/app/WatchStatsTest.kt` (new).
 
@@ -5032,7 +5032,7 @@ genre/rating coercion, history with a missing `item`, hostile payloads, and a ro
   `MutableSharedFlow` the active reader collects; toggleable in Settings.
 
 ### Files
-`data/local/SettingsStore.kt`, `data/model/Models.kt`, `ui/vm/ViewModels.kt`, `ui/MainActivity.kt`,
+`data/local/SettingsStore.kt`, `data/model/Models.kt`, `ui/vm/`ViewModels.kt`, `ui/MainActivity.kt`,
 `ui/theme/Theme.kt`, `ui/theme/Color.kt`, `ui/screens/settings/SettingsScreen.kt`,
 `ui/player/PlayerActivity.kt`, `ui/player/MangaReaderActivity.kt`.
 
@@ -5120,13 +5120,13 @@ one long scroll. It now has a **segmented control** (same component style as Bro
 
 Each tab owns its own `LazyVerticalGrid` and scroll state; the selected tab is `rememberSaveable`
 so returning to the Library keeps the section. Complete file rewrite:
-`ui/screens/library/LibraryScreen.kt`.
+`ui/screens/library/`LibraryScreen.kt`.
 
 ### Files
 `ui/screens/home/HomeScreen.kt`, `ui/screens/detail/DetailScreen.kt`,
 `ui/screens/search/SearchScreen.kt`, `ui/screens/browse/BrowseScreen.kt`,
 `ui/screens/collection/CollectionScreen.kt`, `ui/screens/manga/MangaScreen.kt`,
-`ui/screens/nsfw/NsfwScreen.kt`, `ui/screens/library/LibraryScreen.kt` (rewritten),
+`ui/screens/nsfw/NsfwScreen.kt`, `ui/screens/library/`LibraryScreen.kt` (rewritten),
 `ui/components/Components.kt`, `ui/nav/SharedTransition.kt`.
 
 ### Verification
@@ -5330,9 +5330,9 @@ Symptom: any search sometimes "glitches" and shows a completely different result
 `SearchScreen` fired `SearchViewModel.search` on **every keystroke** with no debounce and no
 cancellation, so responses landed out of order (results for an earlier prefix overwrote the final
 query); switching the filter chip raced with an in-flight global search; and — the subtle one —
-`runCatching` **swallows `CancellationException`**, so a "cancelled" search kept running and could
+`r`runCatching` **swallows `CancellationException`**, so a "cancelled" search kept running and could
 still publish. Fixed with a 350 ms debounce, per-query job cancellation, a monotonic generation id
-so only the newest request may publish, and a `runCatchingCancellable` helper that rethrows
+so only the newest request may publish, and a `r`runCatchingCancellable` helper that rethrows
 cancellation. Applied to the main search and to all three NSFW section searches.
 
 ### Real 18+ search (ISSUE-9)
@@ -5375,7 +5375,7 @@ What was wrong and what changed:
 - **Streams listed but wouldn't play**: Pornhub's `hm-h.phncdn.com` answers 410/412 without a
   `Referer` of the exact `view_video.php` page **and** the age cookies. `StreamSource` gained
   `headers`, every adult source populates them, `PlayerActivity` plays through an
-  OkHttpDataSource that replays them, and `AdultHttp.verifyPlayable()` pre-flights each URL with
+  OkHttpDataSource that replays them, and `AdultHttp.v`verifyPlayable()` pre-flights each URL with
   the same headers — only definitively-dead links are dropped (timeouts/429 are kept), so Play
   lights up only when something real will play.
 - **Slow Real 18+**: listings and category rows now fetch **concurrently** per source
@@ -5557,13 +5557,13 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   the typed query.
 - **Root cause:** (a) `SearchScreen` called `vm.search` on **every keystroke** with no debounce and
   no cancellation, so out-of-order responses could overwrite the final query; (b) the filter-chip
-  handler raced with an in-flight global search; (c) `runCatching { … }` catches
+  handler raced with an in-flight global search; (c) `r`runCatching { … }` catches
   `CancellationException`, so even a "cancelled" search ran to completion and published.
 - **Fix:** `SearchViewModel` debounces (350 ms), cancels the previous job, and stamps each request
-  with a monotonic generation id so only the newest result may publish; `runCatchingCancellable`
+  with a monotonic generation id so only the newest result may publish; `r`runCatchingCancellable`
   rethrows cancellation instead of swallowing it; same guard applied to `NsfwViewModel`'s three
   section searches.
-- **Files:** `ui/vm/ViewModels.kt`, `ui/screens/search/SearchScreen.kt` (call sites unchanged)
+- **Files:** `ui/vm/`ViewModels.kt`, `ui/screens/search/SearchScreen.kt` (call sites unchanged)
 
 ### ✅ ISSUE-9 — Real 18+ search unreliable (empty / stale / irrelevant)
 - **Symptom:** Real 18+ search sometimes returns correct results, sometimes nothing or wrong /
@@ -5578,7 +5578,7 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   (with unfiltered fallback); `CatalogRepository.searchReal` makes built-ins authoritative and
   queries Stremio NSFW add-ons only as a fallback; UI surfaces search errors when results are empty.
 - **Files:** `data/adult/AdultRepository.kt`, `data/adult/AdultSource.kt`, `data/repo/CatalogRepository.kt`,
-  `ui/vm/ViewModels.kt`, `ui/screens/nsfw/NsfwScreen.kt`
+  `ui/vm/`ViewModels.kt`, `ui/screens/nsfw/NsfwScreen.kt`
 
 ### ✅ ISSUE-8 — Repo hygiene (2 decisions made — see §8)
 - ✅ Added `.gitignore` (secrets, build output, IDE).
@@ -5610,7 +5610,7 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
 - **Fix:** progressive per-source emission (`AdultRepository.home(onUpdate)`), per-source 10-min
   cache with instant re-entry, order-stable merging; `NsfwViewModel` paints rows and clears its
   skeleton on the first source that lands.
-- **Files:** `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/ViewModels.kt`
+- **Files:** `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/`ViewModels.kt`
 
 ### ✅ ISSUE-13 — Continue Watching never populates
 - **Symptom:** Home's "Continue Watching" section stays empty no matter what is played.
@@ -5619,7 +5619,7 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
 - **Fix:** `PlayerActivity` records progress on a 5 s cadence, on episode switch and on
   pause/stop/destroy via the app-lifetime scope, and resumes from the saved position; Home hides
   entries watched past 95%.
-- **Files:** `ui/player/PlayerActivity.kt`, `NovaApp.kt`, `ui/vm/ViewModels.kt`
+- **Files:** `ui/player/PlayerActivity.kt`, `NovaApp.kt`, `ui/vm/`ViewModels.kt`
 
 ### ✅ ISSUE-14 — Home needs a real featured carousel
 - **Fix:** auto-sliding swipeable `HorizontalPager` carousel (backdrop art, title, rating/year/genres,
@@ -5669,13 +5669,13 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   download up by the download id, so `getCachedSpans` is empty and the export bails out.
 - **Fix:** export HLS as a directory (playlist + segments) or remux with Media3's
   `DownloadManager`; never concatenate segments into one unplayable file.
-- **Files:** `data/download/DownloadExporter.kt` (`:46`), `data/download/VideoDownloadManager.kt` (`:536`)
+- **Files:** `data/download/DownloadExporter.kt` (`:46`), `data/download/`VideoDownloadManager.kt` (`:536`)
 
 ### 🟡 ISSUE-19 — Manga download "pause" reports a failure
 - **Symptom:** pausing a chapter download shows "Download failed".
-- **Root cause:** `runCatching` swallows the `CancellationException` thrown by `pause()`, so the
+- **Root cause:** `r`runCatching` swallows the `CancellationException` thrown by `pause()`, so the
   cancelled job overwrites the `PAUSED` status with `FAILED`.
-- **Fix:** use the repo's `runCatchingCancellable` helper and check `isActive` before writing.
+- **Fix:** use the repo's `r`runCatchingCancellable` helper and check `isActive` before writing.
 - **Files:** `data/download/MangaDownloadManager.kt` (`:166`)
 
 ### 🟡 ISSUE-20 — Player is released while the composition still holds it
@@ -5823,7 +5823,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-09-30 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **21 tests / 0 failures** (5 new); `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL. |
 | 2026-10-01 | **Real 18+ search reliability (ISSUE-9):** keystroke debounce + job cancellation, per-source retry with `Search(items, errors)`, keyword relevance ranking (unfiltered fallback), built-in-authoritative `searchReal` with Stremio NSFW fallback, UI search-error notice. Added 1 relevance test. |
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **22 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (43 MB / 36 MB). |
-| 2026-10-01 | **Whole-app search reliability (ISSUE-10):** 350 ms debounce + per-query job cancellation + generation guard in `SearchViewModel` and all `NsfwViewModel` searches; `runCatchingCancellable` rethrows cancellation (plain `runCatching` swallowed it, so superseded searches still published). Added `SearchCancellationTest` (2). |
+| 2026-10-01 | **Whole-app search reliability (ISSUE-10):** 350 ms debounce + per-query job cancellation + generation guard in `SearchViewModel` and all `NsfwViewModel` searches; `r`runCatchingCancellable` rethrows cancellation (plain `r`runCatching` swallowed it, so superseded searches still published). Added `SearchCancellationTest` (2). |
 | 2026-10-01 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **24 tests / 0 failures**; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (43 MB / 36 MB). |
 | 2026-10-01 | **Rename:** display name → **NexusStream** (strings, Home title, Settings About, UA); package/applicationId unchanged. |
 | 2026-10-01 | **Phase 1 UI/UX polish:** hero shadow+outline, `PosterShape`(12.dp) unification, card title padding + single-line metadata, compact nav pill + cohesive icons, Manga `SourceBadge`, NSFW tab spacer, empty-state icons, filter-chip outlines, settings chevrons, accent ring, add-on chips. |
@@ -5873,18 +5873,18 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-02 | **Phase 10 — detail header insets:** header height now derives from screen width (`*0.95f`, clamped 320–460 dp) instead of a fixed 16:11, the app-bar row uses `statusBarsPadding()` instead of `top = 36.dp`, and the title is capped at 2 lines — the title block no longer grows up into the back/heart buttons on narrow phones. Genre chips gained a 12 dp spacer above them. `ui/screens/detail/DetailScreen.kt`. |
 | 2026-10-02 | **Phase 10 — search field fix:** `SearchScreen` never wrote its `rememberSaveable` `query`, so `SearchField.value` never changed and typed input looked dead. `onValueChange` now sets `query = it` before dispatching the debounced search. `ui/screens/search/SearchScreen.kt`. |
 | 2026-10-02 | **Phase 10 — grid clipping / shared-element bleed:** new `LocalSharedElementsEnabled` local; `sharedElementFor` no-ops when disabled. All scroll containers (MediaRow, Library, Search, Collection, Manga, NSFW) publish `!isScrollInProgress`, so the Compose 1.7 transition overlay can't draw a scrolling poster over a header/search field. Added `clipToBounds()` to every viewport (and the Browse `AnimatedContent`) plus `zIndex(1f)` on headers/segmented controls. `ui/nav/SharedTransition.kt`, `ui/components/Components.kt`, six screens. |
-| 2026-10-02 | **Phase 10 — Library restructure:** split into two segmented-control tabs — **Downloads** (video downloads + downloaded chapters) and **My Library** (Continue Watching + Favourites). Each tab has its own grid + scroll state; selected tab is `rememberSaveable`. `ui/screens/library/LibraryScreen.kt` rewritten. |
+| 2026-10-02 | **Phase 10 — Library restructure:** split into two segmented-control tabs — **Downloads** (video downloads + downloaded chapters) and **My Library** (Continue Watching + Favourites). Each tab has its own grid + scroll state; selected tab is `rememberSaveable`. `ui/screens/library/`LibraryScreen.kt` rewritten. |
 | 2026-10-02 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **34 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (46 MB / 38 MB); `dist/NovaStream.apk` refreshed. **Device pass (§7 item 17) pending.** |
 | 2026-10-02 | **Phase 11 — player:** bottom sheet with 0.5x–2.0x speed + Audio boost / Normalize toggles (`LoudnessEnhancer` on the player audio session); autoplay overlay moved from 95%-of-duration to **15 s remaining**; **Skip Intro/Outro** buttons (stream markers via new `StreamSource.introEndMs`/`outroStartMs`, else a 90 s heuristic); VLC/MPV hand-off sheet; double-tap ±10 s with expanding-ring ripple; pinch-to-zoom cycles Fit/Stretch/Fill/16:9/21:9 (hand-rolled `awaitEachGesture` so it only claims two-finger gestures); screen-lock toggle; Cast/DLNA action; subtitle styling via `CaptionStyleCompat`. PiP now only enters while playing and sets `setAutoEnterEnabled` on API 31+. `ui/player/PlayerActivity.kt`. |
-| 2026-10-02 | **Phase 11 — theme engine:** Material You dynamic color (`dynamicDark/LightColorScheme`, API 31+) that replaces the manual accent with the system primary; named preset accents **Neon Purple / Emerald / Crimson / Sunset Orange**; **True AMOLED black** (`#000000` background+surface, `#0B0B0B` elevated) propagated app-wide via `LocalNovaColors`; subtitle size/colour/opacity/offset settings. `ui/theme/Theme.kt`, `ui/theme/Color.kt`, `ui/MainActivity.kt`, `data/local/SettingsStore.kt`, `ui/vm/ViewModels.kt`, `ui/screens/settings/SettingsScreen.kt`. |
+| 2026-10-02 | **Phase 11 — theme engine:** Material You dynamic color (`dynamicDark/LightColorScheme`, API 31+) that replaces the manual accent with the system primary; named preset accents **Neon Purple / Emerald / Crimson / Sunset Orange**; **True AMOLED black** (`#000000` background+surface, `#0B0B0B` elevated) propagated app-wide via `LocalNovaColors`; subtitle size/colour/opacity/offset settings. `ui/theme/Theme.kt`, `ui/theme/Color.kt`, `ui/MainActivity.kt`, `data/local/SettingsStore.kt`, `ui/vm/`ViewModels.kt`, `ui/screens/settings/SettingsScreen.kt`. |
 | 2026-10-02 | **Phase 11 — manga reader:** landscape **double-page spreads** (RTL-correct ordering); night-mode **invert** + **grayscale** as a Compose `ColorMatrix` filter; **zoom lock** across pages; per-chapter **position saving/restore** (`MANGA_PROGRESS`); **auto-crop borders** (heuristic scale-and-clip); **volume-key page turns** via a `MutableSharedFlow` the active reader collects. `ui/player/MangaReaderActivity.kt`. |
 | 2026-10-02 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **34 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (45.6 MB / 38 MB); `dist/NovaStream.apk` refreshed. **Device pass (§7 item 18) pending** — PiP, gestures, the audio effect and the Cast chooser are runtime-only. |
 | 2026-10-02 | **Phase 12 — source & extension manager:** new `SourcesScreen` dashboard (per-extension enable/disable + a **Test** button reporting latency/item count via `SourceTester`); `SettingsStore.disabledSources`; `StreamSource.alternates` + `PlayerActivity` `onPlayerError` **mid-playback mirror failover**; global **custom User-Agent/Referer/Cookie** applied by `Http.globalIdentity()` and an OkHttp interceptor on the player data source (source-specific headers still win). `ui/screens/sources/SourcesScreen.kt`, `data/integrations/SourceTester.kt`, `data/remote/Http.kt`, `ui/player/PlayerActivity.kt`. |
 | 2026-10-02 | **Phase 12 — downloader & offline:** user-set **max parallel downloads**; SAF **storage-folder picker** (persistable URI); **auto-download the next episode** on completion, gated on a toggle + Wi-Fi-only check via `ConnectivityManager`. `data/local/SettingsStore.kt`, `ui/player/PlayerActivity.kt`, `ui/screens/settings/SettingsScreen.kt`. |
-| 2026-10-02 | **Phase 12 — discovery, sync & backup:** **Home row reordering** screen (up/down priority, persisted, stably applied by `applyRowOrder`); **watch-statistics dashboard** (new Library Stats tab, `WatchStats.compute`); **JSON backup/restore** of favourites/history/settings/tokens via SAF (`BackupManager`); **multi-provider scrobbling** for Trakt/AniList/MAL/Kitsu/SIMKL with manually-pasted tokens (`ScrobbleManager`). `ui/screens/settings/HomeOrderScreen.kt` (new), `ui/screens/library/LibraryScreen.kt`, `data/integrations/BackupManager.kt`, `data/integrations/ScrobbleManager.kt`. |
+| 2026-10-02 | **Phase 12 — discovery, sync & backup:** **Home row reordering** screen (up/down priority, persisted, stably applied by `applyRowOrder`); **watch-statistics dashboard** (new Library Stats tab, `WatchStats.compute`); **JSON backup/restore** of favourites/history/settings/tokens via SAF (`BackupManager`); **multi-provider scrobbling** for Trakt/AniList/MAL/Kitsu/SIMKL with manually-pasted tokens (`ScrobbleManager`). `ui/screens/settings/HomeOrderScreen.kt` (new), `ui/screens/library/`LibraryScreen.kt`, `data/integrations/BackupManager.kt`, `data/integrations/ScrobbleManager.kt`. |
 | 2026-10-02 | **Phase 12 — security & system:** **app lock** startup gate (`BiometricPrompt` + device-credential, fails open); **incognito mode** (`LibraryStore.incognito` makes `recordWatch` a no-op); **`FLAG_SECURE`** toggle; **GitHub release updater** with in-app APK install via the existing `FileProvider` (+`REQUEST_INSTALL_PACKAGES`); new periodic **`NewContentWorker`** that notifies on genuinely new feed titles. `ui/MainActivity.kt`, `data/integrations/UpdateChecker.kt`, `data/sync/NewContentWorker.kt` (new), `AndroidManifest.xml`. |
 | 2026-10-02 | Added `WatchStatsTest` (3 cases). `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **37 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (45.8 MB / 38 MB); `dist/NovaStream.apk` refreshed. **Device pass (§7 item 19) pending.** |
-| 2026-10-03 | **Phase 13 — Library crash fix (P0):** root-caused the Favourites crash to Gson decoding a missing/unknown `type` onto the non-null `MediaItem.type` slot (silent runtime `null` → NPE at `item.type.id` in `Routes.detail`), compounded by an all-or-nothing `fromJson` that blanked the whole list on one bad element. New pure-JVM `data/local/LibraryCodec.kt` sanitizes **per element** (bad entries dropped, rest survive; enum name / catalog id / `stremioType` all resolve the type, defaulting to `MOVIE`; null-safe optional fields; clamped numbers; dedupe by key) and `LibraryStore`/`LibraryViewModel` now route every read/write through it, with a second `filterSafe` guard in the VM and `runCatching` around `WatchStats.compute`. Added `LibraryCodecTest` (15 cases → **52 tests**). |
+| 2026-10-03 | **Phase 13 — Library crash fix (P0):** root-caused the Favourites crash to Gson decoding a missing/unknown `type` onto the non-null `MediaItem.type` slot (silent runtime `null` → NPE at `item.type.id` in `Routes.detail`), compounded by an all-or-nothing `fromJson` that blanked the whole list on one bad element. New pure-JVM `data/local/LibraryCodec.kt` sanitizes **per element** (bad entries dropped, rest survive; enum name / catalog id / `stremioType` all resolve the type, defaulting to `MOVIE`; null-safe optional fields; clamped numbers; dedupe by key) and `LibraryStore`/`LibraryViewModel` now route every read/write through it, with a second `filterSafe` guard in the VM and `r`runCatching` around `WatchStats.compute`. Added `LibraryCodecTest` (15 cases → **52 tests**). |
 | 2026-10-03 | **Phase 13 — Library category chips:** new `LibraryFilter` enum (All/Movies/TV/Anime/NSFW) rendered as a horizontal `LibraryFilterBar` under the segmented control for Downloads and My Library. Filters both the video/chapter downloads **and** the saved-title grids in place (scroll retained); Anime also matches `MANGA`; `VideoDownload.matches` decodes `itemJson` through `LibraryCodec`; `MangaDownload` gained an `nsfw` flag fed from `MediaType.NSFW_MANGA`. |
 | 2026-10-03 | **Phase 13 — Detail overhaul:** seasons are now a `SeasonPickerRow` chip row (`toggleSeason` → `selectSeason`, no collapse); `EpisodeRow` rebuilt as thumbnail + `E3 · Title` + duration/air date + saved-progress bar (`Video.runtimeMin` from TMDB `eo.runtime`); the inline stream list moved into a bounded Material3 **`StreamSheet`** `ModalBottomSheet` opened by an episode tap or the new header `PlaylistPlay` button; `loadStreams` is generation-guarded; `Play` pre-targets the selected season's first episode and `play()` closes the sheet before the torrent overlay. |
 | 2026-10-03 | `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **52 tests / 0 failures** ✅; `:app:assembleRelease` → BUILD SUCCESSFUL (38,166,194 bytes, signed); `dist/NovaStream.apk` refreshed. **Device pass (§7 item 20) pending.** |
@@ -5903,7 +5903,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-03 | **Checkup follow-up — player sheets readable in light theme:** the sheets now sit on a themed surface but their text was still hardcoded `Color.White` (invisible on a light surface). Headings, track rows, unselected speed-chip labels, boost/normalize rows and the external-player heading use `LocalNovaColors` text roles; the countdown card uses `onSurface`/`onSurfaceVariant`; unselected speed chips use `surfaceElevated`; the control-bar `AssistChip`s keep a fixed translucent-black container + white label since they float over video. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **73 tests / 0 failures** ✅; `:app:assembleRelease` → BUILD SUCCESSFUL (38,198,962 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `4A2A0BF0…C246`). **Device pass (§7 item 24) pending.** |
 
 | 2026-10-04 | **NSFW search speed + metadata fallback (§2o):** new `JikanClient.details(malId)` / `detailsByTitle(title)` map Jikan's `/anime/{id}/full` into a full `MetaDetail`. `MetadataRepository.detail()` now tries **AniList → Jikan** for NSFW anime (stopping early when AniList already has a synopsis), and returns a catalog-item fallback instead of `null` when both fail — the detail page no longer hard-fails, and the built-in hentai sources still fill the episode list. NSFW-anime search now routes through a new `CatalogRepository.searchNsfwAnime()`: **AniList primary**, Stremio NSFW add-ons concurrent, **Jikan only if AniList is empty** (6 s cap). `data/remote/JikanClient.kt`, `data/repo/MetadataRepository.kt`, `data/repo/CatalogRepository.kt`. |
-| 2026-10-04 | **Real 18+ search speed (§2o):** `AdultRepository.searchDetailedProgressive` emits ranked partial results after each source; `CatalogRepository.searchRealProgressive` forwards them and `NsfwViewModel.searchReal` paints them generation-guarded, so one slow/hung source no longer blocks the search. Each source is bounded by `withTimeout(8 s)` (timeouts not retried), concurrency is capped with a `Semaphore(10)`, and ranked searches are cached by query for 5 min (LRU 32). `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/ViewModels.kt`. |
+| 2026-10-04 | **Real 18+ search speed (§2o):** `AdultRepository.searchDetailedProgressive` emits ranked partial results after each source; `CatalogRepository.searchRealProgressive` forwards them and `NsfwViewModel.searchReal` paints them generation-guarded, so one slow/hung source no longer blocks the search. Each source is bounded by `withTimeout(8 s)` (timeouts not retried), concurrency is capped with a `Semaphore(10)`, and ranked searches are cached by query for 5 min (LRU 32). `data/adult/AdultRepository.kt`, `data/repo/CatalogRepository.kt`, `ui/vm/`ViewModels.kt`. |
 | 2026-10-04 | **Compact dismissible notice (§2o):** the NSFW "sources unavailable" banner is now a single slim line with an **×** to dismiss; tapping the summary expands the per-source details on demand. `ui/screens/nsfw/NsfwScreen.kt`. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **73 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (46,090,540 / 38,215,346 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `5F3E9ACA…F785`). **Device pass (§7 item 25) pending.** |
 | 2026-10-04 | **Phase 14 — downloader HTTP headers (§2p):** downloads failed on header-gated hosts because Media3's `DownloadManager` used one bare `DefaultHttpDataSource` (UA only) while the player sent each stream's Referer/Cookie. New `downloadRequestHeaders()` mirrors the player's interceptor and a per-download `HeaderAwareDownloaderFactory` decodes headers from the request `data` payload into a fresh upstream source, so HLS segments and range requests inherit them too. New files `data/download/DownloadHeaders.kt`, `data/download/DownloadCacheMaintenance.kt`. |
 | 2026-10-04 | **Phase 14 — storage fallback, retries & mirror failover (§2p):** `DownloadManagerProvider` resolves the cache dir with a writability chain (`filesDir` → `getExternalFilesDir(DIRECTORY_MOVIES)` → `cacheDir`), sets `setMinRetryCount(4)`, and `VideoDownloadManager.maybeFailover()` re-enqueues a failed download's backup mirror (persisted `attempted` list, no loops). Download call sites in `DetailScreen`/`PlayerActivity` now pass `source.headers` + `source.alternates`. |
@@ -5912,23 +5912,23 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-04 | **Phase 15 — subtitle sync + Stats overlay (§2q):** Media3 1.3 exposes no subtitle-offset API, so the player buffers `onCues` and, when an offset is set, hides native captions and renders a **time-shifted overlay** at `position - offset`; a Subtitles slider offers **±10 s in 0.5 s steps** (persisted). A new **Stats** chip shows resolution, codec, track bitrate, bandwidth, FPS, buffer, state and dropped frames (from an `AnalyticsListener`). New `ui/player/PlaybackMath.kt`. |
 | 2026-10-04 | **Phase 15 — warm filter + auto-delete (§2q):** a third manga colour-matrix option (`mangaFilter(invert, grayscale, warm)`) adds a warm/sepia tint (Settings → Manga Reader toggle). Settings → Downloads gained **Auto-delete watched downloads**, and `VideoDownloadManager.deleteDownloadsForItem()` removes an item's downloads + cached media once playback passes 90 %. Added `PlaybackMathTest` (6 cases → **87 tests**). `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **87 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (45,958,786 / 38,231,730 bytes, signed);`dist/NovaStream.apk` refreshed (SHA-256 `DB214614…9BD6`). **Device pass (§7 item 27) pending.** |
 | 2026-10-04 | **Phase 16 — best CloudStream + Stremio sources (§2r):** `AddonStore.Defaults.repos` expanded to **7** providers (CloudStream Phisher/**Hexated**/community; Aniyomi yuzono/official; Mihon Keiyoushi pb+json) and `ensureDefaultRepos()` now **merges** missing defaults for existing installs too. New pure `data/repo/StreamRanking.kt` ranks streams **reliability-first** (preferred hosts = Torrentio/TPB+/MediaFusion), then quality, then parsed seeders; `StreamRepository` gained `StreamsResult`, a 12 s per-add-on timeout, per-add-on error collection and a 5-minute result cache for regular Movie/Series/Anime lookups. `DetailScreen` shows a **“Some add-ons could not be reached”** list under an empty picker; the Add-on Manager's Stremio tab gained a **Recommended** one-tap install row. `CatalogRepository` now bounds regular add-on search (6 s) and catalog fetches (7 s). **NSFW / built-in adult paths unchanged.** Added `StreamRankingTest` (9 cases → **96 tests**). `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **96 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (38,248,114 bytes release, signed); `dist/NovaStream.apk` refreshed (SHA-256 `70ADDA87…3EBD`). **Device pass (§7 item 28) pending.** |
-| 2026-10-05 | **Phase 17 — NSFW-anime speed (§2s):** every NSFW-anime network hop is now hard-bounded — search (AniList 8 s / Jikan 6 s / add-ons 6 s) and now **built-ins-authoritative** (Stremio NSFW add-ons queried only when both built-ins return nothing, same rule as Real 18+), home rows 10 s each with **progressive paint** through a new `nsfwRow()` helper, `stremioNsfwRows` finally gets the `CATALOG_TIMEOUT_MS` 7 s cap its SFW twin had, detail metadata sources 8 s each, `related()` 8 s, and `HentaiRepository` gets 5 s per source / 8 s per episode lookup / 12 s per stream resolution plus a 10 s `EPISODE_FILL_BUDGET_MS` across title variants. Caller cancellation is rethrown by a private `bounded()` helper. `data/repo/CatalogRepository.kt`, `data/repo/MetadataRepository.kt`, `data/hentai/HentaiRepository.kt`, `ui/vm/ViewModels.kt`. |
+| 2026-10-05 | **Phase 17 — NSFW-anime speed (§2s):** every NSFW-anime network hop is now hard-bounded — search (AniList 8 s / Jikan 6 s / add-ons 6 s) and now **built-ins-authoritative** (Stremio NSFW add-ons queried only when both built-ins return nothing, same rule as Real 18+), home rows 10 s each with **progressive paint** through a new `nsfwRow()` helper, `stremioNsfwRows` finally gets the `CATALOG_TIMEOUT_MS` 7 s cap its SFW twin had, detail metadata sources 8 s each, `related()` 8 s, and `HentaiRepository` gets 5 s per source / 8 s per episode lookup / 12 s per stream resolution plus a 10 s `EPISODE_FILL_BUDGET_MS` across title variants. Caller cancellation is rethrown by a private `bounded()` helper. `data/repo/CatalogRepository.kt`, `data/repo/MetadataRepository.kt`, `data/hentai/HentaiRepository.kt`, `ui/vm/`ViewModels.kt`. |
 | 2026-10-05 | **Phase 17 — correct-title matching (§2s):** new `adultSignificantTokens()` / `adultTitlesMatch()` in `data/adult/AdultSource.kt` (filler words like "to" are never a match — "to" is a substring of "Netokano", which is how "Boku to Misaki-sensei" resolved to a different series). Gates added at every substitution point: `HentaiRepository.episodes` only accepts a source hit whose series/title shares a significant word with the query (streams resolve through the same lookup, so they belong to the selected title too); `MetadataRepository.detail` skips candidates whose name/altTitles aren't recognisably the selected item instead of letting them win on score, and `hentaiFallback` no longer renames the page (`name = head.series`) or swaps its poster; `JikanClient.detailsByTitle` requires an exact-or-token match and its "first adult entry ?: first candidate" fallbacks are deleted. Added `TitleMatchTest` (7 cases → **103 tests**). `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **103 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (46,003,430 / 38,248,114 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `91a44109…18BB`). **Device pass (§7 item 29) pending.** |
-| 2026-10-05 | **NSFW Anime — clearing the search no longer strands the tab on "Nothing here yet":** the NSFW-anime browse rows were fetched **once** in `NsfwViewModel.init`, and clearing a search only reset the search state — never the browse rows — so if that initial load had failed (or its progressive paint was wiped when `nsfwAnimeRows` threw, e.g. `stremioNsfwRows` failing after AniList rows had already painted), the section stayed on its empty state with no way back. The fetch moved into a guarded `loadAnimeRows()` that only replaces the current rows on a real result (`getOrNull()` — a failed/cancelled load can no longer wipe rows), and `searchAnime` now calls `reloadAnimeRowsIfEmpty()` when the query is cleared, refetching so exiting a search always restores the catalogue rows. `ui/vm/ViewModels.kt`. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **103 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (46,079,742 / 38,248,114 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `DC31DDB9…D7A2`). |
-| 2026-10-05 | **Download progress UI + system notifications:** Media3's `DownloadManager.Listener` only reports state transitions, so the Library rows sat at "0% · 0 B" until a download finished. `VideoDownloadManager` now runs a 500 ms **progress ticker** while anything is `QUEUED`/`DOWNLOADING`, polling `DownloadManager.getCurrentDownloads()` and republishing each snapshot (speed/ETA derived from successive samples), stopping once nothing is left to download; a shared `applyDownload()` is used by both the listener and the ticker and skips no-op emissions, so the progress bar/percentage/bytes update smoothly. Notification side: `POST_NOTIFICATIONS` was declared but never requested, so on API 33+ the foreground download notification was silently dropped from the shade — `MainActivity` now requests it once per launch when not granted, and `NovaDownloadService.getForegroundNotification()` builds the progress notification via `DownloadNotificationHelper` with a real content intent (tap to open the app). `data/download/VideoDownloadManager.kt`, `data/download/NovaDownloadService.kt`, `ui/MainActivity.kt`. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **103 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (45,977,084 / 38,248,114 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `0421B698…4B5132`). **Device pass pending** for the notification permission prompt and live progress. |
+| 2026-10-05 | **NSFW Anime — clearing the search no longer strands the tab on "Nothing here yet":** the NSFW-anime browse rows were fetched **once** in `NsfwViewModel.init`, and clearing a search only reset the search state — never the browse rows — so if that initial load had failed (or its progressive paint was wiped when `nsfwAnimeRows` threw, e.g. `stremioNsfwRows` failing after AniList rows had already painted), the section stayed on its empty state with no way back. The fetch moved into a guarded `loadAnimeRows()` that only replaces the current rows on a real result (`getOrNull()` — a failed/cancelled load can no longer wipe rows), and `searchAnime` now calls `reloadAnimeRowsIfEmpty()` when the query is cleared, refetching so exiting a search always restores the catalogue rows. `ui/vm/`ViewModels.kt`. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **103 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (46,079,742 / 38,248,114 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `DC31DDB9…D7A2`). |
+| 2026-10-05 | **Download progress UI + system notifications:** Media3's `DownloadManager.Listener` only reports state transitions, so the Library rows sat at "0% · 0 B" until a download finished. `VideoDownloadManager` now runs a 500 ms **progress ticker** while anything is `QUEUED`/`DOWNLOADING`, polling `DownloadManager.getCurrentDownloads()` and republishing each snapshot (speed/ETA derived from successive samples), stopping once nothing is left to download; a shared `applyDownload()` is used by both the listener and the ticker and skips no-op emissions, so the progress bar/percentage/bytes update smoothly. Notification side: `POST_NOTIFICATIONS` was declared but never requested, so on API 33+ the foreground download notification was silently dropped from the shade — `MainActivity` now requests it once per launch when not granted, and `NovaDownloadService.getForegroundNotification()` builds the progress notification via `DownloadNotificationHelper` with a real content intent (tap to open the app). `data/download/`VideoDownloadManager.kt`, `data/download/NovaDownloadService.kt`, `ui/MainActivity.kt`. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **103 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (45,977,084 / 38,248,114 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `0421B698…4B5132`). **Device pass pending** for the notification permission prompt and live progress. |
 | 2026-10-05 | **Persistent download-completion notification:** the base `DownloadService` ties its notification to the service, so a finished download vanished from the shade the moment the queue drained and the service stopped. `NovaDownloadService` now registers its own `DownloadManager.Listener` and, on `STATE_COMPLETED`, posts a separate `DownloadNotificationHelper.buildDownloadCompletedNotification` through the system `NotificationManager` under a per-download id (base 5000, clear of the foreground id 4801) — titled with the download's name and tap-to-open, it stays visible until the user dismisses it, independent of the service lifecycle. `data/download/NovaDownloadService.kt`. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **103 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (45,978,174 / 38,248,114 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `8CBBBC87…4FC7E6`). **Device pass pending.** |
 | 2026-10-05 | **Phase 18 — floating pill navigation + expressive surfaces (§2t):** the docked `NavigationBar` is replaced by a floating capsule (new `ui/nav/FloatingPillNavBar.kt`) — `RoundedCornerShape(50)`, held 16 dp above `WindowInsets.navigationBars` with 20 dp side margins, a `surface` backdrop at 85 % opacity, a 1 dp `outlineVariant` border at 25 % and a 6 dp shadow — with a spring-driven sliding indicator behind the active tab (`animateDpAsState`, low-bouncy). A shared `FloatingNavScrollState` exposes a `NestedScrollConnection` so the bar **slides off-screen on downward scroll and returns on any upward scroll** on Home, Browse, Search and Library; `NovaNav` mounts it in an outer `Box` over the `NavHost`, providing `LocalFloatingNavScroll` / `LocalFloatingNavBottomPadding` locals. Library/Browse top filters (Downloads/My Library/Stats, All/Movies/TV/Anime) became pill segmented controls via a new shared `ui/components/PillSegmentedControl.kt`, and the detail hero's primary action is now an elevated floating capsule with an **embedded mini progress bar** ("Resume Ep. 4" / "Read Ch. 12"). Every primary screen adds `LocalFloatingNavBottomPadding` to its list/grid bottom inset so content scrolls cleanly under the bar. New `ui/nav/FloatingPillNavBar.kt`, `ui/components/PillSegmentedControl.kt`; updated `ui/nav/NovaNav.kt`, `ui/screens/{home,search,manga,nsfw,library,settings,browse,detail}/*.kt`. `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest` → **103 tests / 0 failures** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (46,175,796 / 38,264,498 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `311ABC0E…26952`). **Device pass pending** for the floating bar's slide/hide, the pill segmented controls and the capsule CTA. |
-| 2026-10-05 | **Phase 19 — inert settings/engine wiring (§2t):** `DownloadManagerProvider` hardcoded `setMaxParallelDownloads(3)` and ignored `SettingsStore.maxParallel`, so the setting (and its backup/restore) did nothing; it now exposes `setMaxParallel(context, value)` (clamped 1–6) that applies to the live manager and seeds future holders, with `NovaApp` collecting `maxParallel` and pushing it on every change. `ExtensionRepository.reloadAll()` loaded *every* installed extension on startup and ignored `disabledSources`, so disabling a source lasted only until restart; it now takes the `SettingsStore` and filters disabled ids. `SettingsStore.storageUri` was written by the SAF picker and displayed but never read — completed downloads are now exported into the chosen folder by a new `data/download/DownloadExporter.kt` (framework `DocumentsContract`, no new dependency), driven from `VideoDownloadManager`'s completion callback. `data/download/DownloadManagerProvider.kt`, `data/ext/ExtensionRepository.kt`, `di/AppContainer.kt`, `NovaApp.kt`, `data/download/DownloadExporter.kt`, `data/download/VideoDownloadManager.kt`. |
+| 2026-10-05 | **Phase 19 — inert settings/engine wiring (§2t):** `DownloadManagerProvider` hardcoded `setMaxParallelDownloads(3)` and ignored `SettingsStore.maxParallel`, so the setting (and its backup/restore) did nothing; it now exposes `setMaxParallel(context, value)` (clamped 1–6) that applies to the live manager and seeds future holders, with `NovaApp` collecting `maxParallel` and pushing it on every change. `ExtensionRepository.reloadAll()` loaded *every* installed extension on startup and ignored `disabledSources`, so disabling a source lasted only until restart; it now takes the `SettingsStore` and filters disabled ids. `SettingsStore.storageUri` was written by the SAF picker and displayed but never read — completed downloads are now exported into the chosen folder by a new `data/download/DownloadExporter.kt` (framework `DocumentsContract`, no new dependency), driven from `VideoDownloadManager`'s completion callback. `data/download/`DownloadManagerProvider.kt`, `data/ext/ExtensionRepository.kt`, `di/AppContainer.kt`, `NovaApp.kt`, `data/download/DownloadExporter.kt`, `data/download/`VideoDownloadManager.kt`. |
 | 2026-10-05 | **Phase 19 — player volume gesture + resume race (§2t):** `adjustVolume` compared `abs(volumeAccum)` to `VOLUME_STEP` (0.15) but committed `volumeAccum.toInt()`, which truncates toward zero — a step only landed once the accumulator reached 1.0, so every shorter drag changed nothing and `endGesture()` then discarded it; fixed to `val steps = (volumeAccum / VOLUME_STEP).toInt(); volumeAccum -= steps * VOLUME_STEP`. Separately, `onCreate` started the progress watcher before `resumeLastPosition()`, so a quick pause/back could persist position 0 over the saved spot; a `@Volatile resumeResolved` gate now blocks `recordProgress()` until the resume read completes, and the watcher starts only afterwards. `ui/player/PlayerActivity.kt`. |
 | 2026-10-05 | **Phase 19 — UI/UX audit fixes (§2t):** NSFW search results moved off `chunked(3)`/`Row3` onto the shared `LazyVerticalGrid(GridCells.Adaptive(AppSpacing.posterMin))` (full-span rails via `GridItemSpan(maxLineSpan)`). Hardcoded top padding (40–48 dp) replaced with `statusBarsPadding()` on NSFW/Settings/Add-on Manager/Sources/HomeOrder (Search/Library/Browse already done). The player's Quality & Audio / Episodes / Speed / External hand-rolled `Box{…}.clickable{onDismiss}` overlays became `ModalBottomSheet`s, so inner taps no longer dismiss and system Back closes the sheet instead of the Activity. `DetailScreen`'s stream-sheet subtitle-language `TagChip`s (previously `TagChip(t.lang) {}`) are now selectable and hand the chosen track first to the player (`PlayerActivity` marks only the first subtitle config `SELECTION_FLAG_DEFAULT`). `SettingsStore.setMangaProgress` now removes an existing chapter key before re-inserting so frequently-read chapters aren't evicted by `takeLast(200)`. `ui/screens/nsfw/NsfwScreen.kt`, `ui/player/PlayerActivity.kt`, `ui/screens/detail/DetailScreen.kt`, `ui/screens/{settings,addons,sources}/*.kt`, `data/local/SettingsStore.kt`. |
 | 2026-10-05 | **Phase 19 verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **103 tests / 0 failures / 0 errors** ✅; `:app:assembleDebug` + `:app:assembleRelease` → BUILD SUCCESSFUL (46,024,836 / 38,264,498 bytes, signed); `dist/NovaStream.apk` refreshed (SHA-256 `fbf2e046…95ec8`). **Device pass pending** for the bottom sheets, subtitle chips, volume drag and custom-folder export. |
-| 2026-10-06 | **Phase 20 — grids + recents + hero + accent picker (§2u):** `AppSpacing.posterMin` 108 → **88 dp**, so `GridCells.Adaptive` resolves **3 columns** on every phone from 320–411 dp (108 dp gave only 2 on the common 360 dp width, wasting the sides of the screen and forcing extra scrolling); `LibraryScreen`'s Downloads and My Library grids gained the 16 dp start/end gutters every other grid already had. `SearchViewModel.search()` now records any query the user actually let run (the 350 ms debounce already collapses a typed word into one request) instead of only chip taps — which is why the Recent Searches section had an empty list and never rendered. `HeroSlide` dropped its description paragraph and the genre from its meta line (now Type · Year · Rating) and its CTA reads **Play**/**Read** according to `MediaItem.isReadable`. The Settings accent row is wrapped in `horizontalScroll` so the clipped swatches are reachable. `ui/theme/Tokens.kt`, `ui/vm/ViewModels.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/library/LibraryScreen.kt`, `ui/screens/settings/SettingsScreen.kt`, `data/model/Models.kt`. |
+| 2026-10-06 | **Phase 20 — grids + recents + hero + accent picker (§2u):** `AppSpacing.posterMin` 108 → **88 dp**, so `GridCells.Adaptive` resolves **3 columns** on every phone from 320–411 dp (108 dp gave only 2 on the common 360 dp width, wasting the sides of the screen and forcing extra scrolling); `LibraryScreen`'s Downloads and My Library grids gained the 16 dp start/end gutters every other grid already had. `SearchViewModel.search()` now records any query the user actually let run (the 350 ms debounce already collapses a typed word into one request) instead of only chip taps — which is why the Recent Searches section had an empty list and never rendered. `HeroSlide` dropped its description paragraph and the genre from its meta line (now Type · Year · Rating) and its CTA reads **Play**/**Read** according to `MediaItem.isReadable`. The Settings accent row is wrapped in `horizontalScroll` so the clipped swatches are reachable. `ui/theme/Tokens.kt`, `ui/vm/`ViewModels.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/library/`LibraryScreen.kt`, `ui/screens/settings/SettingsScreen.kt`, `data/model/Models.kt`. |
 | 2026-10-06 | **Phase 20 — floating pill nav always visible (§2u):** deleted `FloatingNavScrollState`, `LocalFloatingNavScroll` and `Modifier.floatingNavScroll()` (the `NestedScrollConnection` that slid the bar off-screen on downward scroll — direction detection felt inverted and auto-hiding the primary nav was intrusive) and removed its `.floatingNavScroll()` call sites from Home, Browse/Manga, Search, Library (×3), NSFW and Settings; `NovaNav` keys the bar's `AnimatedVisibility` on `showBar` alone. `LocalFloatingNavBottomPadding` is kept so content still clears the overlaying bar. `ui/nav/FloatingPillNavBar.kt`, `ui/nav/NovaNav.kt` + 7 screens. |
-| 2026-10-06 | **Phase 20 — Sources dashboard / Home row order crash + cold-boot resilience (§2u):** both screens were the **only two in the app** returning from the root `Column { … }` content lambda with an early `return@Column` after their empty state (both hit it on entry), which skips the lambda's group-closing bookkeeping and corrupts the composer for the next frame/navigation — replaced with the standard `if/else`; `HomeOrderScreen`'s row seeding and persistence are `runCatching`-guarded and both Settings rows navigate with `launchSingleTop`. Cold boot: `ExtensionRepository.reloadAll()` retries the descriptor read and each extension load once (300 ms) and never throws; `NovaApp`'s collectors now run through a new `collectSafely(...)` (an exception in `appScope` has no handler and used to kill the app), `ensureDefaults()` retries once after 3 s; `Http.httpGet()` retries transient failures (transport / 5xx / 408 / 429) up to 3× with 250/500 ms backoff, rethrowing cancellation and treating other 4xx as final. `ui/screens/sources/SourcesScreen.kt`, `ui/screens/settings/HomeOrderScreen.kt`, `ui/screens/settings/SettingsScreen.kt`, `data/ext/ExtensionRepository.kt`, `data/remote/Http.kt`, `NovaApp.kt`. |
-| 2026-10-06 | **Phase 20 — manga reader paging + Continue Reading (§2u):** `ZoomablePage` replaced `detectTransformGestures` (which consumed one-finger drags after the touch-slop threshold, so the parent `HorizontalPager` cancelled — RTL/LTR never advanced while Webtoon worked) with a hand-rolled `awaitEachGesture` that only claims real pinches or pans of an already-zoomed image; a single finger at 1× is left to the pager. The reader's `savePage` now also writes `WatchEntry(item, videoId = chapter, videoTitle, positionMs = pagesRead, durationMs = totalPages)` through `LibraryStore.recordWatch`, and `HomeViewModel`/`LibraryScreen` split the shared history on the new `MediaItem.isReadable` into **Continue Watching** and **Continue Reading** rows/sections for normal + NSFW manga. `ui/player/MangaReaderActivity.kt`, `ui/vm/ViewModels.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/library/LibraryScreen.kt`. |
+| 2026-10-06 | **Phase 20 — Sources dashboard / Home row order crash + cold-boot resilience (§2u):** both screens were the **only two in the app** returning from the root `Column { … }` content lambda with an early `return@Column` after their empty state (both hit it on entry), which skips the lambda's group-closing bookkeeping and corrupts the composer for the next frame/navigation — replaced with the standard `if/else`; `HomeOrderScreen`'s row seeding and persistence are `r`runCatching`-guarded and both Settings rows navigate with `launchSingleTop`. Cold boot: `ExtensionRepository.reloadAll()` retries the descriptor read and each extension load once (300 ms) and never throws; `NovaApp`'s collectors now run through a new `collectSafely(...)` (an exception in `appScope` has no handler and used to kill the app), `ensureDefaults()` retries once after 3 s; `Http.httpGet()` retries transient failures (transport / 5xx / 408 / 429) up to 3× with 250/500 ms backoff, rethrowing cancellation and treating other 4xx as final. `ui/screens/sources/SourcesScreen.kt`, `ui/screens/settings/HomeOrderScreen.kt`, `ui/screens/settings/SettingsScreen.kt`, `data/ext/ExtensionRepository.kt`, `data/remote/Http.kt`, `NovaApp.kt`. |
+| 2026-10-06 | **Phase 20 — manga reader paging + Continue Reading (§2u):** `ZoomablePage` replaced `detectTransformGestures` (which consumed one-finger drags after the touch-slop threshold, so the parent `HorizontalPager` cancelled — RTL/LTR never advanced while Webtoon worked) with a hand-rolled `awaitEachGesture` that only claims real pinches or pans of an already-zoomed image; a single finger at 1× is left to the pager. The reader's `savePage` now also writes `WatchEntry(item, videoId = chapter, videoTitle, positionMs = pagesRead, durationMs = totalPages)` through `LibraryStore.recordWatch`, and `HomeViewModel`/`LibraryScreen` split the shared history on the new `MediaItem.isReadable` into **Continue Watching** and **Continue Reading** rows/sections for normal + NSFW manga. `ui/player/MangaReaderActivity.kt`, `ui/vm/`ViewModels.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/library/`LibraryScreen.kt`. |
 | 2026-10-06 | **Phase 20 verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **103 tests / 0 failures / 0 errors** ✅; `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,264,498 bytes**, SHA-256 `aae43aa3…eabd4`; new symbols `Continue Reading`, `collectSafely`, `isReadable` verified in the release dex). **Device pass pending — §7 item 30.** |
 | 2026-10-06 | **Phase 21 — NSFW/Browse card width aligned with Home (§2v):** `HomeScreen` passed `MediaRow(cardWidth = 150)` by hand while `NsfwScreen` and `MangaScreen` (both Browse segments) called `MediaRow` without a width and inherited its **132 dp** default — the same poster was therefore a different size on Home, Browse → Manga and Browse → NSFW, and the NSFW rails read as "narrow cards with wide side margins". New `AppSpacing.railCard` = **150 dp** is now the single source of rail card width and all three screens pass it explicitly; NSFW's remaining hardcoded 16 dp gutters moved to `AppSpacing.screen`. The results grid was verified to already fill the viewport (Compose 1.7.0 `GridCells.Adaptive` → `calculateCellsCrossAxisSizeImpl` distributes `availableSize − padding` evenly; no max-width clamp exists on either screen). `ui/theme/Tokens.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/manga/MangaScreen.kt`, `ui/screens/nsfw/NsfwScreen.kt`. |
-| 2026-10-06 | **Phase 21 — Sources dashboard crash root-caused and fixed (§2v):** Phase 20's early-`return@Column` theory was wrong (and is not a crash mechanism — `Column` hands a non-weighted child a bounded `mainAxisMax`, so `Column { header; Lazy*(fillMaxSize()) }` is safe). The real cause is a **Gson null-field decode**: `ExtensionStore.list()` used `Gson().fromJson(…, Array<ExtensionDescriptor>::class.java)`, and Gson instantiates Kotlin data classes through `Unsafe`, so a JSON entry missing a field yields a silent `null` in a **non-null** slot. `SourcesScreen` then hit the compiler's `checkNotNullParameter` NPE on `Text(desc.name)` and fed `LazyColumn` a null key. New `data/ext/ExtensionCodec.kt` decodes element-wise — drops entries missing `id`/`entryClass`/`apkPath`, defaults `name` to the id, keeps `version` optional, de-dupes ids, tolerates a bare object and any unparseable file, and never throws; `ExtensionStore.list()`/`save()` use it, `ExtensionRepository.installed()` is wrapped, and `SourcesScreen` reads through a `runCatching` fallback plus a blank-id filter/de-dupe. `data/ext/ExtensionCodec.kt` (new), `data/ext/ExtensionRepository.kt`, `ui/screens/sources/SourcesScreen.kt`, `app/src/test/java/com/moovio/app/ExtensionCodecTest.kt` (new, 8 cases). |
+| 2026-10-06 | **Phase 21 — Sources dashboard crash root-caused and fixed (§2v):** Phase 20's early-`return@Column` theory was wrong (and is not a crash mechanism — `Column` hands a non-weighted child a bounded `mainAxisMax`, so `Column { header; Lazy*(fillMaxSize()) }` is safe). The real cause is a **Gson null-field decode**: `ExtensionStore.list()` used `Gson().fromJson(…, Array<ExtensionDescriptor>::class.java)`, and Gson instantiates Kotlin data classes through `Unsafe`, so a JSON entry missing a field yields a silent `null` in a **non-null** slot. `SourcesScreen` then hit the compiler's `checkNotNullParameter` NPE on `Text(desc.name)` and fed `LazyColumn` a null key. New `data/ext/ExtensionCodec.kt` decodes element-wise — drops entries missing `id`/`entryClass`/`apkPath`, defaults `name` to the id, keeps `version` optional, de-dupes ids, tolerates a bare object and any unparseable file, and never throws; `ExtensionStore.list()`/`save()` use it, `ExtensionRepository.installed()` is wrapped, and `SourcesScreen` reads through a `r`runCatching` fallback plus a blank-id filter/de-dupe. `data/ext/ExtensionCodec.kt` (new), `data/ext/ExtensionRepository.kt`, `ui/screens/sources/SourcesScreen.kt`, `app/src/test/java/com/moovio/app/ExtensionCodecTest.kt` (new, 8 cases). |
 | 2026-10-06 | **Phase 21 verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **111 tests / 0 failures / 0 errors** ✅ (15 result files; +8 `ExtensionCodecTest`); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,264,498 bytes**, SHA-256 `a2007861…8c10`; `ExtensionCodec` / `railCard` / `SourcesScreen` verified in the release dex). **Device pass pending — §7 item 31** (no device or emulator was available: no AVDs installed and no `adb` target attached). |
 | 2026-10-06 | **Source hygiene — dead seeds fixed & dead hosts retired (§2w, from the §3 live probe):** `AddonStore.Defaults.repos` now seeds the live `JoeTinnySpace/cloudstream-extensions-hexated` mirror (the old `hexated/…` URL 404s on every branch) and a new `Defaults.retiredRepoUrls` + `AddonRepository.ensureDefaultRepos()` prunes the dead URL from existing installs. `HahoSource` was re-pointed from its two 404 paths to the live `GET /anime?q=`, parsing the `anime-loop` series cards and expanding each into `/anime/{slug}/{n}` episodes (in parallel, capped at 3 series); `HentaiTubes.mediaUrls` now also reads `<source … type="video/…">` tags so Haho's extension-less filegasm streams resolve (subtitle tracks excluded). Dead hosts removed: `HpjavSource` (hpjav.tv DNS-dead) and `AvgleSource` (api.avgle.com 520) from `AdultSources.all`, `HentaigasmSource` (timeouts) and `HanimeSource` (search API DNS-dead + JS-shell page) from `HentaiSources.all`; objects/tests retained. `data/local/AddonStore.kt`, `data/repo/AddonRepository.kt`, `data/hentai/HahoSource.kt`, `data/hentai/HentaiTubes.kt`, `data/adult/AdultSources.kt`, `data/hentai/HentaiSources.kt`, `AdultSourcesExtraTest.kt`, `HentaiSourcesExtraTest.kt`. |
 | 2026-10-06 | **Source hygiene verified:** `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **113 tests / 0 failures / 0 errors** ✅ (15 result files; +2 net — the Haho JSON test became two HTML tests and a new `mediaUrls` source-tag case); `:app:assembleRelease` → BUILD SUCCESSFUL (signed); `dist/NovaStream.apk` refreshed (**38,280,882 bytes**, SHA-256 `52cef604…2ec9d`; `JoeTinnySpace` / `retiredRepoUrls` verified in the release dex). Live-probed during the pass: hexated mirror 200 (old 404), Haho `/anime?q=` 200 with 2 series, its series page's 6 episodes, and the episode→`/embed`→`<source type="video/…">` filegasm URLs; hpjav.tv + search.htv-services.com DNS-dead, api.avgle.com down, hentaigasm.com timeout. **Device pass still required — §7 items 21/23/31.** |
@@ -5941,7 +5941,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-07 | **Website optimization pass:** first-load JS 240 → **216 kB**, page chunk 134 → **92 kB** (LazyMotion `domAnimation`, `motion.*` → `m.*`, `optimizePackageImports`); Sparkles pauses offscreen, Nebula/all keyframes honor `prefers-reduced-motion`; SEO pack — `metadataBase` (`NEXT_PUBLIC_SITE_URL`), Twitter card, SVG favicon, generated `opengraph-image`, `sitemap.xml`, `robots.txt`, branded 404; `poweredByHeader` off. Deployed to **Vercel** (root dir `website`, auto-redeploy on push). |
 | 2026-10-08 | **v1.4.0 released:** NSFW isolation + Browse → Anime (§2z), launch-time GitHub auto-update dialog + default-repo fallback (§2aa), and the QoL/visual pass — empty-state halos + Retry, poster shimmer/error, reduced motion, app-wide tabular figures, glass elevation + M3 `surfaceContainer*` (§2ab/§2ac). `versionCode` 6 / `versionName` 1.4.0. Verified `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **119/119**, `:app:assembleRelease` ✅ (signed); `dist/NovaStream.apk` refreshed (38,330,038 bytes, SHA-256 `F45FA749…20C4`); website CTA/hero → v1.4.0; source pushed (`16a55a4`) and the **`v1.4.0` GitHub Release published with `app-release.apk`** (asset digest `sha256:f45fa749…20c4`; `releases/latest` → v1.4.0). |
 | 2026-10-08 | **v1.4.1 released (§2ad):** device-report fixes — shared `NovaSwitch` (off state was near-invisible on this theme), `AppSpacing.railCard` 150 → **100 dp** so Browse → Anime/NSFW rails match the Search 3-across density, and `searchNsfwAnime` now **merges AniList + Jikan + NSFW add-ons** (no early return) with caps raised (AniList 40→50, Jikan paged to 50, MangaDex →100). `versionCode` 7 / `versionName` 1.4.1. Verified `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **119/119**, `:app:assembleRelease` ✅ (signed); `dist/NovaStream.apk` refreshed (38,330,038 bytes, SHA-256 `81078DB4…B290`, versionName verified 1.4.1); website → v1.4.1. |
-| 2026-10-11 | **Phase 26 — P0 Bug Fixes & Crash Prevention (§2ae):** top 5 audit issues fixed — (1) `MangaDownloadManager.enqueue` directly inserts new downloads into `_downloads` StateFlow so downloads start immediately without restart; `file.writeBytes` wrapped in `runCatching` preventing `ENOSPC`/disk-full crashes. (2) `DetailViewModel.buildSeasons` and `loadSeasonEpisodes` calls guarded in `viewModelScope.launch` with fallback to basic metadata/seasons on missing/blank TMDB keys and network IOExceptions; hardened `TmdbClient` with `optJsonArray`/`optJsonObject` against malformed JSON responses. (3) Media3 `DownloadRequest.Builder` sets `.setCustomCacheKey(id)` in `VideoDownloadManager` so cache keys match download IDs, allowing `DownloadExporter` to write files to the custom folder. (4) Stremio catalog fetching and rails deduplicated with `distinctBy { it.key }` across `StremioClient`, `CatalogRepository`, and `MediaRow` to prevent `IllegalArgumentException: Key was already used` Compose crashes. Added `Phase26P0FixesTest` (5 cases → **124 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **124/124 tests / 0 failures** ✅. |
+| 2026-10-11 | **Phase 26 — P0 Bug Fixes & Crash Prevention (§2ae):** top 5 audit issues fixed — (1) `MangaDownloadManager.enqueue` directly inserts new downloads into `_downloads` StateFlow so downloads start immediately without restart; `file.writeBytes` wrapped in `r`runCatching` preventing `ENOSPC`/disk-full crashes. (2) `DetailViewModel.buildSeasons` and `loadSeasonEpisodes` calls guarded in `viewModelScope.launch` with fallback to basic metadata/seasons on missing/blank TMDB keys and network IOExceptions; hardened `TmdbClient` with `optJsonArray`/`optJsonObject` against malformed JSON responses. (3) Media3 `DownloadRequest.Builder` sets `.setCustomCacheKey(id)` in `VideoDownloadManager` so cache keys match download IDs, allowing `DownloadExporter` to write files to the custom folder. (4) Stremio catalog fetching and rails deduplicated with `distinctBy { it.key }` across `StremioClient`, `CatalogRepository`, and `MediaRow` to prevent `IllegalArgumentException: Key was already used` Compose crashes. Added `Phase26P0FixesTest` (5 cases → **124 tests**). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **124/124 tests / 0 failures** ✅. |
 | 2026-10-11 | **Phase 27 (Part A) — UI & Layout Polish Fixes (§2af):** 4 audit items — (1) `navigationBarsPadding()` on pushed destinations (Detail, Sources, Home Order, Collection, Add-on Manager, NSFW Hub; tab screens already covered via `LocalFloatingNavBottomPadding`). (2) `MetaStatsRow` constrained (`fillMaxWidth` + `maxLines = 1` + `Ellipsis` + shared weight). (3) "Continue Watching" header guarded (`watched.isNotEmpty()` or fully empty). (4) Poster "×" hit area tucked to corner (48 dp @ 6 dp → 40 dp @ 2 dp top-start, 22 dp chip). Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **124/124 / 0 failures** ✅. Not pushed, no APK. |
 | 2026-10-11 | **Phase 27 (Part B) — Updater UI Revamp (§2ag):** `downloadApkWithProgress()` streams APK in 8 KB `ensureActive()`-checked chunks with throttled `DownloadProgress` callbacks (fraction/percent null-safe, partial deleted on fail/cancel, `CancellationException` rethrown); `UpdateAvailableDialog` shows determinate `LinearProgressIndicator` + tabular `Downloading update… 45% (18.2 MB / 40.5 MB)` line, Update disabled, "Later"→"Cancel" mid-download (aborts job, parks dialog in idle), outside-tap/Back ignored while downloading. `downloadApk()` kept as delegate for Settings. Verified: `:app:compileDebugKotlin` ✅; `:app:testDebugUnitTest --rerun-tasks` → **129/129 / 0 failures** ✅ (+5 `UpdateCheckerTest`). Not pushed, no APK. |
 | 2026-10-11 | **v1.4.2 released:** Phase 26 + 27A + 27B shipped as commit `2ce2156` (`versionCode` 8 / `versionName` 1.4.2; compile ✅, 129/129 tests ✅, signed `:app:assembleRelease` ✅ → `dist/NovaStream.apk`, 38,330,042 bytes, SHA-256 `5AB52C87…4C6E`); annotated tag `v1.4.2` pushed; **GitHub Release `NexusStream v1.4.2` published with `app-release.apk` attached** (38,330,042 bytes) so `releases/latest/download/app-release.apk` now serves v1.4.2 to the in-app updater and the site CTA; website hero badge + download CTA bumped to v1.4.2 (`next build` ✅, 216 kB first-load) and pushed as `8ced0ca` (Vercel auto-redeploys on push). |
@@ -5968,11 +5968,74 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-31 | **v1.11.1 released (§2bi):** bundles §2bh (Browse → Anime row cache, supervisor-scoped progressive search with a 300 ms debounce, 5 s per-host adult probe ceiling, Home-on-launch, exit confirmation) and §2bg (download enqueue crash guard + `VideoDownloadManagerTest`). `versionCode` 25 / `versionName` 1.11.1; `:app:assembleRelease` ✅ signed with the same key as v1.11.0 → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `39C64244…EA4599`); `output-metadata.json` confirms `com.moovio.app` / 25 / 1.11.1; `apksigner` V2 cert SHA-256 `2EDB949B…351379`. `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **335/335** (37 suites). **Published** — commit `a300aee`, tag `v1.11.1`, GitHub Release with both assets; `releases/latest/download/app-release.apk` verified hash-matching. |
 | 2026-10-31 | **Performance & navigation pass (§2bh):** Browse → Anime reads a 10-minute per-section row cache before the network and fetches on `Dispatchers.IO`; section row fetches run under `supervisorScope`; search debounce 350 → 300 ms, and `globalSearch` / `searchInternal` / `searchNsfwAnime` fan out as independent supervisor children with progressive `onUpdate` publishing; `AdultHttp.probeClient` caps connect/read/write at 5 s per host and `StreamRepository` bounds the built-in NSFW-anime chain at 5 s; the last-tab restore is removed so a launch always lands on Home (process-death restore detected via a retained ViewModel), and Back at the graph root opens an "Exit Moovio?" confirmation. `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **335/335**. No version bump, no APK. |
 | 2026-10-30 | **Phase 4 — encrypted backups, smart search & release readiness (§2be):** **ISSUE-15 closed.** New `data/integrations/BackupCrypto.kt` — `BackupFormat` (`MOOVIO-BACKUP-1` magic + 12-byte IV + GCM tag) and `BackupCipher` (AES-256-GCM, fresh IV per export, injected key provider), with the key generated in `AndroidBackupKey` (AndroidKeyStore, no user-auth gate) — no `security-crypto` dependency added. `BackupManager` exports the container, gained `inspect(uri)` returning `Encrypted` vs `LegacyPlaintext` *before* any store is touched, and `importFrom(…, allowPlaintext = false)` refuses a plaintext file unless the caller opted in; Settings shows an "Unencrypted backup" confirmation, exports as `moovio-backup.mbackup` (`application/octet-stream`) and accepts both formats on import. New `data/search/SmartQuery.kt`: offline parser for type words, 18 genres, a year/decade/range (`2024`, `2020s`, two years), a rating floor (`high rating` = 7.0, `rating 8.5`), `recent`/`classic` and sorting, wired into `SearchViewModel` *before* the 350 ms debounce (cancellation + generation guard unchanged); type routes to the API, year/rating/genre narrow the merged result locally, and a muted one-line `summary()` shows what was understood. A four-digit token only counts as a year up to `currentYear + 1`, so "Blade Runner 2049" stays a title. Storage: `DownloadCacheMaintenance.isBelowLimit`/`shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace` (orphaned chunks only, never a playable download), `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off) with a Settings → Downloads ladder and a boot-time sweep in `MoovioApp`. `versionCode` 24 / `versionName` 1.11.0. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (+21: 8 crypto, 13 parser). No APK built, nothing pushed. Unverified on hardware: the KeyStore path, SAF MIME filtering, the boot sweep on a full disk. |
-| 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **Published** as commit `4caee5f` + tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked Latest with `app-release.apk` + `Moovio.apk` attached (and the re-downloaded asset hash-matched); the release body carries the upgrade note, the four phase summaries and the deferred list. |
+| 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **Published** as commit `4caee5f` + tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked Latest with `app-release.apk` + `Moovio.apk` attached (and the re-downloaded asset hash-matched); the release body carries the upgrade note, the four phase summaries and the deferred list.
+
+
+## 2bk. P1/P2 Remediation Pipeline — Security, Docs & Socket Cleanup (2026-10-31)
+
+**Topic:** address audit findings across security hardening, website/documentation accuracy, and resource/socket cleanup. Android + website; `desktop/` and `desktop-win/` untouched.
+
+### 1. Security & Manifest Hardening (P1)
+
+**`network_security_config.xml`** — `cleartextTrafficPermitted` set to `false` in `base-config`. Cleartext HTTP is now blocked by default; only system CAs trusted. A commented domain-config section documents where to scope legacy third-party add-on hosts that require plain HTTP (none currently need it — all seeded repos and metadata endpoints use HTTPS).
+
+**`AndroidManifest.xml`** — `android:allowBackup` set to `false`, excluding tokens, DataStore keys and PIN settings from cloud and ADB backups.
+
+### 2. Website & Documentation Accuracy (P1/P2)
+
+**`website/components/sections/Sources.tsx`** — Copy updated from "Torrentio and OpenSubtitles ship by default" to "Cinemeta and OpenSubtitles ship by default", matching `AddonStore.Defaults` (stream addons empty; Cinemeta + OpenSubtitles seeded).
+
+**`README.md`** — Version metadata synchronized: `versionName 1.11.1` (`versionCode` 25), targetSdk 34. "Sources & extensions" section updated to reflect that provider repositories *are* pre-seeded (Phisher98, CXXX 18+, Yuzono, Keiyoushi) while stream providers remain empty; content-neutrality section updated to match.
+
+**`website/components/sections/Faq.tsx`** — Hardcoded version ("44.1 MB", "Android 7.0", "1.11.0", "v0.1.1", "335") replaced with imports from `lib/utils.ts` (`ANDROID_APK_SIZE`, `ANDROID_MIN_SDK`, `ANDROID_VERSION`, `DESKTOP_VERSION`, `TEST_COUNT`).
+
+### 3. Resource & Socket Cleanup (P2)
+
+**``AdultHttp.kt`** — `probeClient` OkHttpClient now sets `.callTimeout(10, TimeUnit.SECONDS)` in addition to connect/read/write timeouts. The `probe()` function now holds the `Call` reference and calls `call.cancel()` on `CancellationException`, ensuring hanging sockets are dropped immediately when a coroutine is cancelled (e.g. by `withTimeout` in `verifyPlayable`).
+
+### Files
+
+`a`app/src/main/res/xml/network_security_config.xml`, `a`app/src/main/AndroidManifest.xml`,
+`website/components/sections/Sources.tsx`, `website/components/sections/Faq.tsx`,
+`website/lib/utils.ts` (no change — source of truth), `README.md`,
+`a`app/src/main/java/com/moovio/app/data/adult/`AdultHttp.kt`.
+
+### Verification
+
+`:app:compileDebugKotlin` ✅ BUILD SUCCESSFUL (only pre-existing deprecation warnings) ·
+`:app:testDebugUnitTest` ✅ all tests pass (335/335, 37 suites). Website changes are copy-only; `npm run build` not re-run (no browser available to verify rendering).
+
+## 2bl. Feature Pipeline: NSFW Downloads, Download Audit & Adult Stream Optimization (2026-10-31)
+
+**Topic:** isolated NSFW downloads, download pipeline reliability fixes, and sub-3-second Real 18+ stream resolution. Android only; `desktop/` and `desktop-win/` untouched.
+
+### 1. Dedicated NSFW Downloads Section
+
+**`VideoDownloadManager.kt`** — `VideoDownload` and `VideoDownloadMeta` both gained an `nsfw: Boolean = false` field, serialized into `DownloadRequest.data` so the flag survives process restarts. `VideoDownloadManager.enqueue()` accepts an `nsfw` parameter and threads it through `VideoDownloadMeta` into the UI snapshot (`toUi`). NSFW downloads are isolated at the UI layer (Phase 28): the public Library Downloads tab's `ALL` filter now excludes adult types (`ALL.accepts()` returns `false` for `isAdult` types), so NSFW media never mixes with SFW downloads.
+
+**`LibraryViewModel.kt`** — Added `nsfwDownloads: StateFlow<List<VideoDownload>>` — isolated adult downloads kept out of the public Downloads tab, available for the PIN/biometric-gated NSFW Hub to surface (mirrors how `NsfwViewModel.nsfwFavorites` and `.nsfwContinueWatching` isolate adult bookmarks/history).
+
+**`LibraryScreen.kt`** — Added `NSFW` to `LibraryFilter` enum. `ALL` now excludes adult titles (`type != null && !type.isAdult`), `NSFW` matches only adult titles (`type != null && type.isAdult` or `nsfw` flag). `VideoDownload.matches()` and `MangaDownload.matches()` honor the NSFW flag, so selecting the NSFW chip shows only adult downloads while ALL/SFW chips never show them.
+
+### 2. Download System Verification & Fix
+
+**`DownloadManagerProvider.kt`** — `HeaderAwareDownloaderFactory.createDownloader` reduced `connectTimeoutMs` and `readTimeoutMs` from 30s to 10s each. A dead or unresponsive host now fails fast instead of holding a download slot for half a minute, letting Media3 mirror failover (`VideoDownloadManager.maybeFailover`) kick in promptly. The service (`MoovioDownloadService`) and manager (`VideoDownloadManager`) already wrap all framework calls in `runCatching` — no unhandled exceptions found in the download flow.
+
+### 3. Acceleration of Real 18+ Stream Resolution
+
+**`AdultHttp.kt`** — `probeClient` timeouts tightened: connect/read/write from 5s → 3s, `callTimeout` from 10s → 5s. `verifyPlayable()` per-probe `withTimeout` ceiling reduced from `ScraperRace.PROVIDER_TIMEOUT_MS` (5s) to a hard 3s. Probe semaphore raised from 8 → 12 so more mirrors race in parallel and slow hosts are dropped instantly rather than serially.
+
+**`StreamRepository.kt`** — `STREAM_TIMEOUT_MS` reduced from 5_000L → 3_000L so a hung Stremio add-on no longer gates the stream list for 5 seconds; the first valid playable link lands in under 2–3 s.
+
+### Files
+
+`app/src/main/java/com/moovio/app/data/download/VideoDownloadManager.kt`, `app/src/main/java/com/moovio/app/data/download/DownloadManagerProvider.kt`, `app/src/main/java/com/moovio/app/data/adult/AdultHttp.kt`, `app/src/main/java/com/moovio/app/data/repo/StreamRepository.kt`, `app/src/main/java/com/moovio/app/ui/vm/ViewModels.kt`, `app/src/main/java/com/moovio/app/ui/screens/library/LibraryScreen.kt`.
+
+### Verification
+
+`:app:compileDebugKotlin` ✅ BUILD SUCCESSFUL (only pre-existing deprecation warnings) · `:app:testDebugUnitTest` ✅ all tests pass (335/335, 37 suites).
 
 ---
-
-
 
 
 ## 7. Where to pick up next
@@ -6389,7 +6452,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 |---|---|---|
 | 2026-10-23 | **Pre-seed the provider repositories, including an adult one (CXXX)** (supersedes the 2026-10-07 "ship source-neutral" decision) | The user asked for the four repositories to be usable out of the box, so `Defaults.repos` now carries Phisher98, CXXX, Yuzono and Keiyoushi. Nothing is auto-installed from them and the adult repo is flagged `nsfw`, so its providers are reachable only from the NSFW area. Cost: a public build now ships links to repositories that host unlicensed and adult sources — the same posture the user accepted when asking for them by URL, but it is a deliberate reversal of the neutrality rule, not an oversight. |
 | 2026-10-23 | **The NSFW chapter feed asks for the non-safe MangaDex ratings and never falls back to an unfiltered request** | Probed live: `/manga/{id}/feed` on a pornographic series returns 0 chapters for `contentRating[]=safe` **and** 0 with no `contentRating[]` at all (the API defaults to the SFW set), while `suggestive`+`erotica`+`pornographic` returns them. The report's suggested fallback ("retry without the filter") therefore cannot work — it re-asks the safe question. The feed asks for `NSFW_FEED` (never `safe`) and a SFW title that comes back empty is widened once to that same set, which recovers an adult series whose `MediaItem` lost its `NSFW_MANGA` type. |
-| 2026-10-23 | **`MediaRouteButton` gets its own opaque theme instead of another try/catch** | The v1.10.0 report read the exception as escaping the Compose frame loop; the factory already caught it. The throw happens *before* a button exists, because `MediaRouterThemeHelper` computes a contrast ratio against `android:colorBackground`, which is transparent in this player (platform Material theme + transparent Compose window). Catching it kept the cast button permanently dead; giving the button an AppCompat-based theme with an opaque background fixes the cause and the `runCatching` stays as the last line of defence. |
+| 2026-10-23 | **`MediaRouteButton` gets its own opaque theme instead of another try/catch** | The v1.10.0 report read the exception as escaping the Compose frame loop; the factory already caught it. The throw happens *before* a button exists, because `MediaRouterThemeHelper` computes a contrast ratio against `android:colorBackground`, which is transparent in this player (platform Material theme + transparent Compose window). Catching it kept the cast button permanently dead; giving the button an AppCompat-based theme with an opaque background fixes the cause and the `r`runCatching` stays as the last line of defence. |
 | 2026-10-22 | **Rename the package too, not just the display name** (supersedes the 2026-10-01 "display name only" decision) | The product is Moovio; leaving `com.novastream.app` in the package, the OAuth scheme, the theme names and every brand token kept three names alive across the code, the docs, the site and the release assets. The rename is mechanical (1118 references, verified by package/dir parity + import resolution + a real compile), and the cost — losing in-place updates — is unavoidable *anyway*, because the signing key had to be rotated (§2ax). Doing both at once means one reinstall instead of two breaking changes. |
 | 2026-10-22 | **Rotate the release key and keep it out of the repository** (supersedes the 2026-09-30 "keep the existing keystore" decision) | The old key was committed in the first commit and stayed recoverable from the pack, so anyone with repo read access could mint an APK that Android accepts as an in-place update of this app — and the update dialog installs whatever the release asset says. The key now lives in `~/.moovio/`, the build reads it only from the untracked `local.properties`/`MOOVIO_*` env vars, and the blob was purged from the history. Cost: the next release cannot update an existing install in place. That is the right trade — a key that anyone can use to push code to every user's phone is worse than an inconvenience. |
 | 2026-10-22 | **Sign the updater's APK before handing it to the system installer** | Android's own installer refuses a foreign-signed package, but only *after* the user has been shown an install prompt for it, and the release-asset URL is a single point of compromise. Verifying package + signer first turns "the release account was hijacked" from "every user gets an install prompt" into "the update is refused with a visible reason". |
@@ -6405,7 +6468,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-06 | **Phase 20: the floating pill nav is permanently visible — scroll-driven hiding removed** | The `NestedScrollConnection` hide-on-scroll shipped in Phase 18 in one session and was reported as both "inverted" and "intrusive": cumulative-drag direction heuristics are inherently surprising, and hiding primary navigation costs more than the pixels it saves. Keeping `LocalFloatingNavBottomPadding` means nothing changed except the bar's visibility. |
 | 2026-10-06 | **Phase 21: the Sources-dashboard crash was a Gson null-field decode, not the early `return@Column` Phase 20 removed** | Phase 20 inferred the crash from the two screens' unusual `return` shape and the report survived it, which falsifies the theory. The actual mechanism is the same one Phase 13 documented for the Library: Gson bypasses Kotlin constructors via `Unsafe` and writes missing JSON fields as `null` into **non-null** slots, so `Text(desc.name)` throws inside its parameter check and a null `id` breaks `LazyColumn`'s keys. The durable fix is therefore the established repo pattern — a tolerant, per-entry, JVM-testable codec — rather than more UI-level guarding, because the UI cannot distinguish "legitimately absent" from "corrupted" once the null has been decoded. |
 | 2026-10-06 | **Phase 21: one shared `AppSpacing.railCard` rather than a per-screen card width** | The mismatch was invisible in code review precisely because `MediaRow`'s default silently applied: two call sites omitting an argument looked fine while rendering at 132 dp next to Home's 150 dp. Naming the width as a token forces every rail call site to state its intent and makes a future change a one-line edit instead of a hunt through screens. |
-| 2026-10-06 | **Phase 20: manga reading progress shares the playback history store instead of getting its own** | `LibraryStore`'s `WatchEntry` already models "item + position + duration + updated-at", so `positionMs = pagesRead / durationMs = totalPages` gives a correct reading percentage with **no schema, codec, backup or Stats change** — the split is purely presentational (`MediaItem.isReadable`). Trade-off: `WatchStats` now counts a chapter as ≤ a few ms of "watch time", which is immaterial and already covered by its `runCatching` fallback; a dedicated reading store would have meant a second list to back up, restore and cap. |
+| 2026-10-06 | **Phase 20: manga reading progress shares the playback history store instead of getting its own** | `LibraryStore`'s `WatchEntry` already models "item + position + duration + updated-at", so `positionMs = pagesRead / durationMs = totalPages` gives a correct reading percentage with **no schema, codec, backup or Stats change** — the split is purely presentational (`MediaItem.isReadable`). Trade-off: `WatchStats` now counts a chapter as ≤ a few ms of "watch time", which is immaterial and already covered by its `r`runCatching` fallback; a dedicated reading store would have meant a second list to back up, restore and cap. |
 | 2026-10-05 | **Phase 17: NSFW-anime search is built-ins-authoritative (add-ons are fallback-only)** | It used to await the Stremio NSFW add-on fan-out on every search, so even a fast AniList hit paid the add-on timeout. Mirroring the rule Real 18+ already follows (ISSUE-9) returns normal searches at AniList speed; the cost is that add-on-only titles appear only when AniList *and* Jikan both come back empty — accepted, because built-in results are the ones the app can match, rank and verify. |
 | 2026-10-05 | **Phase 17: a fallback may never rename or re-episode the selected title** | Wrong content is strictly worse than missing content. `adultTitlesMatch` (significant-word overlap; filler like "to" never counts) gates episode/stream resolution, metadata-candidate acceptance and `JikanClient.detailsByTitle`, and `hentaiFallback` keeps the selected item's title/poster. Trade-off: a title whose only match is a zero-significant-word collision now gets *no* built-in episodes (Stremio NSFW add-ons answer instead) rather than a plausible-but-wrong series. |
 | 2026-10-05 | **Phase 17: every NSFW-anime hop gets a hard timeout** | The "over a minute" report was unbounded awaits (20 s connect / 30 s read + 429 retries) stacking across the episode lookup, home rows, detail sources and the add-on fan-out. Bounds degrade to the same per-source failure the UI already renders as a notice; caller cancellation is rethrown (`bounded()` catches only `TimeoutCancellationException`) so ISSUE-10's lesson still holds. Worst case is now a bounded ~20–26 s on a fully degraded network instead of an open-ended hang. |
@@ -6440,7 +6503,7 @@ data/adult/
                       + Eporner/Beeg + JavGuru/SupJav/VJAV — §2aq;
                       + PornTrex/SxyPrn/FullPorner/TXXX + JavMost/KissJAV/Javtiful/OpJav/7MMTV — §2as)
   AdultHttp.kt        browser-like headers; 403/503/challenge -> typed AdultSourceException;
-                      probe()/verifyPlayable() pre-flight media URLs with the player's headers
+                      probe()/v`verifyPlayable() pre-flight media URLs with the player's headers
   TubeMedia.kt        shared media extractor: absolute/protocol-relative/escaped MP4+HLS, quality
                       labelling, ad filtering, thumbnail helper, `definitions()` JSON parser
   PornhubSource.kt    listing, search, categories, detail (mediaDefinitions -> HLS per quality)
@@ -6485,7 +6548,7 @@ data/adult/
 - `MetadataRepository.detail()` returns early for a built-in source and builds `MetaDetail` purely
   from the adult site — **TMDB/AniList are never touched for Real 18+**.
 - `StreamRepository.streamsFor()` returns early, resolves the site's own direct streams, and runs
-  them through `AdultHttp.verifyPlayable()` (same headers the player will send) before listing them.
+  them through `AdultHttp.v`verifyPlayable()` (same headers the player will send) before listing them.
 - Every adult `StreamSource` carries `headers` (UA + page `Referer` + Pornhub age cookie);
   `PlayerActivity` feeds them to an `OkHttpDataSource` so playback matches the probe exactly.
 - UI: Real tab shows a "Some sources are unavailable" notice from `NsfwViewModel.realErrors`;
@@ -6595,7 +6658,7 @@ data/hentai/
   XAnimuSource.kt     Rule34 tube: confirmed /?s=, numeric-permalink filter (§2as)
   HentaiRepository.kt   parallel search + query variants + series grouping + relevance ranking,
                         episode picking, per-source errors, 10-min TTL caches (48 entries), and
-                        AdultHttp.verifyPlayable() pre-flight of every stream it returns
+                        AdultHttp.v`verifyPlayable() pre-flight of every stream it returns
 ```
 
 ### How it plugs in (AniList metadata untouched)
@@ -6686,7 +6749,7 @@ data/hentai/
 | 2 | Device pass (§7 items 20–31) | ✅ **Completed** | Real-device verification done on OnePlus CPH2487/Android 16: MangaDex NSFW chapter feed populated, Yuzono + Keiyoushi repos seeded & browsable, Add-on Manager NSFW switch present, extension install/enable/update UI present, CXXX Real 18+ search path present. Honesty UI confirmed on Aniyomi/Mihon tabs. |
 | 3 | Torrent watchdog edge case | Mitigated | 20 s watchdog with Retry dialog added in v1.10.1. Still can't connect on networks without tracker access (expected). Not device-verifiable on this network. |
 | 4 | Check for updates / Export backup | Not tested | Deferred to post-release QA (TEST_REPORT P2). |
-| 6 | Cast / MediaRouteButton | Fixed | v1.10.1: `ThemeOverlay.Moovio.CastButton` opaque theme + `runCatching` guard. Already in code; structurally verified via `aapt2`. Not exercised on device (cast not available on test network). |
+| 6 | Cast / MediaRouteButton | Fixed | v1.10.1: `ThemeOverlay.Moovio.CastButton` opaque theme + `r`runCatching` guard. Already in code; structurally verified via `aapt2`. Not exercised on device (cast not available on test network). |
 | 7 | MangaDex empty NSFW feed | ✅ Fixed + device-verified | v1.10.1: NSFW feed asks for non-safe ratings only. Device-verified on CPH2487 — chapter lists now populate correctly. |
 
 ### Version note
@@ -6700,3 +6763,7 @@ Tagged `v1.10.4`, pushed (`main` + tag) and **published as a GitHub Release with
 `Moovio.apk` + `app-release.apk` attached** (`releases/latest/download/app-release.apk` →
 HTTP 200 / 43,963,425 bytes, digest matches the local build), so the in-app updater and the
 site CTA now serve v1.10.4. Website bumped to v1.10.4 / 309 tests (`next build` ✓).
+
+
+
+

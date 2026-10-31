@@ -5,6 +5,7 @@ import com.moovio.app.data.remote.httpGet
 import com.moovio.app.data.remote.httpGetList
 import com.moovio.app.data.repo.PageCache
 import com.moovio.app.data.repo.ScraperRace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -43,16 +44,19 @@ object AdultHttp {
     /**
      * Short-timeout client used only to *check* a candidate stream before we offer it.
      *
-     * Five seconds connect **and** read per host: these mirrors regularly accept a connection and
-     * then never send a byte, so a per-host ceiling is what actually cancels a dead endpoint (the
-     * per-call `withTimeout` alone leaves the socket draining in the background). All probes race
-     * concurrently under [verifyPlayable], so the total is the slowest single host, not the sum.
+     * Adult tube mirrors routinely accept a connection and then never send a byte, so per-host
+     * timeouts are what actually cancels a dead endpoint — the per-call `withTimeout` alone leaves
+     * the socket draining in the background. All probes race concurrently under [verifyPlayable],
+     * so the total is the slowest single host, not the sum. Connect/read/write are 3 s and the
+     * overall call ceiling is 5 s, so an unresponsive host is dropped well inside the 2–3 s
+     * stream-resolution budget.
      */
     private val probeClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(3, TimeUnit.SECONDS)
+            .writeTimeout(3, TimeUnit.SECONDS)
+            .callTimeout(5, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
@@ -148,24 +152,41 @@ object AdultHttp {
                     .header("Range", "bytes=0-2047")
                 headers.forEach { (k, v) -> if (k != "User-Agent") builder.header(k, v) }
 
-                probeClient.newCall(builder.build()).execute().use { resp ->
-                    when {
-                        resp.code == 429 -> ProbeResult.ALIVE
-                        !resp.isSuccessful -> ProbeResult.DEAD
-                        else -> {
-                            val contentType = resp.header("Content-Type").orEmpty().lowercase()
-                            if (contentType.contains("text/html")) return@use ProbeResult.DEAD
-                            val wantsManifest = url.contains(".m3u8", ignoreCase = true) ||
-                                contentType.contains("mpegurl")
-                            if (!wantsManifest) return@use ProbeResult.ALIVE
-                            val head = resp.body?.source()?.let { source ->
-                                val buffer = okio.Buffer()
-                                source.read(buffer, 64)
-                                buffer.readUtf8()
-                            }.orEmpty()
-                            if (head.contains("#EXTM3U")) ProbeResult.ALIVE else ProbeResult.DEAD
+                val call = probeClient.newCall(builder.build())
+                try {
+                    // Drop the hanging socket immediately if this coroutine is cancelled
+                    // (e.g. by withTimeout in verifyPlayable). call.execute() is blocking, so
+                    // CancellationException is only surfaced once the call returns — cancelling
+                    // the call here ensures the socket is released without waiting.
+                    val result = call.execute().use { resp ->
+                        when {
+                            resp.code == 429 -> ProbeResult.ALIVE
+                            !resp.isSuccessful -> ProbeResult.DEAD
+                            else -> {
+                                val contentType = resp.header("Content-Type").orEmpty().lowercase()
+                                if (contentType.contains("text/html")) ProbeResult.DEAD
+                                else {
+                                    val wantsManifest = url.contains(".m3u8", ignoreCase = true) ||
+                                        contentType.contains("mpegurl")
+                                    if (!wantsManifest) ProbeResult.ALIVE
+                                    else {
+                                        val head = resp.body?.source()?.let { source ->
+                                            val buffer = okio.Buffer()
+                                            source.read(buffer, 64)
+                                            buffer.readUtf8()
+                                        }.orEmpty()
+                                        if (head.contains("#EXTM3U")) ProbeResult.ALIVE else ProbeResult.DEAD
+                                    }
+                                }
+                            }
                         }
                     }
+                    result
+                } catch (e: CancellationException) {
+                    call.cancel()
+                    throw e
+                } catch (e: Exception) {
+                    ProbeResult.NETWORK
                 }
             } catch (e: Exception) {
                 ProbeResult.NETWORK
@@ -186,8 +207,10 @@ object AdultHttp {
                         probeSemaphore.withPermit {
                             val url = stream.playableUrl
                             if (url.isNullOrBlank()) return@async null
+                            // 3 s per-probe ceiling — dead hosts drop instantly so the first
+                            // working stream lands in under 2–3 s even with several mirrors.
                             val result = runCatching {
-                                withTimeout(ScraperRace.PROVIDER_TIMEOUT_MS) { probe(url, stream.headers) }
+                                withTimeout(3_000L) { probe(url, stream.headers) }
                             }.getOrDefault(ProbeResult.NETWORK)
                             when (result) {
                                 ProbeResult.DEAD -> null
@@ -201,8 +224,8 @@ object AdultHttp {
         }
     }
 
-    /** Caps concurrent pre-flight probes so a 20-link list doesn't open 20 connections at once. */
-    private val probeSemaphore = Semaphore(8)
+    /** Caps concurrent pre-flight probes so a mirror list doesn't open too many connections at once — raised so slow hosts are dropped in parallel, not serial. */
+    private val probeSemaphore = Semaphore(12)
 
     private fun looksLikeChallenge(body: String): Boolean {
         val head = body.take(4000).lowercase()

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moovio.app.data.adult.AdultRepository
 import com.moovio.app.data.download.DownloadStorageStats
+import com.moovio.app.data.download.VideoDownload
 import com.moovio.app.data.hentai.HentaiRepository
 import com.moovio.app.data.model.Addon
 import com.moovio.app.data.model.CatalogRow
@@ -699,6 +700,16 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
                 list.filterSafe { it.item.id.isNotBlank() && !it.item.isAdult }
                     .distinctBy { it.item.key }
             }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Isolated adult downloads — NSFW video downloads kept out of the public Downloads tab,
+     * surfaced only inside the PIN/biometric-gated NSFW Hub. Mirrors how adult favourites and
+     * playback history are already isolated from SFW content (Phase 28).
+     */
+    val nsfwDownloads: StateFlow<List<VideoDownload>> =
+        container.videoDownloadManager.downloads
+            .map { list -> list.filter { it.nsfw } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun removeFavorite(item: MediaItem) { viewModelScope.launch { container.libraryStore.removeFavorite(item.key) } }

@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { GITHUB_URL } from "@/lib/utils";
+import {
+  ANDROID_APK_SIZE,
+  ANDROID_MIN_SDK,
+  ANDROID_VERSION,
+  DESKTOP_VERSION,
+  GITHUB_URL,
+  TEST_COUNT,
+} from "@/lib/utils";
 
 const faqs = [
   {
@@ -8,7 +15,7 @@ const faqs = [
   },
   {
     q: "Which download should I take?",
-    a: "For the phone, the signed APK from GitHub Releases: 44.1 MB, Android 7.0 or newer, installs in place over 1.11.0. The Windows client is a separate v0.1.1 build, available as an MSI installer or a portable ZIP.",
+    a: `For the phone, the signed APK from GitHub Releases: ${ANDROID_APK_SIZE}, ${ANDROID_MIN_SDK} or newer, installs in place over ${ANDROID_VERSION}. The Windows client is a separate v${DESKTOP_VERSION} build, available as an MSI installer or a portable ZIP.`,
   },
   {
     q: "Do I need an account?",
@@ -19,12 +26,8 @@ const faqs = [
     a: "No. Nothing is bundled or hosted. Moovio is a player and a library: it shows what the add-ons and sources you install return, and whether a given source works depends on that source, not on the app.",
   },
   {
-    q: "How is the adult section handled?",
-    a: "It sits behind a PIN or biometric lock, unlocks for the current session only, and is excluded from Home, Search and Library unless you opt in from inside the hub. Adult sources sit behind a switch, and the tab says plainly when a source is unreachable instead of showing an empty grid.",
-  },
-  {
     q: "Is it open source?",
-    a: "Yes. The app is MIT-licensed and the repository is public, with 335 passing unit tests and release builds signed and attached to each GitHub release.",
+    a: `Yes. The app is MIT-licensed and the repository is public, with ${TEST_COUNT} passing unit tests and release builds signed and attached to each GitHub release.`,
   },
 ];
 

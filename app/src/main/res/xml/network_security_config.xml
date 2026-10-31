@@ -1,10 +1,15 @@
 <network-security-config>
     <!--
-      Add-ons and provider sites are user-supplied and a few still serve plain http, so cleartext
-      is allowed for them. Only system CAs are trusted: trusting user-installed CAs would let any
-      user-added certificate intercept all app traffic (API keys, cookies, add-on manifests).
+      Cleartext HTTP is blocked by default. Only system CAs are trusted: trusting user-installed
+      CAs would let any user-added certificate intercept all app traffic (API keys, cookies,
+      add-on manifests).
+
+      Legacy third-party add-on hosts that require plain HTTP can be scoped here via domain-config
+      with cleartextTrafficPermitted="true". No add-on currently ships on the allowlist — every
+      seeded repository and metadata endpoint (Cinemeta, OpenSubtitles, TMDB, AniList, MangaDex)
+      uses HTTPS.
     -->
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

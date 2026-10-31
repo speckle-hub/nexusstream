@@ -55,6 +55,8 @@ data class VideoDownload(
     val etaSeconds: Long = 0L,
     val error: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
+    /** True when the owning title is adult/NSFW — kept isolated from SFW downloads in the Library. */
+    val nsfw: Boolean = false,
 )
 
 /** Extra fields Media3 does not model, serialized into `DownloadRequest.data`. */
@@ -70,6 +72,8 @@ data class VideoDownloadMeta(
     val alternates: List<String> = emptyList(),
     /** Mirror URLs already attempted for this item (including the primary), so failover never loops. */
     val attempted: List<String> = emptyList(),
+    /** True when the owning title is adult/NSFW — isolated from SFW downloads in the Library. */
+    val nsfw: Boolean = false,
 )
 
 /** Stable, collision-resistant download id from the item key + stream URL. */
@@ -174,6 +178,7 @@ class VideoDownloadManager(private val context: Context) {
         kind: VideoKind,
         headers: Map<String, String> = emptyMap(),
         alternates: List<String> = emptyList(),
+        nsfw: Boolean = false,
     ) {
         val id = videoDownloadId(item.key, url)
         // Ignore re-taps while a download is active/completed (Media3 rejects duplicate ids).
@@ -187,6 +192,7 @@ class VideoDownloadManager(private val context: Context) {
             url = url,
             headers = headers,
             alternates = alternates,
+            nsfw = nsfw,
         )
         runCatching {
             sendAdd(buildRequest(id, url, kind, meta))
@@ -572,6 +578,7 @@ class VideoDownloadManager(private val context: Context) {
             etaSeconds = eta,
             error = if (state == Download.STATE_FAILED) failureText(failureReason) else null,
             updatedAt = updateTimeMs,
+            nsfw = meta?.nsfw ?: false,
         )
     }
 
