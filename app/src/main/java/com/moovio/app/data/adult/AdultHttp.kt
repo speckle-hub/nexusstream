@@ -42,14 +42,17 @@ object AdultHttp {
 
     /**
      * Short-timeout client used only to *check* a candidate stream before we offer it.
-     * Deliberately tighter than [com.moovio.app.data.remote.Http.client]: a probe that hangs
-     * would stall the whole stream list.
+     *
+     * Five seconds connect **and** read per host: these mirrors regularly accept a connection and
+     * then never send a byte, so a per-host ceiling is what actually cancels a dead endpoint (the
+     * per-call `withTimeout` alone leaves the socket draining in the background). All probes race
+     * concurrently under [verifyPlayable], so the total is the slowest single host, not the sum.
      */
     private val probeClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(6, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .writeTimeout(8, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)

@@ -7,7 +7,22 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-30 — **v1.11.0 released (§2bf): the
+> resume exactly where it left off. Last updated: 2026-10-31 — **v1.11.1 released (§2bi): the
+> performance & navigation pass (§2bh) plus the download crash guard (§2bg).** `versionCode` 25 /
+> `versionName` 1.11.1; signed `:app:assembleRelease` ✅ → `dist/app-release.apk` +
+> `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `39C64244…EA4599`, same rotated signer as
+> v1.10.0/v1.11.0 — V2 cert SHA-256 `2EDB949B…351379`, so it upgrades in place). Verified
+> `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **335/335** (37 suites). Detail in §2bi.
+>
+> Previous, 2026-10-31 — **performance & navigation pass
+> (§2bh), Android only: the Anime segment paints a cached snapshot before the network, whole-app
+> search fans out as independent supervisor-scoped sources with progressive results and a 300 ms
+> debounce, adult probe hosts are capped at 5 s, a relaunch always lands on Home, and Back at the
+> root asks before exiting.** `versionCode` 24 / `versionName` 1.11.0 at the time — shipped in
+> v1.11.1 (§2bi). Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **335/335**
+> (37 suites, 0 failures). Detail in §2bh.
+>
+> Previous, 2026-10-30 — **v1.11.0 released (§2bf): the
 > four-phase overhaul shipped — design tokens, shared-element morph + haptics, canvas StatsHud +
 > reader physics, encrypted backups + offline smart search.** `versionCode` 24 / `versionName`
 > 1.11.0; signed `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk`
@@ -505,12 +520,26 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: v1.11.0 released — the four-phase overhaul (§2bf) — Android only.** Design tokens (§2bb),
+**Topic: v1.11.1 released (§2bi) — Android only.** The release that carries the §2bh performance and
+navigation pass and the §2bg download-crash guard: `versionCode` 25 / `versionName` 1.11.1, signed
+APK 44,129,215 bytes (SHA-256 `39C64244…EA4599`) with the same certificate as v1.11.0, published as
+tag `v1.11.1` and a GitHub Release with both assets. Detail in §2bi.
+
+Previous focus: **performance & navigation pass — Android only.** Browse → Anime paints a cached row
+snapshot before it touches the network and fetches on `Dispatchers.IO`; search runs each source as an
+independent `supervisorScope` child with progressive results and a 300 ms debounce; adult/NSFW stream
+probes get a 5 s per-host ceiling and the built-in NSFW-anime chain is bounded to 5 s; the last-tab
+restore is gone so a relaunch always lands on Home, and Back at the graph root opens an exit
+confirmation. No version bump. Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓
+**335/335**. Detail in §2bh.
+
+Previous focus: **v1.11.0 released — the four-phase overhaul (§2bf) — Android only.** Design tokens (§2bb),
 shared-element morph + `MoovioHaptics` (§2bc), canvas `StatsHud` + reader physics (§2bd), encrypted
 backups + offline smart search (§2be): all four phases are in one signed APK, and ISSUE-15 plus the
 download-storage prerequisite are closed. `versionCode` 24 / `versionName` 1.11.0; `dist/` and the
 badging/signature verification are in §2bf. No tag or GitHub Release was published, so nothing
 downloads this build yet. Detail in §2bf.
+Previous focus: **download crash fix (§2bg) — Android only.** VideoDownloadManager.enqueue() wraps request building + service dispatch in runCatching with a user-facing Toast on failure, so a bad URL, Gson serialization failure, or ForegroundServiceStartNotAllowedException on Android 14+ never crashes the app process. buildRequest() validates the URL scheme before constructing the DownloadRequest and falls back to an empty data payload if Gson cant serialize the metadata. sendAdd() retries without foregrounding when the system refuses a foreground-service start from a background context. New VideoDownloadManagerTest covers videoDownloadId determinism and downloadRequestHeaders edge cases. Verified :app:compileDebugKotlin ✓ · :app:testDebugUnitTest ✓ 341/341 (+8 VideoDownloadManagerTest).
 
 Previous focus: **encrypted backups, smart search & release readiness (Phase 4, §2be) — Android only.**
 ISSUE-15 is closed: exports are AES-256-GCM encrypted under a key generated in the Android KeyStore,
@@ -1530,6 +1559,138 @@ ISSUE-26 (no CI).
 - The website's own copy is desktop-first (v0.1.0 badge, ≈180 MB, 24+ tests) even though its Android
   button already serves 1.11.0 — deferred by decision, tracked in §7 0h.
 - The Sudachi/emulator and tracker ids work are untouched.
+
+---
+
+## 2bi. v1.11.1 released — performance, navigation & download-crash guard (2026-10-31)
+
+**Topic:** the release carrying §2bh and §2bg. Android only; `desktop/` and `desktop-win/` untouched.
+
+**Build**
+- `versionCode` 25 / `versionName` 1.11.1 (`app/build.gradle.kts`).
+- `:app:assembleRelease` ✅ (2 m 31 s, `--offline`), signed through `signingConfigs.release` with the
+  material from the untracked `local.properties` (`moovio.storeFile` / `storePassword` / `keyAlias` /
+  `keyPassword`) — never from the repo.
+- APK: **44,129,215 bytes**, SHA-256
+  `39C6424461EC253AD573E4515B20653CB9C3714F34BAD62275FA7B8E16EA4599`.
+- `output-metadata.json`: `applicationId com.moovio.app`, `versionCode 25`, `versionName 1.11.1`,
+  `minSdkVersionForDexing 24`.
+- `apksigner verify --print-certs`: V2 signer `CN=Moovio, OU=Release, O=Moovio, C=US`, certificate
+  SHA-256 `2EDB949B325BF13B6B5CA695FF3E3068F9DA5F24C4873BA0F12D2A7D99351379` — the key v1.10.0 and
+  v1.11.0 shipped with, so this installs over 1.11.0 in place.
+- Artifacts: `dist/app-release.apk` and `dist/Moovio.apk` (byte-identical, one SHA-256). The site CTA
+  and the in-app updater fetch `releases/latest/download/app-release.apk`, so that asset name has to
+  exist on the release — it does.
+
+**Verified:** `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **335/335** (37 suites, 0
+failures, 0 errors, 0 skipped). No device pass for any of §2bh's flows yet — see §7 0i.
+
+**Included beyond §2bh:** the uncommitted §2bg download-crash guard (`VideoDownloadManager.enqueue`
+wrapped in `runCatching` with a user-facing toast, URL-scheme validation before the `DownloadRequest`
+is built, and a foreground-start retry from a background context) together with its new
+`VideoDownloadManagerTest`. That code was already compiled into this APK, so leaving it out of the
+tag would have shipped a binary that could not be reproduced from the commit.
+
+**Release notes (copy for the tag body)**
+- Browse → Anime paints the rails it showed last time before it touches the network.
+- Search answers as sources land instead of waiting for the slowest one, with a 300 ms debounce.
+- 18+ and NSFW Anime streams stop stalling: 5 s per host, and the built-in chain can't hold back
+  add-on results.
+- The app always opens on Home after a relaunch; Back at the root asks before closing.
+- Downloading no longer crashes the app when a URL is bad or the system refuses a foreground service.
+
+---
+
+## 2bh. Performance & navigation pass — Anime tab, search fan-out, adult streams, launch target (2026-10-31)
+
+**Topic:** four reported behaviours — a slow Browse → Anime segment, unreliable multi-source search,
+slow NSFW stream resolution, and unwanted navigation/exit behaviour — fixed without touching the
+version. Android only; `desktop/` and `desktop-win/` untouched.
+
+### 1. Browse → Anime paints before the network
+
+- `CatalogRepository` gained a per-section row cache (`cachedSectionRows`, 10 min TTL, keyed by
+  `MediaType`), written by `rowsForSection` and read synchronously. It caches **only a non-empty
+  fetch**: an empty result is a failed load, not a section with no rows.
+- `rowsForSection` now fetches inside `withContext(Dispatchers.IO)`, so the network hop *and* the
+  JSON→model mapping are off the main thread (previously only the HTTP call was).
+- `AnimeViewModel.refresh()` publishes the cached rows first — the skeleton drops on the first frame
+  of a tab switch — then refreshes in the background and replaces them when the fetch returns.
+- `fetchSectionRows` runs under `supervisorScope`, so a row source that throws costs its own row
+  instead of cancelling its siblings and blanking the whole segment.
+- AniList was already disk-cached (`httpPostJsonCached`, 6 h), so a warm start is now cache → paint
+  with no network wait at all.
+
+### 2. Search: 300 ms debounce, supervisor isolation, progressive results
+
+- Debounce 350 → **300 ms** in `SearchViewModel`, `AnimeViewModel` and `NsfwViewModel`.
+- `CatalogRepository.globalSearch` and `searchInternal` were restructured from
+  `coroutineScope { async { … }.await() }` to `supervisorScope { launch { collect(…) } }` with a
+  mutex and a `collect(fetch)` helper: **each source is an independent child**, so a source that
+  throws no longer takes its siblings' results with it.
+- Both gained an `onUpdate` sink. Every source publishes the merged, already-filtered list as it
+  lands and `SearchViewModel` forwards that behind its generation guard, so a fast TMDB answer fills
+  the grid while a hung add-on is still running. Built-in results stay ahead of add-on results; the
+  return value is still the complete list.
+- `searchNsfwAnime` got the same treatment (AniList / Jikan / add-ons as separate children).
+- The NSFW/Real isolation filters are unchanged and run on **every partial**, so progressive
+  painting can never leak an adult item into a public search.
+
+### 3. Adult & NSFW stream resolution
+
+- `AdultHttp.probeClient` now uses a **5 s connect, read and write timeout per host** (was 6/8/8):
+  these mirrors routinely accept a connection and then stall, and only a per-host ceiling actually
+  cancels the socket.
+- `StreamRepository` bounds the built-in NSFW-anime chain (`hentaiStreams`) with
+  `ScraperRace.raceResult(PROVIDER_TIMEOUT_MS)` — the same 5 s ceiling every other provider has.
+  A cold built-in lookup (episode search → page fetch → pre-flight probes, up to ~18 s) used to hold
+  back add-on streams that had already resolved in under a second.
+- Probe verification was already concurrent (`verifyPlayable`, 8 at a time, per-stream
+  `withTimeout`) and stays as-is; when verification times out the raw list is still returned rather
+  than an empty panel.
+
+### 4. Launch always lands on Home
+
+- The "restore the last tab" step in `MoovioNav` is **gone**, along with the tab-index persistence
+  effect. That was the actual cause: a cold start began at Home and was immediately redirected to
+  whichever tab was saved, so a relaunch reopened Settings.
+- A process-death restore is now detected in `MainActivity` with a retained `NavSession` ViewModel
+  (survives a rotation, not a process death) and passed to `MoovioApp(startAtHome = …)`, which pops
+  the restored back stack and navigates to `HOME`. A configuration change keeps its live stack.
+
+### 5. Back at the root asks before exiting
+
+- `MoovioNav` registers a `BackHandler` enabled only when
+  `navController.previousBackStackEntry == null`, i.e. nothing is left to pop. Screens and sheets
+  install their own handlers later in composition, so they still win.
+- The confirmation is a quiet M3 `AlertDialog` built from the shared tokens (`AppRadius.panel`,
+  `surfaceElevated`, title on `titleLarge`, no accent, no icon): **"Exit Moovio?"** with `Exit` and
+  `Cancel`. `Exit` calls `Activity.finish()`; `Cancel`, outside-tap and Back dismiss it.
+
+### Files
+
+Changed: `data/repo/CatalogRepository.kt`, `data/repo/StreamRepository.kt`,
+`data/adult/AdultHttp.kt`, `data/search/SmartQuery.kt` (comment only), `ui/vm/ViewModels.kt`,
+`ui/nav/MoovioNav.kt`, `ui/MainActivity.kt`.
+
+### Verified / not verified
+
+- `:app:compileDebugKotlin` ✅ — one fix during the pass: `LocalContext.current` was read inside a
+  click lambda, which is not a composable context, so it is hoisted to the screen body.
+- `:app:testDebugUnitTest` ✅ **335/335**, 0 failures, 0 errors, 0 skipped, 37 suites.
+- **Not verified:** none of it on hardware. The cache path, the progressive paints and the 5 s
+  ceiling need a device to judge; the exit dialog and the launch target need a real back press and a
+  real process kill (recents → swipe away → relaunch). No frame timing was measured.
+- `versionCode` 24 / `versionName` 1.11.0 at the time; shipped in v1.11.1 (§2bi).
+
+### Deliberately not done
+- `SettingsStore.lastTabSnapshot` / `setLastTab` / `stampTabLayoutVersion` are now unused. They were
+  left in place rather than churned in this pass; deleting them is a follow-up.
+- No disk cache was added for Jikan: the Anime segment's rows come from AniList/TMDB (both already
+  disk-cached), so a Jikan cache would have bought nothing there while making search results staler.
+- The hentai title-variant fallback still runs sequentially. Racing all three variants would triple
+  the requests to every source on every lookup (rate-limit risk) to speed up a case that only occurs
+  when the exact title misses.
 
 ---
 
@@ -5737,6 +5898,8 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-22 | **v1.10.0 released (§2ay):** the first Moovio-named release — `versionCode` 19 / `versionName` 1.10.0; `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **292/292** (281 + 11 new: `OAuthAndSignatureSecurityTest` 6, `ProviderSettingsCodecTest` 5), `:app:assembleDebug` ✅, `:app:assembleRelease` ✅ (signed with the **rotated** key — signer SHA-256 `2EDB949B…351379`, DN `CN=Moovio, OU=Release, O=Moovio, C=US`) → `dist/Moovio.apk` + `dist/app-release.apk` (43,946,885 bytes, SHA-256 `ED8C5418…39D54F`); archive verified in-place (`package com.moovio.app`, `versionCode 19`, `versionName 1.10.0`, minSdk 24 / targetSdk 34, label `Moovio`). Pushed (`main` + tag `v1.10.0`), **GitHub Release `Moovio v1.10.0` published with `app-release.apk` + `Moovio.apk` attached and marked Latest** — `releases/latest/download/app-release.apk` now serves v1.10.0 (re-downloaded and hash-matched end to end). Website hero/footer/nav → v1.10.0, stats → 292, install size → ≈44 MB (`next build` ✅, 8/8 static pages). **Upgrade note in the release body: v1.10.0 cannot be installed over v1.9.0** (package id *and* signing key changed) — old installs must be removed, and their settings/library/downloads do not carry over. |
 | 2026-10-30 | **Phase 2 — motion, gestures & haptics (§2bc):** wired the poster → detail **shared-element morph** (new `Modifier.sharedPoster`: `SharedTransitionLayout`/`ProvideSharedScope` were installed on every destination but nothing consumed them, so navigation still cross-faded) with `Motion.settle<Rect>()` as its bounds transform, sourced from `PosterCard`'s artwork and landed on `DetailHeader`'s backdrop; new `MoovioHaptics` (`select`/`toggle`/`commit`, `@Stable`, remembered) replacing raw `performHapticFeedback` calls in 4 files and driving the player's brightness/volume drags per 10 % band, the primary CTA, the heart, season chips and Library long-press (from inside `PosterCard`); new `Motion.settle<T>()` (`DampingRatioNoBouncy` + `StiffnessLow`) for the carousel auto-advance, both nav indicators and the morph — the brief's `DampingRatioLowBouncy` was already in use on the nav controls and was removed, not extended. `PillSegmentedControl` (16/12 radii, neutral selection wash), `FloatingPillNavBar` (64 dp, no glass, no dark shadow), `LibraryScreen` (dead `LibrarySegmentedControl` duplicate deleted, chips on `AppRadius`) and `NsfwHubScreen` (hairline chip, 3 `Bold` dropped) finished the §2bb cleanup; `PosterPalette.kt` + `PaletteCacheTest` (3 cases) + `androidx.palette` deleted; root Gradle repaired (`:desktop` asked for a versioned Kotlin plugin after `kotlin.android` had claimed it). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**, `./gradlew help` at root ✅. No version bump, no APK, not pushed. Rendered/motion verification and frame-drop measurement still need a device; duplicate `poster:<key>` across Home rails is the open risk. |
 | 2026-10-30 | **Phase 3 — media player, manga reader, diagnostics & audio (§2bd):** "Stats for nerds" rebuilt as `ui/player/StatsHud.kt`, a `Canvas` HUD that owns its own 250 ms ticker (buffer-ahead sparkline over 40 samples = 10 s, buffered %, stream + download bitrate, resolution/fps/dropped, codec metadata) so a tick can no longer recompose the control overlay. **Spatial audio is offered honestly**: `Spatializer` has no setter, so the sheet row (shown only when `isAvailable && isEnabled`) sets the stream's `AudioAttributes` spatialisation behaviour (`C.SPATIALIZATION_BEHAVIOR_AUTO`/`_NEVER`) on the ExoPlayer, applied at player creation and on toggle, persisted as `audioSpatial`. Reader: new e-ink monochrome preset (`MANGA_EINK`, saturation 0 + contrast 1.45) that replaces invert/sepia, `MutableZoom.panBy`/`clampPan` bounding the pan to the page's real overflow, and the 3-page webtoon preload moved onto `Dispatchers.IO`. Morph keys are now rail-scoped — `sharedPoster(key, rail)`, `rail` threaded through `PosterCard`/`MediaRow` from Home/Anime/Manga/NSFW, and `?from=<rail>` on the detail route read back into `DetailHeader` — which closes §2bc's duplicate-key risk. Player chrome: sheet headings on `titleMedium`/`titleSmall`, every `Bold`/`SemiBold` (13) dropped to `Medium`, round 40 dp/48 dp controls on `CircleShape`. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **306/306**. No version bump, no APK, not pushed. Device passes (HUD cost, morph origin, spatial audio, e-ink panel, pan clamp) and all frame-timing measurement are still outstanding. |
+| 2026-10-31 | **v1.11.1 released (§2bi):** bundles §2bh (Browse → Anime row cache, supervisor-scoped progressive search with a 300 ms debounce, 5 s per-host adult probe ceiling, Home-on-launch, exit confirmation) and §2bg (download enqueue crash guard + `VideoDownloadManagerTest`). `versionCode` 25 / `versionName` 1.11.1; `:app:assembleRelease` ✅ signed with the same key as v1.11.0 → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `39C64244…EA4599`); `output-metadata.json` confirms `com.moovio.app` / 25 / 1.11.1; `apksigner` V2 cert SHA-256 `2EDB949B…351379`. `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **335/335** (37 suites). |
+| 2026-10-31 | **Performance & navigation pass (§2bh):** Browse → Anime reads a 10-minute per-section row cache before the network and fetches on `Dispatchers.IO`; section row fetches run under `supervisorScope`; search debounce 350 → 300 ms, and `globalSearch` / `searchInternal` / `searchNsfwAnime` fan out as independent supervisor children with progressive `onUpdate` publishing; `AdultHttp.probeClient` caps connect/read/write at 5 s per host and `StreamRepository` bounds the built-in NSFW-anime chain at 5 s; the last-tab restore is removed so a launch always lands on Home (process-death restore detected via a retained ViewModel), and Back at the graph root opens an "Exit Moovio?" confirmation. `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **335/335**. No version bump, no APK. |
 | 2026-10-30 | **Phase 4 — encrypted backups, smart search & release readiness (§2be):** **ISSUE-15 closed.** New `data/integrations/BackupCrypto.kt` — `BackupFormat` (`MOOVIO-BACKUP-1` magic + 12-byte IV + GCM tag) and `BackupCipher` (AES-256-GCM, fresh IV per export, injected key provider), with the key generated in `AndroidBackupKey` (AndroidKeyStore, no user-auth gate) — no `security-crypto` dependency added. `BackupManager` exports the container, gained `inspect(uri)` returning `Encrypted` vs `LegacyPlaintext` *before* any store is touched, and `importFrom(…, allowPlaintext = false)` refuses a plaintext file unless the caller opted in; Settings shows an "Unencrypted backup" confirmation, exports as `moovio-backup.mbackup` (`application/octet-stream`) and accepts both formats on import. New `data/search/SmartQuery.kt`: offline parser for type words, 18 genres, a year/decade/range (`2024`, `2020s`, two years), a rating floor (`high rating` = 7.0, `rating 8.5`), `recent`/`classic` and sorting, wired into `SearchViewModel` *before* the 350 ms debounce (cancellation + generation guard unchanged); type routes to the API, year/rating/genre narrow the merged result locally, and a muted one-line `summary()` shows what was understood. A four-digit token only counts as a year up to `currentYear + 1`, so "Blade Runner 2049" stays a title. Storage: `DownloadCacheMaintenance.isBelowLimit`/`shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace` (orphaned chunks only, never a playable download), `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off) with a Settings → Downloads ladder and a boot-time sweep in `MoovioApp`. `versionCode` 24 / `versionName` 1.11.0. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (+21: 8 crypto, 13 parser). No APK built, nothing pushed. Unverified on hardware: the KeyStore path, SAF MIME filtering, the boot sweep on a full disk. |
 | 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **Published** as commit `4caee5f` + tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked Latest with `app-release.apk` + `Moovio.apk` attached (and the re-downloaded asset hash-matched); the release body carries the upgrade note, the four phase summaries and the deferred list. |
 
@@ -5818,6 +5981,13 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
    URLs stay pinned at `v0.1.1` in `utils.ts` and need no change unless desktop ships again. Facts if
    Android leads: version 1.11.0, **327** tests, APK 44.1 MB. No URL changes either way. The repo
    rename (`speckle-hub/nexusstream` → `moovio`) is a separate item (§7 0).
+0i. **Device pass on §2bh (new, 2026-10-31) —** (a) switch into Browse → Anime twice: the second
+   entry must paint from cache with no skeleton; (b) search with a slow add-on enabled and confirm
+   results appear before the slow source answers; (c) open an NSFW Anime episode with built-ins and
+   add-ons both present and confirm the panel no longer waits on the built-in chain; (d) leave the
+   app on Settings, swipe it out of recents and relaunch — it must open Home; (e) rotate on a deep
+   screen and confirm the back stack is kept; (f) press Back at Home and confirm the dialog, then
+   confirm a sheet's own Back still closes the sheet first.
 1. **Manual verification pass** on a device/emulator:
    - Fresh install → Home populates; open a movie → stream sources listed (Torrentio / TPB+).
    - Settings → Add-ons → CloudStream repo → provider list is **no longer empty**.

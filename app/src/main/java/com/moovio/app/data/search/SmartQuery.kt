@@ -171,7 +171,7 @@ private const val RECENT_YEARS = 2
 /**
  * Turns a typed query into [SmartQuery] — offline, allocation-light and side-effect free.
  *
- * Runs before the debounced search in `SearchViewModel`, so the 350 ms pipeline and its generation
+ * Runs before the debounced search in `SearchViewModel`, so the 300 ms pipeline and its generation
  * guard are untouched: the parser only changes *what* is searched and how the result is narrowed.
  *
  * Deliberately narrow: it recognises type words, genres, a year or a decade, a rating floor and

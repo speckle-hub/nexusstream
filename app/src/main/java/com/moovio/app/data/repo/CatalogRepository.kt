@@ -15,10 +15,17 @@ import com.moovio.app.data.remote.StremioClient
 import com.moovio.app.data.remote.TmdbClient
 import com.moovio.app.data.sfw.SfwAnimeRepository
 import com.moovio.app.data.sfw.SfwRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /** Aggregates content rows from TMDB, AniList, MangaDex and Stremio addon catalogs. */
@@ -27,6 +34,32 @@ class CatalogRepository(
     private val settings: SettingsStore,
     private val cloudStreamRepo: CloudStreamRepository,
 ) {
+
+    /**
+     * Section rows from the last successful fetch, keyed by section.
+     *
+     * Browse reads this before it touches the network so switching to a segment paints the rails
+     * it showed last time immediately; [rowsForSection] then refreshes them in the background and
+     * replaces the entry.
+     */
+    private val rowsLock = Any()
+    private val sectionRows = HashMap<MediaType, Pair<Long, List<CatalogRow>>>()
+
+    /**
+     * The cached rows for [section], or null when they are missing, empty or older than
+     * [SECTION_ROWS_TTL_MS]. Never suspends and never hits the network.
+     */
+    fun cachedSectionRows(section: MediaType): List<CatalogRow>? = synchronized(rowsLock) {
+        sectionRows[section]
+            ?.takeIf { System.currentTimeMillis() - it.first < SECTION_ROWS_TTL_MS }
+            ?.second
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    /** Stores a successful fetch; an empty result is a failed load, not an empty section. */
+    private fun storeSectionRows(section: MediaType, rows: List<CatalogRow>) = synchronized(rowsLock) {
+        if (rows.isNotEmpty()) sectionRows[section] = System.currentTimeMillis() to rows
+    }
 
     /** Search every loaded CloudStream provider, bounded and failure-isolated per provider. */
     /**
@@ -85,7 +118,24 @@ class CatalogRepository(
 
     // ---- Generic section ----------------------------------------------------
 
-    suspend fun rowsForSection(section: MediaType): List<CatalogRow> = coroutineScope {
+    /**
+     * Rows for one section.
+     *
+     * Runs on [Dispatchers.IO] so a cache-miss network fetch (and the JSON mapping that follows
+     * it) never occupies the main thread, and caches the result so the next visit can paint it
+     * before the network answers.
+     */
+    suspend fun rowsForSection(section: MediaType): List<CatalogRow> {
+        val rows = withContext(Dispatchers.IO) { fetchSectionRows(section) }
+        storeSectionRows(section, rows)
+        return rows
+    }
+
+    /**
+     * [supervisorScope], not `coroutineScope`: a row fetcher that throws can no longer cancel its
+     * siblings, so one broken source costs its own row instead of the whole section.
+     */
+    private suspend fun fetchSectionRows(section: MediaType): List<CatalogRow> = supervisorScope {
         when (section) {
             MediaType.MOVIE -> {
                 // Phase 32: race the five TMDB rows concurrently (each already fail-fast via
@@ -278,12 +328,23 @@ class CatalogRepository(
         AdultRepository.Search(items = items, errors = builtIn.errors)
     }
 
-    suspend fun search(query: String, section: MediaType): List<MediaItem> {
+    /**
+     * Search one section.
+     *
+     * [onUpdate] receives partial, already-filtered lists as individual sources land; the return
+     * value is always the complete merged list. Callers that don't need progressive paint simply
+     * omit it.
+     */
+    suspend fun search(
+        query: String,
+        section: MediaType,
+        onUpdate: (suspend (List<MediaItem>) -> Unit)? = null,
+    ): List<MediaItem> {
         // Real 18+ has its own path so built-in sources are authoritative.
         if (section == MediaType.REAL) return searchReal(query).items
-        // NSFW anime prefers AniList (fast) and only reaches for Jikan/scrapers when needed.
-        if (section == MediaType.NSFW_ANIME) return searchNsfwAnime(query)
-        return searchInternal(query, section)
+        // NSFW anime merges AniList + Jikan + add-ons, each bounded on its own.
+        if (section == MediaType.NSFW_ANIME) return searchNsfwAnime(query, onUpdate)
+        return searchInternal(query, section, onUpdate)
     }
 
     /**
@@ -295,22 +356,52 @@ class CatalogRepository(
      * [JIKAN_TIMEOUT_MS], [ADDON_TIMEOUT_MS]), so the whole search costs the slowest hop, not their
      * sum. Results are merged in built-in-first order and de-duplicated by key.
      */
-    private suspend fun searchNsfwAnime(query: String): List<MediaItem> = coroutineScope {
-        val aniList = async {
-            ScraperRace.raceResult(ANILIST_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
-                .getOrDefault(emptyList())
+    private suspend fun searchNsfwAnime(
+        query: String,
+        onUpdate: (suspend (List<MediaItem>) -> Unit)? = null,
+    ): List<MediaItem> = supervisorScope {
+        val collected = ArrayList<MediaItem>()
+        val mutex = Mutex()
+
+        fun merged(items: List<MediaItem>): List<MediaItem> =
+            items.filter { it.type == MediaType.NSFW_ANIME }.distinctBy { it.key }
+
+        suspend fun publish() {
+            val snapshot = merged(mutex.withLock { collected.toList() })
+            if (snapshot.isNotEmpty()) runCatching { onUpdate?.invoke(snapshot) }
         }
-        val jikan = async {
-            ScraperRace.raceResult(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }
-                .getOrDefault(emptyList())
-        }
-        val addons = async {
-            ScraperRace.raceResult(ADDON_TIMEOUT_MS) { addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true) }
-                .getOrDefault(emptyList())
-        }
-        (aniList.await() + jikan.await() + addons.await())
-            .filter { it.type == MediaType.NSFW_ANIME }
-            .distinctBy { it.key }
+
+        val sources: List<suspend () -> List<MediaItem>> = listOf(
+            {
+                ScraperRace.raceResult(ANILIST_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
+                    .getOrDefault(emptyList())
+            },
+            {
+                ScraperRace.raceResult(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }
+                    .getOrDefault(emptyList())
+            },
+            {
+                ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
+                    addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true)
+                }.getOrDefault(emptyList())
+            },
+        )
+        sources.map { fetch ->
+            launch {
+                val found = try {
+                    fetch()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                if (found.isEmpty()) return@launch
+                mutex.withLock { collected += found }
+                publish()
+            }
+        }.joinAll()
+
+        merged(mutex.withLock { collected.toList() })
     }
 
     /**
@@ -346,66 +437,107 @@ class CatalogRepository(
         }.flatMap { it.await() }
     }
 
-    private suspend fun searchInternal(query: String, section: MediaType): List<MediaItem> = coroutineScope {
+    /**
+     * Search one section across its built-in source(s) and the Stremio add-ons.
+     *
+     * Every source is its own child of a [supervisorScope] and collects under a mutex, so one
+     * source that throws neither cancels its siblings nor withholds the answers that already
+     * landed: [onUpdate] fires on each arrival, and built-in results always stay ahead of add-on
+     * results in the merged list.
+     */
+    private suspend fun searchInternal(
+        query: String,
+        section: MediaType,
+        onUpdate: (suspend (List<MediaItem>) -> Unit)? = null,
+    ): List<MediaItem> = supervisorScope {
         val isNsfwSection = section == MediaType.NSFW_ANIME ||
             section == MediaType.NSFW_MANGA ||
             section == MediaType.REAL
 
-        // Phase 32: race the built-in search against the add-on fan-out concurrently instead of
-        // running one after the other — the total costs the slowest, not the sum.
-        // Built-in SFW sources join the metadata search so Movies/TV/Anime surface
-        // playable titles with zero add-ons installed (TMDB/AniList stay authoritative
-        // for metadata; built-ins only add their own title rows).
-        val builtInDeferred = async {
-            when (section) {
-                MediaType.MOVIE -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchMovies(query) }
-                    .getOrDefault(emptyList()) +
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query, MediaType.MOVIE).items }
-                        .getOrDefault(emptyList())
-                MediaType.SERIES -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchTv(query) }
-                    .getOrDefault(emptyList()) +
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query, MediaType.SERIES).items }
-                        .getOrDefault(emptyList())
-                MediaType.ANIME -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }
-                    .getOrDefault(emptyList()) +
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }
-                        .getOrDefault(emptyList())
-                MediaType.MANGA -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }
-                    .getOrDefault(emptyList())
-                MediaType.NSFW_ANIME -> {
-                    // Routed through searchNsfwAnime() before this method is reached; kept as a strict
-                    // adult-only pair here for any future caller.
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }
-                        .getOrDefault(emptyList()) + ScraperRace.raceResult(JIKAN_TIMEOUT_MS) {
-                        JikanClient.nsfwSearch(query)
-                    }.getOrDefault(emptyList())
-                }
-                // limit = 100 (MangaDex's maximum) so an adult search isn't cut short at the old 30.
-                MediaType.NSFW_MANGA -> ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
-                    MangaDexClient.search(query, nsfw = true, limit = 100)
-                }.getOrDefault(emptyList())
-                MediaType.REAL -> emptyList() // Never reached: search() routes REAL through searchReal().
+        // Read once, before the fan-out, so a stalled preference read can't look like a failure.
+        val allowNsfwAddons = runCatching { settings.nsfwGlobalSearch.first() }.getOrDefault(false)
+
+        val builtIns = ArrayList<MediaItem>()
+        val addons = ArrayList<MediaItem>()
+        val mutex = Mutex()
+
+        fun merged(items: List<MediaItem>): List<MediaItem> {
+            val filtered = if (isNsfwSection) {
+                // NSFW sections must never surface non-adult built-in items.
+                items.filter { it.addonId != "anilist" && it.addonId != "jikan" && it.addonId != "mangadex" || it.type == section }
+            } else {
+                // Phase 28 isolation: a public (SFW) section must never surface an adult item, even
+                // if a mis-tagged add-on catalog or a mis-labelled built-in result slips one in.
+                items.filterNot { it.isAdult }
             }
+            return filtered.distinctBy { it.key }
         }
 
-        // Stremio addon search. For NSFW sections ONLY NSFW-flagged add-ons are queried; for SFW
-        // sections NSFW-flagged add-ons are excluded unless the user opted in from the NSFW Hub.
-        val allowNsfwAddons = settings.nsfwGlobalSearch.first()
-        val addonsDeferred = async {
-            addonSearch(query, section, nsfwOnly = isNsfwSection, includeNsfw = allowNsfwAddons)
+        suspend fun publish() {
+            val snapshot = merged(mutex.withLock { builtIns.toList() + addons.toList() })
+            if (snapshot.isNotEmpty()) runCatching { onUpdate?.invoke(snapshot) }
         }
 
-        val results = builtInDeferred.await() + addonsDeferred.await()
-
-        // Final safety net: NSFW sections must never surface non-adult built-in items.
-        val filtered = if (isNsfwSection) {
-            results.filter { it.addonId != "anilist" && it.addonId != "jikan" && it.addonId != "mangadex" || it.type == section }
-        } else {
-            // Phase 28 isolation: a public (SFW) section must never surface an adult item, even
-            // if a mis-tagged add-on catalog or a mis-labelled built-in result slips one in.
-            results.filterNot { it.isAdult }
+        suspend fun collect(target: MutableList<MediaItem>, fetch: suspend () -> List<MediaItem>) {
+            val found = try {
+                fetch()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+            if (found.isEmpty()) return
+            mutex.withLock { target += found }
+            publish()
         }
-        filtered.distinctBy { it.key }
+
+        // Built-in SFW sources join the metadata search so Movies/TV/Anime surface playable titles
+        // with zero add-ons installed (TMDB/AniList stay authoritative for metadata; the built-ins
+        // only add their own title rows).
+        val builtInFetchers: List<suspend () -> List<MediaItem>> = when (section) {
+            MediaType.MOVIE -> listOf(
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchMovies(query) }.getOrDefault(emptyList()) },
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query, MediaType.MOVIE).items }.getOrDefault(emptyList()) },
+            )
+            MediaType.SERIES -> listOf(
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.searchTv(query) }.getOrDefault(emptyList()) },
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query, MediaType.SERIES).items }.getOrDefault(emptyList()) },
+            )
+            MediaType.ANIME -> listOf(
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }.getOrDefault(emptyList()) },
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }.getOrDefault(emptyList()) },
+            )
+            MediaType.MANGA -> listOf(
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }.getOrDefault(emptyList()) },
+            )
+            MediaType.NSFW_ANIME -> listOf(
+                // Routed through searchNsfwAnime() before this method is reached; kept as a strict
+                // adult-only pair here for any future caller.
+                { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.nsfwSearch(query) }.getOrDefault(emptyList()) },
+                { ScraperRace.raceResult(JIKAN_TIMEOUT_MS) { JikanClient.nsfwSearch(query) }.getOrDefault(emptyList()) },
+            )
+            // limit = 100 (MangaDex's maximum) so an adult search isn't cut short at the old 30.
+            MediaType.NSFW_MANGA -> listOf(
+                {
+                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
+                        MangaDexClient.search(query, nsfw = true, limit = 100)
+                    }.getOrDefault(emptyList())
+                },
+            )
+            MediaType.REAL -> emptyList() // Never reached: search() routes REAL through searchReal().
+        }
+
+        // For NSFW sections ONLY NSFW-flagged add-ons are queried; for SFW sections NSFW-flagged
+        // add-ons are excluded unless the user opted in from inside the NSFW Hub.
+        val jobs = builtInFetchers.map { fetch -> launch { collect(builtIns, fetch) } } +
+            launch {
+                collect(addons) {
+                    addonSearch(query, section, nsfwOnly = isNsfwSection, includeNsfw = allowNsfwAddons)
+                }
+            }
+        jobs.joinAll()
+
+        merged(mutex.withLock { builtIns.toList() + addons.toList() })
     }
 
     private companion object {
@@ -439,57 +571,82 @@ class CatalogRepository(
          * metadata call gated the whole feed. Now every safeRow degrades to "no row".
          */
         const val SAFE_ROW_TIMEOUT_MS = 5_000L
+
+        /** Section rows stay good this long, so tab switches paint without touching the network. */
+        const val SECTION_ROWS_TTL_MS = 10 * 60_000L
     }
 
-    suspend fun globalSearch(query: String): List<MediaItem> = coroutineScope {
-        // Phase 32: race all three phases concurrently — built-ins, CloudStream providers and
-        // add-ons start together instead of summing three sequential waits.
-        val builtIns = async {
-            listOf(
-                async {
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.search(query) }
-                        .getOrDefault(emptyList())
-                },
-                async {
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }
-                        .getOrDefault(emptyList())
-                },
-                async {
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }
-                        .getOrDefault(emptyList())
-                },
-                async {
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query).items }
-                        .getOrDefault(emptyList())
-                },
-                async {
-                    ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }
-                        .getOrDefault(emptyList())
-                },
-            ).flatMap { it.await() }
-        }
-        // CloudStream provider plugins (installed .cs3) also serve the search screen.
-        val cloud = async { cloudStreamSearch(query) }
+    /**
+     * Whole-app search: metadata providers, built-in scrapers, CloudStream plugins and every
+     * searchable Stremio catalog.
+     *
+     * Each source is a separate child of a [supervisorScope], so a failing source costs only its
+     * own results, and [onUpdate] publishes the merged list as each source lands — a fast TMDB
+     * answer no longer waits behind a hung add-on.
+     */
+    suspend fun globalSearch(
+        query: String,
+        onUpdate: (suspend (List<MediaItem>) -> Unit)? = null,
+    ): List<MediaItem> = supervisorScope {
         // NSFW-flagged add-ons are only consulted when the user explicitly opted in from the
         // isolated NSFW Hub; otherwise the general Search screen stays adult-free.
-        val includeNsfw = settings.nsfwGlobalSearch.first()
-        val addonJobs = addonRepo.enabledAddons()
-            .filter { includeNsfw || !it.nsfw }
-            .flatMap { addon ->
-                addon.catalogs.filter { c -> c.extra.any { it.name == "search" } }.map { cat ->
-                    async {
-                        ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
-                            StremioClient.search(addon, cat.type, cat.id, query)
-                        }.getOrDefault(emptyList())
+        val includeNsfw = runCatching { settings.nsfwGlobalSearch.first() }.getOrDefault(false)
+        val collected = ArrayList<MediaItem>()
+        val mutex = Mutex()
+
+        // Phase 28 isolation: unless the user opted in from inside the NSFW Hub, the general
+        // search stays adult-free at the *item* level (filtering the add-ons is not enough — a
+        // mis-tagged catalog on an SFW add-on could still leak one in).
+        fun merged(items: List<MediaItem>): List<MediaItem> =
+            (if (includeNsfw) items else items.filterNot { it.isAdult }).distinctBy { it.key }
+
+        suspend fun publish() {
+            val snapshot = merged(mutex.withLock { collected.toList() })
+            if (snapshot.isNotEmpty()) runCatching { onUpdate?.invoke(snapshot) }
+        }
+
+        suspend fun collect(fetch: suspend () -> List<MediaItem>) {
+            val found = try {
+                fetch()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+            if (found.isEmpty()) return
+            mutex.withLock { collected += found }
+            publish()
+        }
+
+        val builtInFetchers: List<suspend () -> List<MediaItem>> = listOf(
+            { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { TmdbClient.search(query) }.getOrDefault(emptyList()) },
+            { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }.getOrDefault(emptyList()) },
+            { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }.getOrDefault(emptyList()) },
+            { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query).items }.getOrDefault(emptyList()) },
+            { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }.getOrDefault(emptyList()) },
+        )
+
+        val jobs = builtInFetchers.map { fetch -> launch { collect(fetch) } } +
+            // CloudStream provider plugins (installed .cs3) also serve the search screen.
+            launch { collect { cloudStreamSearch(query) } } +
+            // Every searchable add-on catalog is its own job: one dead add-on no longer cancels
+            // the batch, and a fast one paints before a slow one answers.
+            addonRepo.enabledAddons()
+                .filter { includeNsfw || !it.nsfw }
+                .flatMap { addon ->
+                    addon.catalogs.filter { c -> c.extra.any { it.name == "search" } }.map { cat ->
+                        launch {
+                            collect {
+                                ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
+                                    StremioClient.search(addon, cat.type, cat.id, query)
+                                }.getOrDefault(emptyList())
+                            }
+                        }
                     }
                 }
-            }
-        val results = builtIns.await() + cloud.await() + addonJobs.flatMap { it.await() }
-        // Phase 28 isolation: unless the user explicitly opted in from inside the NSFW Hub,
-        // the general Search screen stays adult-free at the *item* level too (the add-on filter
-        // above is not enough — a mis-tagged catalog on an SFW add-on could still leak one in).
-        val scrubbed = if (includeNsfw) results else results.filterNot { it.isAdult }
-        scrubbed.distinctBy { it.key }
+        jobs.joinAll()
+
+        merged(mutex.withLock { collected.toList() })
     }
 
     // ---- Stremio rows -------------------------------------------------------

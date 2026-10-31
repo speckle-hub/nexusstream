@@ -126,8 +126,15 @@ class StreamRepository(
         if (item.type == MediaType.NSFW_ANIME) {
             val direct = HentaiEpisode.fromVideoId(videoId)
             return coroutineScope {
+                // Bounded like every other provider. A cold built-in lookup walks several
+                // Cloudflare-fronted sites (episode search, page fetch, pre-flight probes), and
+                // without this ceiling that chain held back the add-on streams — which usually
+                // resolve in under a second — until it finished. A timeout now costs only the
+                // built-in entries, never the whole panel.
                 val builtIn = async {
-                    runCatching { hentaiStreams(item, videoId, direct) }.getOrDefault(emptyList())
+                    ScraperRace.raceResult(ScraperRace.PROVIDER_TIMEOUT_MS) {
+                        hentaiStreams(item, videoId, direct)
+                    }.getOrDefault(emptyList())
                 }
                 val addons = async {
                     // Our own episode ids are page URLs — an add-on has nothing to do with them.

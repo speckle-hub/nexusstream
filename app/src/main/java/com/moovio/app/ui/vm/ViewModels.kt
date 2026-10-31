@@ -205,8 +205,16 @@ class AnimeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun refresh() {
         if (refreshJob?.isActive == true) return
+        // Paint the rails this section showed last time before touching the network, so a tab
+        // switch drops the skeleton instantly and the fresh rows replace them when they land.
+        container.catalogRepository.cachedSectionRows(MediaType.ANIME)?.let { cached ->
+            rows.value = cached
+            loading.value = false
+        }
         refreshJob = viewModelScope.launch {
-            loading.value = true
+            // The repository fetches on Dispatchers.IO, so this coroutine never blocks the main
+            // thread while the rows are downloaded and mapped.
+            if (rows.value.isEmpty()) loading.value = true
             // Only replace the visible rows when the fetch actually returned; a failed or
             // cancelled load must not wipe rows the user can already see.
             val fetched = runCatching { container.catalogRepository.rowsForSection(MediaType.ANIME) }.getOrNull()
@@ -254,7 +262,7 @@ class AnimeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private companion object {
-        const val SEARCH_DEBOUNCE_MS = 350L
+        const val SEARCH_DEBOUNCE_MS = 300L
         const val MIN_SEARCH_CHARS = 2
     }
 }
@@ -556,7 +564,7 @@ class NsfwViewModel(private val container: AppContainer) : ViewModel() {
 
     private companion object {
         /** Keystroke debounce so typing a word issues one request, not one per letter. */
-        const val SEARCH_DEBOUNCE_MS = 350L
+        const val SEARCH_DEBOUNCE_MS = 300L
 
         /** Queries shorter than this are never sent. */
         const val MIN_SEARCH_CHARS = 2
@@ -600,7 +608,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
      * waits for a short pause, and only the newest generation is allowed to publish.
      *
      * [remember] marks a deliberate search (chip tap / pre-filled query): it is recorded even when
-     * it finds nothing. Plain typing records any query the user actually let run — the 350 ms
+     * it finds nothing. Plain typing records any query the user actually let run — the 300 ms
      * debounce above already collapses a typed word into a single request, so this fills the
      * recent-search list from normal typing instead of only from chip taps (which is why the
      * "Recent" section on the Search screen looked like it had disappeared).
@@ -634,9 +642,18 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
                 loading.value = false
                 return@launch
             }
+            // Progressive: each source publishes as it lands (already filtered + parsed), so a
+            // fast provider fills the grid instead of waiting on the slowest one. The generation
+            // guard keeps a superseded query from ever painting over the newest one.
+            val publish: suspend (List<MediaItem>) -> Unit = { partial ->
+                if (id == generation) results.value = smart.applyTo(partial)
+            }
             val found = runCatchingCancellable {
-                val base = if (effectiveType == null) container.catalogRepository.globalSearch(searchText)
-                else container.catalogRepository.search(searchText, effectiveType)
+                val base = if (effectiveType == null) {
+                    container.catalogRepository.globalSearch(searchText, publish)
+                } else {
+                    container.catalogRepository.search(searchText, effectiveType, publish)
+                }
                 smart.applyTo(base)
             }.getOrDefault(emptyList())
             // A newer keystroke (or a filter change) superseded this request; drop the result.
@@ -649,7 +666,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
 
     private companion object {
         /** Keystroke debounce so typing a word issues one request, not one per letter. */
-        const val SEARCH_DEBOUNCE_MS = 350L
+        const val SEARCH_DEBOUNCE_MS = 300L
     }
 }
 

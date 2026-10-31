@@ -50,6 +50,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -72,9 +79,9 @@ import com.moovio.app.ui.screens.manga.MangaScreen
 import com.moovio.app.ui.screens.nsfw.NsfwHubScreen
 import com.moovio.app.ui.screens.search.SearchScreen
 import com.moovio.app.ui.screens.settings.SettingsScreen
+import com.moovio.app.ui.theme.AppRadius
 import com.moovio.app.ui.theme.LocalMoovioColors
 import com.moovio.app.ui.theme.Motion
-import com.moovio.app.ui.vm.LocalContainer
 
 object Routes {
     const val HOME = "home"
@@ -167,51 +174,84 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.detailEnter(): Ent
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.detailExit(): ExitTransition =
     fadeOut(tween(Motion.FAST)) + slideOutVertically(tween(Motion.FAST)) { it / 8 }
 
+/**
+ * Exit confirmation, shown when Back is pressed at the root of the graph.
+ *
+ * One question and two plain actions, built from the shared tokens: `Exit` closes the app and
+ * `Cancel` returns to the screen it interrupted.
+ */
+@Composable
+private fun ExitAppDialog(onDismiss: () -> Unit, onExit: () -> Unit) {
+    val moovio = LocalMoovioColors.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(AppRadius.panel.dp),
+        containerColor = moovio.surfaceElevated,
+        title = {
+            Text(
+                "Exit Moovio?",
+                style = MaterialTheme.typography.titleLarge,
+                color = moovio.textPrimary,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onExit) { Text("Exit", color = moovio.textPrimary) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = moovio.textSecondary) }
+        },
+    )
+}
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun MoovioApp(navController: NavHostController = rememberNavController()) {
+fun MoovioApp(
+    navController: NavHostController = rememberNavController(),
+    /**
+     * True only when Activity state was restored after the process was killed. NavHost brings the
+     * old back stack back in that case, which is how a relaunch used to reopen Settings instead of
+     * Home; a configuration change keeps the live stack and passes false.
+     */
+    startAtHome: Boolean = false,
+) {
     val moovio = LocalMoovioColors.current
-    val container = LocalContainer.current
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBar = tabForRoute(currentRoute) != null
 
-    // Guards tab persistence until the one-shot cold-boot restore has finished, so restoring a
-    // saved tab can never be undone by the initial Home route being persisted first.
-    var restored by remember { mutableStateOf(false) }
-
-    // Restore the last active tab **exactly once**, on cold boot. It used to key off
-    // `currentRoute == HOME`, which meant tapping Home from Settings re-triggered it and bounced
-    // the user straight back to the saved tab — the "Home glitches" bug.
-    LaunchedEffect(Unit) {
-        val current = navController.currentBackStackEntry?.destination?.route
-        if (current == null || current == Routes.HOME) {
-            val target = tabs.getOrNull(container.settings.lastTabSnapshot())?.route
-            if (target != null && target != Routes.HOME) {
-                navController.navigate(target) {
-                    popUpTo(Routes.HOME) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            }
+    // A cold start already begins at Home (that is the graph's start destination), so this only
+    // has to undo a restored back stack. The old "restore the last tab" step is gone on purpose:
+    // launching the app is not a request to resume whichever deep screen it was left on.
+    LaunchedEffect(startAtHome) {
+        if (!startAtHome) return@LaunchedEffect
+        navController.navigate(Routes.HOME) {
+            popUpTo(navController.graph.id) { inclusive = true }
+            launchSingleTop = true
         }
-        // Stamp the layout the persisted index now belongs to, so a future tab-list change is
-        // detected the same way. Done after the read so a stale index is ignored exactly once.
-        container.settings.stampTabLayoutVersion()
-        restored = true
-    }
-
-    // Persist the active tab whenever it changes (after the restore above has settled).
-    LaunchedEffect(currentRoute, restored) {
-        if (!restored) return@LaunchedEffect
-        val idx = tabs.indexOfFirst { it.route.routeBase() == currentRoute?.routeBase() }
-        if (idx >= 0) container.settings.setLastTab(idx)
     }
 
     // Bottom padding every tab screen adds so its last row clears the floating bar. The bar is
     // permanently visible — it no longer hides itself on scroll.
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val navBarBottomPadding = if (showBar) FloatingNavBarHeight + 16.dp + navInset + 12.dp else 0.dp
+
+    // At the root of the graph there is nothing left to pop, so the system would close the app on
+    // a stray back press. Ask first instead. Screens and sheets that install their own BackHandler
+    // are composed later and therefore still take precedence over this one.
+    // Read the Activity here, outside the dialog callbacks: `LocalContext.current` is a composable
+    // read, so it cannot be touched inside `onExit`.
+    val activity = LocalContext.current as? Activity
+    var confirmExit by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = navController.previousBackStackEntry == null) { confirmExit = true }
+    if (confirmExit) {
+        ExitAppDialog(
+            onDismiss = { confirmExit = false },
+            onExit = {
+                confirmExit = false
+                activity?.finish()
+            },
+        )
+    }
 
     Box(Modifier.fillMaxSize().background(moovio.background)) {
         CompositionLocalProvider(

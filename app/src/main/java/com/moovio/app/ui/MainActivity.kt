@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.moovio.app.BuildConfig
 import com.moovio.app.MoovioApp
 import com.lagradost.cloudstream3.CommonActivity
@@ -95,6 +97,12 @@ class MainActivity : FragmentActivity() {
         // without an attached Activity every one of those calls was a silent no-op.
         runCatching { CommonActivity.setActivityInstance(this) }
         val container = (application as MoovioApp).container
+        // A restored Activity is either a configuration change — where the live nav back stack has
+        // to be kept — or a restore after the process was killed, where it must not be. A ViewModel
+        // survives the first and not the second, which is exactly the discriminator needed.
+        val navSession = ViewModelProvider(this)[NavSession::class.java]
+        val restoredFromDeadProcess = savedInstanceState != null && !navSession.existedBefore
+        navSession.existedBefore = true
         setContent {
             val theme by container.settings.theme.collectAsStateWithLifecycle("dark")
             val accent by container.settings.accent.collectAsStateWithLifecycle("violet")
@@ -128,7 +136,7 @@ class MainActivity : FragmentActivity() {
                 CompositionLocalProvider(LocalContainer provides container) {
                     // App-lock gate: blocks all content behind biometric/device-credential unlock.
                     AppLockGate(activity = this@MainActivity, enabled = appLock) {
-                        MoovioAppUi()
+                        MoovioAppUi(startAtHome = restoredFromDeadProcess)
                         // Phase 25 — non-blocking launch-time update check. Composed *inside* the
                         // app-lock gate so the dialog only appears once the app is unlocked.
                         StartupUpdateCheck()
@@ -401,4 +409,15 @@ private fun promptUnlock(activity: FragmentActivity, onSuccess: () -> Unit) {
         .setAllowedAuthenticators(authenticators)
         .build()
     runCatching { prompt.authenticate(info) }
+}
+
+/**
+ * Retained marker used to tell a rotation apart from a restore after the process was killed.
+ *
+ * The ViewModel store survives a configuration change, so [existedBefore] is already true when
+ * `onCreate` runs again for a rotation. After a process death the store is empty, a fresh instance
+ * reports false, and the nav host is sent back to Home instead of restoring the stale back stack.
+ */
+class NavSession : ViewModel() {
+    var existedBefore = false
 }

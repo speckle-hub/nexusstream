@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.text.Charsets
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -74,6 +75,10 @@ data class VideoDownloadMeta(
 /** Stable, collision-resistant download id from the item key + stream URL. */
 fun videoDownloadId(itemKey: String, url: String): String =
     UUID.nameUUIDFromBytes("$itemKey|$url".toByteArray()).toString()
+
+/** Parses a download URL, returning null when it has no scheme (and is therefore not downloadable). */
+internal fun parseDownloadUrl(url: String): Uri? =
+    Uri.parse(url).takeIf { it.scheme != null }
 
 /** Completed vs in-progress vs orphaned bytes for the storage meter / cleanup UI. */
 data class DownloadStorageStats(
@@ -183,7 +188,17 @@ class VideoDownloadManager(private val context: Context) {
             headers = headers,
             alternates = alternates,
         )
-        sendAdd(buildRequest(id, url, kind, meta))
+        runCatching {
+            sendAdd(buildRequest(id, url, kind, meta))
+        }.onFailure { exception ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(
+                    context,
+                    "Download failed for $title: ${exception.message ?: exception.javaClass.simpleName}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
         // Start polling now so the row advances the moment the service begins downloading, rather
         // than waiting for the first listener callback (which may only arrive on state changes).
         ensureProgressTicker()
@@ -353,14 +368,29 @@ class VideoDownloadManager(private val context: Context) {
                 request,
                 /* foreground = */ true,
             )
+        }.recover { exception ->
+            if (exception::class.simpleName == "ForegroundServiceStartNotAllowedException") {
+                DownloadService.sendAddDownload(
+                    context,
+                    MoovioDownloadService::class.java,
+                    request,
+                    /* foreground = */ false,
+                )
+            } else {
+                throw exception
+            }
         }
     }
 
     private fun buildRequest(id: String, url: String, kind: VideoKind, meta: VideoDownloadMeta): DownloadRequest {
-        val builder = DownloadRequest.Builder(id, Uri.parse(url))
+        val uri = parseDownloadUrl(url)
+            ?: throw IllegalArgumentException("Invalid download URL: $url")
+        val builder = DownloadRequest.Builder(id, uri)
             .setCustomCacheKey(id)
-            .setData(Http.gson.toJson(meta).toByteArray())
-        // Nudge Media3 to the HLS downloader; progressive streams are inferred from the URI.
+        builder.setData(
+            runCatching { Http.gson.toJson(meta).toByteArray(Charsets.UTF_8) }
+                .getOrDefault(byteArrayOf())
+        )
         if (kind == VideoKind.HLS) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
         return builder.build()
     }

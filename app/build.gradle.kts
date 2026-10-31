@@ -38,8 +38,8 @@ android {
         applicationId = "com.moovio.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24
-        versionName = "1.11.0"
+        versionCode = 25
+        versionName = "1.11.1"
         vectorDrawables { useSupportLibrary = true }
         // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
         buildConfigField(
