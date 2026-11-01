@@ -1642,6 +1642,17 @@ ISSUE-16…26 backlog fixes that had been sitting uncommitted in the working tre
 failures, 0 errors, 0 skipped) · `:app:assembleRelease` ✅ · `npx tsc --noEmit` ✅ · `next lint` ✅.
 **No device pass** — none of the behaviour changes have been tried on hardware.
 
+**CI (added in v1.12.0, fixed the same day):** the first `CI` run failed 11 s in, inside
+`android-actions/setup-android@v3` — the step had been given `api-level` / `build-tools`, which that
+action does not read, so it fell back to its default package list, which still names the retired
+legacy `tools` package, and `sdkmanager` exited 1 before any Gradle task ran. It now requests
+`platform-tools platforms;android-36` and leaves build-tools to AGP, with licences accepted. Note
+the real `compileSdk` is **36**, not the 34 several older entries state. `gradlew` was also
+committed as mode `0644`, so `./gradlew` would have failed with "Permission denied" on Linux even
+after setup succeeded; it is now `100755`. Fix commit `4831922`; first green run **41333117929**
+(`build-and-test`, 7 m 13 s, every step ✓ — the only annotations are Node-20 deprecation notices
+and transient cache-save failures from the GitHub cache service).
+
 ---
 
 ## 2bo. Backlog hygiene pass — dead code, last stray `Bold`, website dependency prune (2026-11-01)
