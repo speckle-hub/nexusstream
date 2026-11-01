@@ -159,7 +159,7 @@ cryptic "missing required property storePassword".
 R8 minify is currently **off** (`proguard-rules.pro` is prepared — enabling is a one-line change).
 
 ### Notes
-- **Min SDK 24** · **Target SDK 34** · versionName `1.11.4` (`versionCode` 28).
+- **Min SDK 24** · **Target SDK 34** · versionName `1.12.0` (`versionCode` 29).
 - The GitHub repository is still `speckle-hub/nexusstream`; the release assets are published as
   `Moovio.apk` and `app-release.apk`.
 - `roadmap.md` is the project's living working document (full history, decisions log, device-test

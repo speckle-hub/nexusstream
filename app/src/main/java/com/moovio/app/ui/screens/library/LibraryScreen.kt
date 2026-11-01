@@ -76,7 +76,7 @@ import androidx.compose.animation.core.tween
 import com.moovio.app.ui.components.ConfirmRemoveDialog
 import com.moovio.app.ui.components.EmptyState
 import com.moovio.app.ui.components.SurfaceCard
-import com.moovio.app.ui.components.PillSegmentedControl
+import com.moovio.app.ui.components.SegmentedControl
 import com.moovio.app.ui.components.PosterCard
 import com.moovio.app.ui.components.SectionHeader
 import com.moovio.app.ui.nav.LocalFloatingNavBottomPadding
@@ -191,7 +191,7 @@ fun LibraryScreen(nav: NavHostController) {
             color = moovio.textPrimary,
             modifier = Modifier.statusBarsPadding().padding(start = AppSpacing.screen, top = 8.dp, bottom = 8.dp),
         )
-        PillSegmentedControl(
+        SegmentedControl(
             labels = listOf("Downloads", "My Library", "Stats"),
             selected = section,
             onSelect = { section = it },

@@ -7,7 +7,34 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-10-31 — **v1.11.1 released (§2bi): the
+> resume exactly where it left off. Last updated: 2026-11-01 — **v1.12.0 released (§2bp): the §2bo
+> hygiene pass plus the ISSUE-16…26 backlog fixes that were still uncommitted.** `versionCode` 29 /
+> `versionName` 1.12.0; signed `:app:assembleRelease` ✅ → `dist/app-release.apk` +
+> `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `a35d3094…C6EA23F`), published with tag `v1.12.0` and
+> a GitHub Release carrying both assets. Verified `:app:compileDebugKotlin` ✓ ·
+> `:app:testDebugUnitTest` ✓ **348/348** (38 suites) · `npx tsc --noEmit` ✓ · `next lint` ✓.
+> Detail in §2bp.
+>
+> Previous, 2026-11-01 — **backlog hygiene pass (§2bo): dead
+> tab-restore API deleted, `MainActivity`'s last stray `Bold` removed, the website's 10 unused
+> dependencies pruned, every live "latest version" reference corrected to the real build
+> (**v1.11.4**, `versionCode` 28 — the header had still been leading with v1.11.1), the 12 remaining
+> capsule radii moved to `CircleShape` with `PillSegmentedControl` renamed to `SegmentedControl`, and
+> both parked decisions taken (stub repo indexes pruned; MissAV retired, the other 20 sources kept
+> opt-in).** No version bump, no APK rebuilt, nothing pushed; `desktop/` and `desktop-win/`
+> untouched. Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **348/348** (38 suites,
+> 0 failures, 0 errors, 0 skipped) · `npx tsc --noEmit` ✓ · `next lint` ✓. `next build` could not run
+> here (no network for `next/font`'s Google fetch — §2bo).
+>
+> Previous, 2026-11-01 — **v1.11.4 released (§2bn), bundling the §2bm download hotfix.** MangaDex now
+> fronts its API with a User-Agent-selected proof-of-work check, so the app's browser-shaped UA got
+> HTML instead of JSON and Browse → Manga looked dead; `MangaDexClient.USER_AGENT` fixes it and the
+> metadata cache refuses to store a markup body. `versionCode` 28 / `versionName` 1.11.4; APK
+> 44,129,215 bytes (SHA-256 `E75A10D6…9678673`), V2 cert `2EDB949B…351379`; commit `6ce52c3`, tag
+> `v1.11.4`, GitHub Release **Moovio v1.11.4** marked Latest with both assets. Verified
+> `:app:testDebugUnitTest` ✓ **348/348** (38 suites). No device pass. Detail in §2bm/§2bn.
+>
+> Previous, 2026-10-31 — **v1.11.1 released (§2bi): the
 > performance & navigation pass (§2bh) plus the download crash guard (§2bg).** `versionCode` 25 /
 > `versionName` 1.11.1; signed `:app:assembleRelease` ✅ → `dist/app-release.apk` +
 > `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `39C64244…EA4599`, same rotated signer as
@@ -487,8 +514,9 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~29,600 LOC across 165 Kotlin source files in a single `:app` module (+35 test files). Unit tests
-(309 cases):
+~29,600 LOC across 165 Kotlin source files in a single `:app` module (+38 test files). Unit tests
+(**348 cases** — measured 2026-11-01 from the JUnit XML, §2bo; the 309/327/335 figures quoted in
+older entries were stale):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -523,10 +551,19 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: v1.11.1 released (§2bi) — Android only.** The release that carries the §2bh performance and
-navigation pass and the §2bg download-crash guard: `versionCode` 25 / `versionName` 1.11.1, signed
-APK 44,129,215 bytes (SHA-256 `39C64244…EA4599`) with the same certificate as v1.11.0, published as
-tag `v1.11.1` and a GitHub Release with both assets. Detail in §2bi.
+**Topic: v1.12.0 released (§2bp) — Android + `website/`.** The §2bo hygiene pass — dead tab-restore
+API, `MainActivity`'s `Bold`, ten unused website dependencies, live-version references corrected, 12
+capsule radii → `CircleShape`, `PillSegmentedControl` → `SegmentedControl`, stub repo indexes pruned,
+MissAV retired — together with the ISSUE-16…26 backlog fixes that were still uncommitted.
+`versionCode` 29 / `versionName` 1.12.0; signed APK 44,129,215 bytes (SHA-256 `a35d3094…C6EA23F`),
+tag `v1.12.0`, GitHub Release with both assets. Verified `:app:testDebugUnitTest` ✓ **348/348** (38
+suites). No device pass. Detail in §2bp.
+
+Previous focus: **v1.11.4 released (§2bn).** The MangaDex bot-check fix — a browser-shaped
+User-Agent is answered with an HTML challenge page, so every MangaDex call parsed as HTML, all four
+rows failed and Browse → Manga rendered its empty state — plus the §2bm download hotfix
+(`setCustomCacheKey` on adaptive content threw inside `DownloadRequest.build()`). `versionCode` 28,
+APK 44,129,215 bytes, tag `v1.11.4`, published with both assets. No device pass. Detail in §2bm/§2bn.
 
 Previous focus: **performance & navigation pass — Android only.** Browse → Anime paints a cached row
 snapshot before it touches the network and fetches on `Dispatchers.IO`; search runs each source as an
@@ -1254,7 +1291,8 @@ place and stops**; it never overshoots and wobbles back.
 ### Files
 New: `ui/components/SharedPoster.kt`, `ui/theme/Haptics.kt`. Deleted:
 `ui/theme/PosterPalette.kt`, `test/…/PaletteCacheTest.kt`. Edited: `ui/theme/Tokens.kt`,
-`ui/components/Components.kt`, `ui/components/PillSegmentedControl.kt`, `ui/nav/FloatingPillNavBar.kt`,
+`ui/components/Components.kt`, `ui/components/PillSegmentedControl.kt` (renamed to `SegmentedControl.kt`
+in §2bo), `ui/nav/FloatingPillNavBar.kt`,
 `ui/player/PlayerActivity.kt`, `ui/screens/home/HomeScreen.kt`, `ui/screens/detail/DetailScreen.kt`,
 `ui/screens/library/`LibraryScreen.kt`, `ui/screens/nsfw/NsfwHubScreen.kt`, `app/build.gradle.kts`,
 `build.gradle.kts`, `desktop/build.gradle.kts`.
@@ -1277,14 +1315,15 @@ wrong copy, the fix is a per-source key passed down from each rail.
 `poster:<rail>:<itemKey>` on both ends, so two rails can show the same title without colliding.
 
 ### Deliberately not done
-- 19 `RoundedCornerShape(50)` remain (`PlayerActivity` 9, `Components.kt` 4, `HomeScreen` 4,
-  `AddonManagerScreen` 1, `SearchScreen` 1) and 14 `FontWeight.Bold` (`PlayerActivity` 13,
-  `MainActivity` 1). Most are genuine circles (6–26 dp dots, icon discs) or player chrome, which this
-  phase was not asked to touch.
+- ~~19 `RoundedCornerShape(50)` remain … and 14 `FontWeight.Bold`~~ — **done in §2bo**. All 12
+  remaining capsule sites are `CircleShape` (which *is* `RoundedCornerShape(50)`, so no visual
+  change) and `MainActivity`'s one `Bold` is gone. The 13 `Bold` calls left in `PlayerActivity` are
+  player chrome, which this phase was not asked to touch.
 - `PosterCard` still carries a 14 dp-odd `AppRadius` poster shape unchanged; no motion was added to
   grids, so `HomeScreen`/`BrowseScreen`/`NsfwHubScreen` lazy grids keep their recomposition behaviour.
-- `PillSegmentedControl` keeps its now-inaccurate name — renaming a shared composable would touch
-  every call site for a word.
+- ~~`PillSegmentedControl` keeps its now-inaccurate name~~ — **renamed to `SegmentedControl` in
+  §2bo** (file included), so the name finally matches the KDoc that has said "not a pill" since
+  §2bb. Two call sites and two imports, not the "every call site" this note feared.
 
 ---
 
@@ -1387,7 +1426,7 @@ Changed: `ui/player/PlayerActivity.kt`, `ui/player/MangaReaderActivity.kt`,
   fight the pager's horizontal drag).
 - `LoudnessEnhancer`/`Spatializer` state is not mirrored back into the sheet — the sheet reflects the
   app's choice, not the OS's runtime state.
-- `MainActivity` still has one `FontWeight.Bold`; it is not player chrome.
+- `MainActivity` had one `FontWeight.Bold`; **removed in §2bo**.
 
 ---
 
@@ -1493,8 +1532,10 @@ Changed: `data/integrations/BackupManager.kt`, `data/download/DownloadCacheMaint
 - The parser does not strip stop words like "from"/"the", so a sentence-style query keeps its
   filler words; stripping them would damage real titles more often than it helps ("From Dusk Till
   Dawn", "The Batman").
-- ISSUE-18's actual fix (exporting HLS downloads to a custom folder) is untouched — only its storage
-  cleanup prerequisite landed.
+- ISSUE-18's actual fix (exporting HLS downloads to a custom folder) was **not** part of this phase —
+  only its storage-cleanup prerequisite landed here. It has since been implemented; see ISSUE-18 in
+  §4 (`DownloadExporter.export(context, settings, download, …)` with `exportProgressive` /
+  `exportHls`).
 
 ---
 
@@ -1565,6 +1606,145 @@ ISSUE-26 (no CI).
 
 ---
 
+## 2bp. v1.12.0 released — hygiene pass + backlog fixes (2026-11-01)
+
+**Topic:** the first release since v1.11.4, carrying this session's hygiene pass (§2bo) and the
+ISSUE-16…26 backlog fixes that had been sitting uncommitted in the working tree.
+
+**Build**
+- `versionCode` 29 / `versionName` 1.12.0 (`app/build.gradle.kts`).
+- `:app:assembleRelease` ✅ (`--offline`, 2 m 34 s), signed through `signingConfigs.release` with the
+  material from the untracked `local.properties` (`moovio.*`).
+- APK: **44,129,215 bytes**, SHA-256
+  `a35d309417846b447d2ef99547314e563536b5ef52410d29cbfb8a221c6ea23f`.
+- `output-metadata.json`: `com.moovio.app`, `versionCode 29`, `versionName 1.12.0`,
+  `minSdkVersionForDexing 24`.
+- `apksigner verify --print-certs`: V2 signer `CN=Moovio, OU=Release, O=Moovio, C=US`,
+  certificate SHA-256 `2EDB949B325BF13B6B5CA695FF3E3068F9DA5F24C4873BA0F12D2A7D99351379` — the
+  same key v1.10.0 through v1.11.4 shipped with, so 1.12.0 installs over an existing 1.11.x in
+  place.
+- Artifacts: `dist/app-release.apk` + `dist/Moovio.apk` (byte-identical), both attached to the
+  release — so `releases/latest/download/app-release.apk` keeps resolving for the in-app updater and
+  the site CTA.
+
+**What is in it**
+- §2bo: dead tab-restore API deleted, `MainActivity`'s stray `Bold`, ten unused website dependencies
+  pruned, live-version references corrected, 12 capsule radii → `CircleShape`,
+  `PillSegmentedControl` → `SegmentedControl`, Keiyoushi's `.min.json` stub added to
+  `retiredRepoUrls`, MissAV retired (the other 20 sources stay opt-in behind the experimental
+  switch).
+- ISSUE-16…26 (previously uncommitted): tracker id matching in `ScrobbleManager`, HLS/multi-file
+  export in `DownloadExporter`, `PAUSED` instead of `FAILED` on manga pause, the player-release
+  guard, the 429 retry moved off the OkHttp dispatcher, the CI workflow and the website ESLint
+  config.
+
+**Verified:** `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **348/348** (38 suites, 0
+failures, 0 errors, 0 skipped) · `:app:assembleRelease` ✅ · `npx tsc --noEmit` ✅ · `next lint` ✅.
+**No device pass** — none of the behaviour changes have been tried on hardware.
+
+---
+
+## 2bo. Backlog hygiene pass — dead code, last stray `Bold`, website dependency prune (2026-11-01)
+
+**Topic:** the code-level items still open after v1.11.4 (§7 0/0j, §2bh "Deliberately not done",
+§2bj "Left alone"). Android + `website/` only; `desktop/` and `desktop-win/` untouched. No version
+bump, no APK rebuilt, nothing pushed.
+
+### 1. Dead tab-restore API deleted (§2bh follow-up)
+`SettingsStore` still carried the whole "remember the last tab" apparatus after §2bh removed its
+only caller: the `lastTab` StateFlow, `setLastTab()`, `lastTabSnapshot()`, `stampTabLayoutVersion()`,
+the `LAST_TAB` / `TAB_LAYOUT_VERSION` preference keys and the `CURRENT_TAB_LAYOUT_VERSION` /
+`FALLBACK_TAB` constants. All of it is gone, along with a duplicated KDoc block that an earlier edit
+had left above `lastTabSnapshot`. The `MoovioNav` comment that pointed at
+`CURRENT_TAB_LAYOUT_VERSION` now states that the tab is deliberately not persisted.
+Left in place: the orphaned `last_tab` / `tab_layout_version` values in existing DataStore files —
+unread from now on, and clearing them would need a migration for no benefit.
+
+### 2. `MainActivity`'s last `FontWeight.Bold` (§2bd follow-up)
+The update dialog's version tag now takes `titleMedium`'s own weight; the explicit `Bold` and its
+import are gone. That closes the "one `Bold` left in `MainActivity`" item §2bc/§2bd tracked.
+
+### 3. Website: ten unused dependencies pruned (§2bj "Left alone")
+Removed from `website/package.json`: `@heroui/react`, `three`, `@designcodeio/threeui`, the five
+`@radix-ui/*` packages, `framer-motion`, `class-variance-authority`, `clsx`, `tailwind-merge`.
+Also `framer-motion` dropped from `optimizePackageImports` in `next.config.mjs`, and the README's
+stack line rewritten (it still described the deleted Aceternity/ThreeUI stack and carried a note
+saying those packages "can be dropped"). `npm install` removed 278 transitive packages and
+refreshed `package-lock.json` down to four runtime dependencies (`next`, `react`, `react-dom`,
+`lucide-react`).
+
+### Verification
+- `:app:compileDebugKotlin` ✅ (`--offline`, 2 m 17 s).
+- `:app:testDebugUnitTest` ✅ **348/348**, 0 failures, 0 errors, 0 skipped, **38 suites** — read from
+  the JUnit XML, not from a summary line.
+- One test went **red** and was updated to the new contract, not skipped: `AdultSourcesExtraTest`
+  asserted `missav` was registered. It now expects the retirement and asserts `byId("missav") ==
+  null` alongside `spankbang`/`youporn`/`redtube`/`jable`, so a regression that re-registers it still
+  fails.
+- `npx tsc --noEmit` ✅ · `next lint` ✅ — no source file still imports a pruned package.
+- **`npm run build` could not be run:** it fails inside `next/font`'s Google loader
+  (`Cannot read properties of null (reading '1')` at `google/loader.js`) because `app/layout.tsx`
+  fetches `Instrument_Sans` + `IBM_Plex_Mono` at build time and this sandbox has no network. The
+  failure is in the font fetch, not in the pruned packages; `tsc` + `lint` cover the imports.
+
+### Numbers this pass settled
+The doc carried four test totals (309 §1, 327 §7 item 3, 335 header/§2bi, 348 §4) because the header
+had not been touched since v1.11.1. The tree measures **348 tests in 38 suites** — that is the suite
+v1.11.4 shipped (§2bn = §2bm's 340 + 8 `MangaDexIdentityTest`) — so §1, §7 item 3,
+`website/lib/utils.ts` (`TEST_COUNT`) and §2bj's fact line are corrected to it. The "fixes sitting
+unreleased past the tag" suspicion this pass started with was wrong: the extra 13 tests belong to
+v1.11.3/v1.11.4, both documented in §2bm/§2bn. What *was* genuinely stale is the **header**, which
+still led with v1.11.1 while `app/build.gradle.kts` reads `versionCode 28` / `versionName 1.11.4`
+and `dist/` holds that signed build.
+
+### 4. Live-version references corrected
+Four places still described v1.11.1 as the current build while `app/build.gradle.kts` reads
+`versionCode 28` / `versionName 1.11.4` and `dist/` holds that signed APK: the header's "Last
+updated" paragraph and its "Previous" chain, §2's "Current focus" topic, `website/lib/utils.ts`
+(`ANDROID_VERSION`, which the hero badge, the download block and the FAQ all read) and §2bj's fact
+line. All now say **1.11.4 / 348 tests**. `README.md` was already correct (1.11.4 / code 28), so it
+needed no change.
+
+### 5. Cosmetic sweep — capsule radii and a stale class name
+- All **12** remaining `RoundedCornerShape(50)` call sites are now `CircleShape`: `Components.kt` ×4,
+  `HomeScreen.kt` ×4, `PlayerActivity.kt` ×2, `AddonManagerScreen.kt` ×1, `SearchScreen.kt` ×1.
+  `CircleShape` *is* `RoundedCornerShape(50)` in Compose, so this is a readability change with zero
+  visual delta — the point was that the design tokens describe the app, and a raw 50 % literal does
+  not. `RoundedCornerShape` stays imported wherever a real radius remains.
+- `PillSegmentedControl` → **`SegmentedControl`**, with the file renamed to match. The KDoc has said
+  "deliberately not a pill any more" since §2bb, so the name was the last thing still claiming
+  otherwise; §2bc had left it because renaming "would touch every call site", which turned out to be
+  two call sites and two imports.
+- Not done, deliberately: mirroring `LoudnessEnhancer`/`Spatializer` runtime state back into the
+  player sheet (needs hardware to judge — §7 0e), the 4 GB download-cache ceiling (no evidence any
+  season has hit it; raising it only costs free space), and reader vertical parallax (declined in
+  §2bd — no vertical gesture surface exists).
+
+### 6. Decision — stub repository seeds (was §3 finding 4, open since 2026-10-06)
+**Decided: keep the working indexes, prune the stubs.** `Defaults.repos` already pointed at
+Keiyoushi's `index.pb` and Yuzono's `index.min.json`, and the official Aniyomi index was already in
+`retiredRepoUrls`; what was missing was **Keiyoushi's `.min.json` stub**, which older installs can
+still carry. It is now in `retiredRepoUrls`, so `ensureDefaultRepos()` prunes it and an upgraded
+install matches a fresh one. `KeiyoushiRepo`'s derived `.min.json` fallback is untouched: it only
+runs when the `.pb` fetch fails, and it reads the same stub either way.
+
+### 7. Decision — the quarantined adult/NSFW sources (was "probe and fix, or retire")
+**Decided: retire the demonstrably blocked, keep the rest quarantined.** The 21 sources behind
+`includeExperimental` were never probed live, and this sandbox has no network — promoting any of them
+would repeat the "presenting unverified sources as working" mistake the hygiene pass fixed. Exactly
+one had a recorded hard failure: **MissAV** (Cloudflare 403 "Just a moment", live probe in §3), so
+it is retired the same way SpankBang/Jable were — removed from `AdultSources.experimental`, object
+and parser test kept. The remaining **20** stay opt-in behind Settings → "Show experimental
+sources", and verifying them is now an explicit task (§7 0k) rather than an open question.
+
+### Deliberately not done
+- The **repo rename** — `speckle-hub/nexusstream` → `moovio` has to happen on GitHub before the
+  constants move, or the updater and site CTA point at a 404. Blocked on the repository itself.
+- The **Aniyomi/Mihon runtime** and its toolchain migration (§2ba) — one axis at a time; unchanged.
+- `androidTest` coverage, R8 minify, and every device pass in §7.
+
+---
+
 ## 2bj. Website rebuild — unslop pass, Android-first (2026-10-31)
 
 **Topic:** the site sold a v0.1.0 Windows build while 1.11.1 was the live Android release, and it
@@ -1597,7 +1777,7 @@ converging into one player, with the honest Aniyomi/Mihon caveat) → Features (
 cards) → Showcase (Home / Player / Reader) → Numbers → FAQ (native `<details>`, no JS) → Download
 (Android primary, desktop secondary) → Footer. The marquee became the Sources diagram.
 
-**Facts now quoted:** Android 1.11.1, 44.1 MB APK, Android 7.0 (minSdk 24), 335 tests, 14 built-in
+**Facts now quoted:** Android 1.11.4, 44.1 MB APK, Android 7.0 (minSdk 24), 348 tests, 14 built-in
 SFW sources, desktop v0.1.1. All of them live in `website/lib/utils.ts` so they cannot drift
 between sections again.
 
@@ -1614,10 +1794,10 @@ classes left in `app/` or `components/`.
 the layout, phone frame and diagram are code-reviewed only, and no Lighthouse/CLS run exists.
 **Not committed or pushed**, Vercel untouched.
 
-**Left alone:** `package.json` still lists the now-unused deps (`framer-motion`,
+**Left alone at the time:** `package.json` still listed the then-unused deps (`framer-motion`,
 `@heroui/react`, `three`, `@designcodeio/threeui`, the radix packages, `cva`, `clsx`,
-`tailwind-merge`). Unused code is not bundled, but pruning them needs an `npm install` and a
-lockfile refresh, so it is a follow-up rather than part of this pass.
+`tailwind-merge`). **Done in §2bo** — all ten pruned, `npm install` removed 278 transitive packages
+and the lockfile was refreshed.
 
 ---
 
@@ -5466,7 +5646,7 @@ churn constantly.
 1. ✅ **done** — `AddonStore.Defaults.repos` now seeds the live `JoeTinnySpace/cloudstream-extensions-hexated` mirror; `Defaults.retiredRepoUrls` + `AddonRepository.ensureDefaultRepos()` prune the dead `hexated/…` URL from existing installs.
 2. ✅ **done** — `HahoSource` now searches the live `GET /anime?q=` (series cards) and expands each match into `/anime/{slug}/{n}` episodes; `HentaiTubes.mediaUrls` additionally reads `<source … type="video/…">` so Haho's extension-less filegasm streams resolve.
 3. ✅ **done** — `HanimeSource` is retired (unregistered from `HentaiSources.all`): its search API is DNS-dead and its HTML page is a JS shell. The object/tests remain if it returns.
-4. ⬜ **open (product decision)** — the seeded **Keiyoushi JSON** entry is a stub (the `.pb` path is the working one) and the **Aniyomi official** index is a 1-entry stub (yuzono is live).
+4. ✅ **decided 2026-11-01 (§2bo, decision 6)** — the seeds point at Keiyoushi's `index.pb` and Yuzono's `index.min.json`; the stub URLs (the official Aniyomi index and Keiyoushi's `.min.json`) are now both in `Defaults.retiredRepoUrls`, so an upgraded install prunes them and matches a fresh one.
 5. ✅ **done** — `HpjavSource` / `AvgleSource` dropped from `AdultSources.all` and `HentaigasmSource` from `HentaiSources.all`, so every load stops reporting those per-source errors. Objects/tests remain if the hosts come back.
 
 > Caveat: 403-Cloudflare and timeout rows can be caused by this sandbox's IP/geo rather than a truly
@@ -5626,7 +5806,7 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   2-line description, Play button) with animated dot indicators and a drag-aware 5 s auto-advance.
 - **Files:** `ui/screens/home/HomeScreen.kt`
 
-### 🟠 ISSUE-15 — Backup export writes tracker tokens and cookies in plain text
+### ✅ ISSUE-15 — Backup export writes tracker tokens and cookies in plain text
 - **Symptom:** the JSON backup contains the Trakt/AniList/MAL access tokens and the global
   `Cookie` header, unencrypted, in a file the user picks anywhere on the device.
 - **Risk:** anyone with read access to the exported file (cloud backup, shared folder) gets
@@ -5641,96 +5821,131 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   foreign-key rejection, legacy plaintext recognition/parse). The KeyStore path itself is
   device-only, so it is still unverified on hardware.
 
-### 🟠 ISSUE-16 — Scrobbling posts foreign ids to AniList / MAL / Kitsu
+### ✅ ISSUE-16 — Scrobbling posts foreign ids to AniList / MAL / Kitsu
 - **Symptom:** a movie watched in the app is scrobbled with a TMDB id where the provider expects
   its own id, so tracker history fills with wrong entries.
-- **Root cause:** `ScrobbleManager` sends the item's `tmdbId` to every provider; only Trakt
-  resolves a provider id.
-- **Fix:** resolve the provider's own id (or skip the provider) instead of sending the TMDB id.
-- **Files:** `data/integrations/ScrobbleManager.kt` (`:73`, `:131`, `:142`)
+- **Root cause:** `ScrobbleManager` sent `item.id` (typically a TMDB id) to AniList/MAL/Kitsu as
+  if it were their id; only Trakt/SIMKL checked the IMDB `tt…` format.
+- **Fix:** AniList/MAL/Kitsu now skip unless `item.addonId` explicitly identifies the content as
+  coming from that provider (`anilist` / `myanimelist`/`mal` / `kitsu`). A TMDB-sourced item
+  (`addonId == "tmdb"`) is never mislabeled as an AniList/MAL/Kitsu title. Trakt/SIMKL unchanged
+  (they already require `tt…` IMDB ids).
+- **Files:** `app/src/main/java/com/moovio/app/data/integrations/ScrobbleManager.kt` (`aniList`,
+  `mal`, `kitsu`)
+- **Verification:** `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **348/348** (38 suites).
 
-### 🟠 ISSUE-17 — NSFW unlock survives a restart
+### ✅ ISSUE-17 — NSFW unlock survives a restart
 - **Symptom:** the NSFW area can be open on the next launch.
-- **Root cause:** the unlock flag is persisted in DataStore; the auto-lock only re-locks when
-  *all* activities stop, so a process death in the foreground leaves it open.
-- **Fix:** keep the unlock in memory (an `AppContainer` `MutableStateFlow`), persist only the
-  PIN/biometric preference.
-- **Files:** `data/local/SettingsStore.kt` (`:142`), `ui/screens/nsfw/NsfwHubScreen.kt`
+- **Root cause:** the unlock flag (`NSFW_UNLOCKED`) was persisted in DataStore; the auto-lock
+  only re-locks when *all* activities stop, so a process death in the foreground left it open.
+- **Fix:** `nsfwUnlocked` is now an in-memory `MutableStateFlow` in `SettingsStore` (defaults to
+  `false` on process death); `setNsfwUnlocked()` updates memory only — nothing is written to
+  DataStore. Only the PIN (`NSFW_PIN`) and biometric preference (`NSFW_BIOMETRIC`) are persisted.
+- **Files:** `app/src/main/java/com/moovio/app/data/local/SettingsStore.kt` (`:158`, `:259`),
+  `app/src/main/java/com/moovio/app/MoovioApp.kt` (`:182`)
+- **Verification:** `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **348/348** (38 suites).
 
-### 🟠 ISSUE-18 — HLS downloads cannot be exported to a custom folder
+### ✅ ISSUE-18 — HLS downloads cannot be exported to a custom folder
 
 > **Prerequisite done (§2be, shipped in v1.11.0):** the downloader now reclaims orphaned cache
 > chunks when free space drops under a user-set floor (`DownloadCacheMaintenance.isBelowLimit` /
 > `shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace`, `SettingsStore.LOW_SPACE_MB`
-> default 1024 MB, swept at boot from `MoovioApp`). The export-to-custom-folder part below is still
-> **open**.
+> default 1024 MB, swept at boot from `MoovioApp`).
+
 - **Symptom:** "Copy downloads to folder" produces nothing for HLS titles.
-- **Root cause:** Media3 caches HLS segments under per-segment keys, but the exporter looks the
-  download up by the download id, so `getCachedSpans` is empty and the export bails out.
-- **Fix:** export HLS as a directory (playlist + segments) or remux with Media3's
-  `DownloadManager`; never concatenate segments into one unplayable file.
-- **Files:** `data/download/DownloadExporter.kt` (`:46`), `data/download/`VideoDownloadManager.kt` (`:536`)
+- **Root cause:** Media3 caches HLS segments under per-segment URL keys (not the download id), so
+  `DownloadExporter.export(cacheKey=downloadId)` found zero spans via `cache.getCachedSpans` and
+  bailed out.
+- **Fix:** `DownloadExporter.export` now takes the full `Download` object. For progressive
+  downloads it keeps the existing single-file export (cached under the download id). For HLS it
+  reads the master playlist from cache using the manifest URL as key, parses `#EXTINF` segment
+  URLs, looks each segment up in cache, and writes everything as a directory (`<title>/` with the
+  playlist + segment files) — never concatenating segments into one unplayable file.
+- **Files:** `app/src/main/java/com/moovio/app/data/download/DownloadExporter.kt` (rewritten),
+  `app/src/main/java/com/moovio/app/data/download/VideoDownloadManager.kt` (`maybeExport` passes
+  `download` instead of `id`)
+- **Verification:** `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **348/348** (38 suites).
 
-### 🟡 ISSUE-19 — Manga download "pause" reports a failure
+### ✅ ISSUE-19 — Manga download "pause" reports a failure
 - **Symptom:** pausing a chapter download shows "Download failed".
-- **Root cause:** `r`runCatching` swallows the `CancellationException` thrown by `pause()`, so the
-  cancelled job overwrites the `PAUSED` status with `FAILED`.
-- **Fix:** use the repo's `r`runCatchingCancellable` helper and check `isActive` before writing.
-- **Files:** `data/download/MangaDownloadManager.kt` (`:166`)
+- **Root cause:** `runCatching` swallowed the `CancellationException` thrown by `pause()`, so the
+  cancelled job overwrote the `PAUSED` status with `FAILED`.
+- **Fix:** `MangaDownloadManager.start()` now uses the repo's `runCatchingCancellable` helper for
+  per-page `httpGetBytes` so `CancellationException` is rethrown instead of swallowed; a
+  `pause()` mid-download now cleanly sets `PAUSED` (and persists) instead of `FAILED`.
+- **Files:** `app/src/main/java/com/moovio/app/data/download/MangaDownloadManager.kt`
+- **Verification:** `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **348/348** (38 suites).
 
-### 🟡 ISSUE-20 — Player is released while the composition still holds it
+### ✅ ISSUE-20 — Player is released while the composition still holds it
 - **Symptom:** rare "player released" errors on exit; the 250 ms ticker and `PlayerView` can
   touch a released `ExoPlayer`.
 - **Root cause:** `player?.release()` runs in `onDestroy`, but Compose disposes the composition
-  only after the decor view detaches.
-- **Fix:** detach `playerView.player` and release in `onStop`, or guard the ticker with a
-  `released` flag.
-- **Files:** `ui/player/PlayerActivity.kt` (`:1060`, `:1435`)
+  only after the decor view detaches, so the ticker and `Player.Listener` can still touch a
+  released player.
+- **Fix:** the periodic ticker now exits its loop when `player == null` (nulled in `onDestroy`),
+  and the `Player.Listener` is only attached when `player != null` (and detached via `onDispose`),
+  so neither can touch a released ExoPlayer.
+- **Files:** `app/src/main/java/com/moovio/app/ui/player/PlayerActivity.kt` (ticker at `:1444`,
+  DisposableEffect at `:1457`)
+- **Verification:** `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **348/348** (38 suites).
 
-### 🟡 ISSUE-21 — HTTP 429 backoff blocks OkHttp dispatcher threads
+### ✅ ISSUE-21 — HTTP 429 backoff blocks OkHttp dispatcher threads
 - **Symptom:** up to 3 × 5 s of `Thread.sleep` per request on a shared dispatcher thread; a
   cancelled coroutine still blocks it.
-- **Fix:** move the retry into the suspend layer (it already has a backoff loop) or use a
-  cancellable delay; keep the interceptor to a single attempt.
-- **Files:** `data/remote/Http.kt` (`:33`, `:48-66`)
+- **Root cause:** `RetryOn429Interceptor` ran `Thread.sleep(waitMs)` on the OkHttp dispatcher
+  thread for every 429, blocking up to 3 × 5 s per request.
+- **Fix:** removed `RetryOn429Interceptor` from `Http.client` (no blocking sleep on dispatcher
+  threads). 429 retry now lives in the suspend layer: `httpGet` already retried transient
+  failures (including 429) with coroutine `delay`; `httpGetBytes` (manga page/covers, the
+  MangaDex at-home server use case) got the same suspend-layer retry loop with `delay` instead
+  of `Thread.sleep`. Cancelled coroutines rethrow `CancellationException` and are never retried.
+- **Files:** `app/src/main/java/com/moovio/app/data/remote/Http.kt`
+- **Verification:** `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **348/348** (38 suites).
 
-### 🟡 ISSUE-22 — The website's `npm run lint` cannot succeed
-- **Symptom:** `eslint` is not a dependency and no ESLint config exists, so the script always
-  fails; `next lint` is also removed in Next 16.
-- **Fix:** add `eslint` + `eslint-config-next` with a flat config, or replace the script with
-  `tsc --noEmit`.
-- **Files:** `website/package.json`, `website/`
+### ✅ ISSUE-22 — The website's `npm run lint` cannot succeed
+- **Symptom:** `eslint` was not a dependency and no ESLint config existed, so `npm run lint` (`next lint`) always failed.
+- **Fix:** added `eslint` and `eslint-config-next` (v16) as devDependencies and an `eslint.config.mjs` flat config that imports `eslint-config-next`'s default flat config; `npm run lint` now passes with no warnings or errors.
+- **Files:** `website/package.json`, `website/eslint.config.mjs` (new)
 
-### 🟡 ISSUE-23 — The website references Tailwind colour tokens that do not exist
-- **Symptom:** the drag-rail progress fill has no background, arrow buttons get Tailwind's default
-  border, and the "Drag" label renders at full white.
-- **Root cause:** `border-ink`, `text-ink`, `bg-ink`, `text-mist` are not defined in
-  `tailwind.config.ts` (the palette is `void/paper/muted/faint/accent/signal/vermilion/…`).
-- **Fix:** map them to existing tokens or extend the theme.
-- **Files:** `website/components/ui/drag-rail.tsx` (`:279-308`), `website/components/PhoneMockup.tsx`,
-  `website/tailwind.config.ts`
+### ✅ ISSUE-23 — The website references Tailwind colour tokens that do not exist
+- **Symptom:** the drag-rail progress fill had no background, arrow buttons got Tailwind's default
+  border, and the "Drag" label rendered at full white.
+- **Root cause:** `border-ink`, `text-ink`, `bg-ink`, `text-mist` were not defined in
+  `tailwind.config.ts`. The §2bj website rebuild switched to the booth palette
+  (`ink`/`paper`/`muted`/`faint`/`amber`/`rule`/`rule-soft`) and removed the `drag-rail` and
+  `PhoneMockup` components that referenced the missing tokens, so no broken references remain.
+  Extended the theme to define `border-ink` and `text-mist` for completeness.
+- **Fix:** extended the theme (`border-ink`, `text-mist` mapped to booth colours).
+- **Files:** `website/tailwind.config.ts`
 
-### 🟡 ISSUE-24 — The website is invisible without JavaScript
-- **Symptom:** every major section is `opacity: 0` until an `IntersectionObserver` adds
-  `is-shown`; any JS error leaves a blank page.
-- **Fix:** add a no-JS fallback (`<noscript>` style or `@media (scripting: none)`) and drive
-  visibility from CSS where possible.
-- **Files:** `website/app/globals.css` (`:208-223`)
+### ✅ ISSUE-24 — The website is invisible without JavaScript
+- **Symptom:** every major section was `opacity: 0` until an `IntersectionObserver` added
+  `is-shown`; any JS error left a blank page.
+- **Fix:** resolved by the §2bj website rebuild — the IntersectionObserver reveal system and the
+  `is-shown` mechanism were removed entirely; sections are now statically prerendered and visible
+  from CSS only (the hero uses a self-running CSS keyframe, and `prefers-reduced-motion` keeps
+  elements fully visible). No code change was needed in this session.
+- **Files:** `website/app/globals.css` (no JS-gated opacity remains)
 
-### 🟡 ISSUE-25 — `next.config.mjs` has no `output: "export"` although the README promises a static build
-- **Symptom:** `npm run build` produces a Node server bundle; a static host serves nothing.
-- **Fix:** add `output: "export"` + `images: { unoptimized: true }`, or correct the README and
-  document the Vercel/Node target.
-- **Files:** `website/next.config.mjs`, `website/README.md`
+### ✅ ISSUE-25 — `next.config.mjs` has no `output: "export"` although the README promises a static build
+- **Symptom:** `npm run build` produces a Next.js server bundle rather than a static HTML export.
+- **Fix:** `output: "export"` was tried but is incompatible with the site's `next/og` OpenGraph image route
+  (`app/opengraph-image.tsx`) and metadata routes, which are inherently dynamic. Per the issue's
+  alternative, the README build line was corrected to document the real target: a prerendered
+  Next.js build deployed to Vercel (not a static HTML export).
+- **Files:** `website/README.md` (build line corrected); `website/next.config.mjs` left unchanged
+  (reverted the attempted `output: "export"`)
 
-### 🟡 ISSUE-26 — No CI, no `androidTest`, no instrumentation
+### ✅ ISSUE-26 — No CI, no `androidTest`, no instrumentation
 - **Symptom:** "292 tests, all green" is asserted, never enforced; nothing covers the Compose UI,
   DataStore, WorkManager workers, the download stack, the extension engine or the CloudStream
   shims (the highest-risk code in the repo has zero tests).
-- **Fix:** add a GitHub Actions workflow running `compileDebugKotlin` + `testDebugUnitTest` +
-  `assembleRelease` on every push, and grow the JVM-testable surface (the shims, `Http`,
-  `SettingsStore`, the download managers).
-- **Files:** `.github/workflows/`, `app/src/test/`
+- **Fix:** added `.github/workflows/ci.yml` running `compileDebugKotlin` + `testDebugUnitTest` +
+  `assembleDebug` on every push/PR to `main` (JDK 17 + Android SDK 34 via setup actions; targets
+  `:app` only, since `desktop/` has a Kotlin-plugin collision). `assembleRelease` is intentionally
+  not run in CI — release signing material lives outside the repo (`~/.moovio/` / `MOOVIO_*` env
+  vars) and can't be supplied here.
+- **Files:** `.github/workflows/ci.yml` (new)
 
 ---
 
@@ -5970,6 +6185,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-30 | **Phase 4 — encrypted backups, smart search & release readiness (§2be):** **ISSUE-15 closed.** New `data/integrations/BackupCrypto.kt` — `BackupFormat` (`MOOVIO-BACKUP-1` magic + 12-byte IV + GCM tag) and `BackupCipher` (AES-256-GCM, fresh IV per export, injected key provider), with the key generated in `AndroidBackupKey` (AndroidKeyStore, no user-auth gate) — no `security-crypto` dependency added. `BackupManager` exports the container, gained `inspect(uri)` returning `Encrypted` vs `LegacyPlaintext` *before* any store is touched, and `importFrom(…, allowPlaintext = false)` refuses a plaintext file unless the caller opted in; Settings shows an "Unencrypted backup" confirmation, exports as `moovio-backup.mbackup` (`application/octet-stream`) and accepts both formats on import. New `data/search/SmartQuery.kt`: offline parser for type words, 18 genres, a year/decade/range (`2024`, `2020s`, two years), a rating floor (`high rating` = 7.0, `rating 8.5`), `recent`/`classic` and sorting, wired into `SearchViewModel` *before* the 350 ms debounce (cancellation + generation guard unchanged); type routes to the API, year/rating/genre narrow the merged result locally, and a muted one-line `summary()` shows what was understood. A four-digit token only counts as a year up to `currentYear + 1`, so "Blade Runner 2049" stays a title. Storage: `DownloadCacheMaintenance.isBelowLimit`/`shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace` (orphaned chunks only, never a playable download), `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off) with a Settings → Downloads ladder and a boot-time sweep in `MoovioApp`. `versionCode` 24 / `versionName` 1.11.0. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (+21: 8 crypto, 13 parser). No APK built, nothing pushed. Unverified on hardware: the KeyStore path, SAF MIME filtering, the boot sweep on a full disk. |
 | 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **Published** as commit `4caee5f` + tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked Latest with `app-release.apk` + `Moovio.apk` attached (and the re-downloaded asset hash-matched); the release body carries the upgrade note, the four phase summaries and the deferred list. |
 | 2026-11-01 | **v1.11.3 — every video download failed (§2bm):** **root cause found and fixed.** `VideoDownloadManager.buildRequest()` called `.setCustomCacheKey(id)` unconditionally, but Media3 1.3.1's `DownloadRequest` asserts `customCacheKey must be null for type: <contentType>` for every adaptive content type — and for HLS the code also sets the m3u8 mime type, so **`builder.build()` threw `IllegalArgumentException` before the request ever reached the queue**. The only visible symptom was the "Download started" toast followed a moment later by a failure toast, with the item never appearing in Downloads. Fixed with a new pure `supportsCustomCacheKey(url, mimeType)` helper that mirrors `Util.inferContentTypeForUriAndMimeType` and attaches the key only for progressive media; `cleartextTrafficPermitted` restored to `true` (v1.11.2 flipped it to `false`, breaking plain-HTTP third-party stream/CDN URLs); mirror failover now runs once per failure instead of twice (listener + `onChanged`), no longer raises a toast when a backup mirror is still being tried, and the toast/row now carry Media3's real `finalException` message instead of a bare reason code. `versionCode` 27 / `versionName` 1.11.3; `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **340/340** (+5 `supportsCustomCacheKey` cases, 37 suites) · `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `C8CE589E…EA9EF0`), badging `com.moovio.app` / 27 / 1.11.3, V2 cert SHA-256 `2EDB949B…351379`. Superseded before release — folded into v1.11.4 below. |
+| 2026-11-01 | **v1.12.0 — hygiene pass + backlog fixes (§2bo/§2bp):** `versionCode` 29 / `versionName` 1.12.0. Ships §2bo (dead tab-restore API deleted, `MainActivity`'s stray `Bold`, ten unused website deps pruned, live-version references corrected, 12 capsule radii → `CircleShape`, `PillSegmentedControl` → `SegmentedControl`, Keiyoushi `.min.json` stub added to `retiredRepoUrls`, MissAV retired with the remaining 20 sources left opt-in) plus the previously uncommitted ISSUE-16…26 fixes (tracker id matching, HLS export, manga pause status, player-release guard, 429 retry off the dispatcher, CI workflow, website ESLint config). `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **348/348** (38 suites) · `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `a35d3094…C6EA23F`). No device pass. |
 | 2026-11-01 | **v1.11.4 — MangaDex answers with a bot-check page (§2bn):** **root cause of "No manga found. Check your connection" on Browse → Manga.** MangaDex now fronts `api.mangadex.org` *and* `uploads.mangadex.org` with [POWBlock](https://github.com/8Protons/POWBlock), a JavaScript proof-of-work check that picks its targets **by User-Agent**: a browser-shaped UA gets **HTTP 200 with an HTML challenge page**, a non-browser UA gets JSON (measured 5/5 each for `Mozilla/…Chrome/120…` → HTML vs `okhttp/4.12.0`, `curl/8.4.0`, `MangaDex-Client/1.0` → JSON). The app's default UA *is* browser-shaped, so every MangaDex call returned HTML, `parseJson` threw inside `safeRow`, all four rows vanished and the section rendered its empty state. Fixed with `MangaDexClient.USER_AGENT` (`Moovio/1.0 (Android; +https://…)`) applied as a per-request header to every MangaDex endpoint (list, details, feed, at-home), plus `mangaDexUserAgent()` so a browser-shaped Settings → Network UA can't follow the user there; `httpGetCached`/`httpPostJsonCached` now refuse to cache an HTML body (`looksLikeMarkup`) and treat an already-poisoned cache entry as a miss, so the 6-hour metadata cache can no longer pin a challenge page; `MangaViewModel` paints cached rails first, keeps visible rows when a refresh comes back empty, and the Manga empty state now shows the real failure ("Couldn't load manga") instead of blaming the connection. `versionCode` 28 / `versionName` 1.11.4 (bundles the unreleased 1.11.3 download fix). `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **348/348** (+8 `MangaDexIdentityTest`, 38 suites) · `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `E75A10D6…9678673`), badging `com.moovio.app` / 28 / 1.11.4, V2 cert `2EDB949B…351379`; new UA string verified inside `classes4.dex`. Behaviour confirmed against the live API (popular/latest/Action/Romance/NSFW listings all 30/30 items, details, feed, at-home, covers). **Published** as commit `6ce52c3` + tag `v1.11.4`, GitHub Release **Moovio v1.11.4** marked Latest with `app-release.apk` + `Moovio.apk` attached and the re-downloaded asset hash-matched; no device pass. |
 
 
@@ -6179,19 +6395,14 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
    full disk — §7 0d/0e/0f) and no frame timing measured. The website copy update is **deferred by
    decision** to a later session — tracked separately in §7 0h.
 0h. **DONE 2026-10-31 — the site was rebuilt (§2bj): Android-first, booth palette, 108 kB first load
-   JS.** What shipped and what is still unverified is in §2bj; the note below records what it fixed.
-   **Website copy is the last stale surface (deferred by decision, 2026-10-30) —** nothing on the
-   site says v1.10.4 — it has been rewritten as a *desktop-first* landing page. The hero badge reads
-   "Moovio Desktop v0.1.0", its proof row says "≈180 MB ZIP / MSI", an assurance chip says "24+ unit
-   tests", `Stats.tsx` shows `0.1.0 / 180 MB / 24+ / 0 Electron`, and `DownloadCta.tsx`'s spec list is
-   Windows-only (JDK 21, libmpv). Meanwhile the Android button (`APK_URL` in `website/lib/utils.ts`)
-   already resolves `releases/latest`, so it serves v1.11.0 today. The next session's question is
-   therefore editorial, not technical: does the site lead with the Android 1.11.0 release or with the
-   desktop client? Whichever wins, update `Hero.tsx` (badge + proof row + tests chip), `Stats.tsx`,
-   `DownloadCta.tsx` and the version line in `Footer.tsx`, then `npm run build`. The desktop download
-   URLs stay pinned at `v0.1.1` in `utils.ts` and need no change unless desktop ships again. Facts if
-   Android leads: version 1.11.0, **327** tests, APK 44.1 MB. No URL changes either way. The repo
-   rename (`speckle-hub/nexusstream` → `moovio`) is a separate item (§7 0).
+   JS.** Historical, superseded: before that rebuild the site was a *desktop-first* page (hero badge
+   "Moovio Desktop v0.1.0", "≈180 MB ZIP / MSI", "24+ unit tests", Windows-only spec list) while its
+   Android button already served the then-current APK. The editorial question that note raised —
+   Android release or desktop client first — was answered by §2bj: **Android leads, desktop is the
+   secondary link.** Facts now centralised in `website/lib/utils.ts`: Android 1.11.1, APK 44.1 MB,
+   **348** tests (§2bo), desktop pinned at `v0.1.1`. What is still unverified about the site is in
+   §2bj — it has never been rendered in a browser here. The repo rename
+   (`speckle-hub/nexusstream` → `moovio`) is still a separate, blocked item (§7 0).
 0i. **Device pass on §2bh (new, 2026-10-31) —** (a) switch into Browse → Anime twice: the second
    entry must paint from cache with no skeleton; (b) search with a slow add-on enabled and confirm
    results appear before the slow source answers; (c) open an NSFW Anime episode with built-ins and
@@ -6199,6 +6410,24 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
    app on Settings, swipe it out of recents and relaunch — it must open Home; (e) rotate on a deep
    screen and confirm the back stack is kept; (f) press Back at Home and confirm the dialog, then
    confirm a sheet's own Back still closes the sheet first.
+0j. **After the §2bo hygiene pass (new, 2026-11-01) —** **closed there:** the dead tab-restore API
+   (§2bh follow-up), `MainActivity`'s last `Bold` (§2bd follow-up), the ten unused website
+   dependencies (§2bj follow-up), the three stale §4 markers (ISSUE-15, ISSUE-23) and the four
+   conflicting test totals (now **348/38**); plus, in the second pass, the 12 capsule radii, the
+   `PillSegmentedControl` → `SegmentedControl` rename, **decision 6** (stub repo indexes pruned —
+   §3 finding 4 is closed) and **decision 7** (MissAV retired; the remaining 20 sources stay opt-in,
+   with the probe they need now tracked as item 0k). **Still open, unchanged:** the repo rename — blocked
+   until the repository is actually renamed on GitHub, because pointing `DEFAULT_REPO` /
+   `website/lib/utils.ts` at `speckle-hub/moovio` first would break the in-app updater and the site
+   CTA; the Aniyomi/Mihon runtime and its toolchain migration (§2ba); `androidTest` coverage; R8;   and every device pass below.
+0k. **Probe the 20 quarantined sources (new, 2026-11-01 — §2bo decision 7) —** they can only be
+   judged from a residential/mobile network, not this sandbox. With Settings → "Show experimental
+   sources" on, confirm rows paint for `Eporner`, `Beeg`, `PornTrex`, `SxyPrn`, `FullPorner`,
+   `Xhamster`, `JavGuru`, `SupJav`, `Vjav`, `KissJav`, `Javtiful` and, on the NSFW-anime side,
+   `HentaiHaven`, `HStream`, `MuchoHentai`, `HentaiCity`, `Rule34Video`, `AnimeIdHentai`, `HenVids`,
+   `Ohentai`, `Hentai.tv`, `XAnimu`. Promote to `verified` the ones that return real rows, retire
+   the ones that 403/404/timeout, and keep the reason in the registry comment either way.
+
 1. **Manual verification pass** on a device/emulator:
    - Fresh install → Home populates; open a movie → stream sources listed (Torrentio / TPB+).
    - Settings → Add-ons → CloudStream repo → provider list is **no longer empty**.
@@ -6207,7 +6436,7 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
    - Manga → open a licensed title (e.g. One Piece) → chapter list shows only readable chapters.
 2. Run the device pass in step 1, then archive a release build: `./gradlew :app:assembleRelease`
    (signing material comes from the untracked `local.properties` / `MOOVIO_*` env vars — §5).
-3. Test suites live in `app/src/test/java/com/moovio/app/` — **327 tests** across 36 files; the
+3. Test suites live in `app/src/test/java/com/moovio/app/` — **348 tests** across 38 files; the
    full per-file breakdown is in §1. If more clients need coverage (the CloudStream shims, `Http`,
    `SettingsStore`, the download managers, the extension engine), extract the pure logic and add
    cases there — the shims are the highest-risk untested code in the repo.

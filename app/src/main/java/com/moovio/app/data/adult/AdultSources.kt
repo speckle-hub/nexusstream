@@ -21,7 +21,6 @@ object AdultSources {
         PornTrexSource,
         SxyPrnSource,
         FullPornerSource,
-        MissavSource,
         XhamsterSource,
         JavGuruSource,
         SupJavSource,
@@ -50,7 +49,7 @@ object AdultSources {
 
     /** Sources removed from the active registry because they consistently fail:
      *  Jable (Cloudflare 403), YouPorn (broken stub), RedTube (blocked/timeout),
-     *  SpankBang (Cloudflare 403), TXXX (unreachable), JavMost (blocked),
+     *  SpankBang (Cloudflare 403), MissAV (Cloudflare 403), TXXX (unreachable), JavMost (blocked),
      *  OpJav (blocked 403), 7MMTV (unreachable).
      *  HPJAV (DNS-dead), Avgle (520), Hanime (DNS-dead), Hentaigasm (timeouts) were retired earlier.
      *  Their source objects/tests remain should a host return. */

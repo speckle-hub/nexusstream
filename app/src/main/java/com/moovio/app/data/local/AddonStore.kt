@@ -160,6 +160,10 @@ class AddonStore(private val context: Context) {
             "https://raw.githubusercontent.com/JoeTinnySpace/cloudstream-extensions-hexated/builds/repo.json",
             "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json",
             "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json",
+            // Keiyoushi's .min.json is a stub (a couple of "Outdated App" records) and the
+            // official Aniyomi index has one entry; the seeded entries use index.pb and yuzono.
+            // Pruned from older installs so a fresh install and an upgraded one match (§2bo).
+            "https://github.com/keiyoushi/extensions/raw/repo/index.min.json",
         )
     }
 }

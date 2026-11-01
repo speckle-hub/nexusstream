@@ -17,6 +17,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Retries idempotent (GET) requests that hit a rate limit, honouring `Retry-After` when present.
+ *
+ * NOTE: 429 handling now lives in the suspend layer (`httpGet`, `httpGetBytes`) using coroutine
+ * `delay`, so OkHttp dispatcher threads are never blocked. This interceptor is intentionally
+ * not installed on any client — it is kept as documentation of the strategy only.
+ *
  * MangaDex (especially the at-home image server) is aggressive with 429s, so this keeps chapter
  * and catalogue loads reliable without a separate throttle on every call site.
  */
@@ -58,7 +63,6 @@ object Http {
         .retryOnConnectionFailure(true)
         .connectionPool(pool)
         .dispatcher(dispatcher)
-        .addInterceptor(RetryOn429Interceptor)
         .build()
 
     /**
@@ -182,6 +186,12 @@ private const val GET_ATTEMPTS = 3
 /** Base pause between those attempts; grows linearly (250 ms, 500 ms). */
 private const val GET_RETRY_BACKOFF_MS = 250L
 
+/** Attempts for idempotent GETs that return a byte array (manga pages, covers). */
+private const val GET_BYTES_ATTEMPTS = 3
+
+/** Base pause between byte-download attempts; grows linearly (250 ms, 500 ms). */
+private const val GET_BYTES_RETRY_BACKOFF_MS = 250L
+
 /**
  * True when re-sending the exact same request could plausibly succeed: a transport failure
  * (timeout, reset, DNS hiccup) or a 5xx / 408 / 429 response. Other 4xx answers are final —
@@ -256,12 +266,26 @@ suspend fun httpGetList(
 suspend fun httpGetBytes(
     url: String,
     headers: Map<String, String> = emptyMap(),
-): ByteArray = withContext(Dispatchers.IO) {
-    val builder = Request.Builder().url(url).get().globalIdentity()
-    headers.forEach { (k, v) -> builder.header(k, v) }
-    Http.client.newCall(builder.build()).execute().use { resp: Response ->
-        if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
-        resp.body?.bytes() ?: ByteArray(0)
+): ByteArray {
+    var attempt = 0
+    while (true) {
+        try {
+            return withContext(Dispatchers.IO) {
+                val builder = Request.Builder().url(url).get().globalIdentity()
+                headers.forEach { (k, v) -> builder.header(k, v) }
+                Http.client.newCall(builder.build()).execute().use { resp: Response ->
+                    if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code} for $url")
+                    resp.body?.bytes() ?: ByteArray(0)
+                }
+            }
+        } catch (e: CancellationException) {
+            // Never retry (or swallow) a cancelled caller — see runCatchingCancellable.
+            throw e
+        } catch (e: Exception) {
+            attempt++
+            if (attempt >= GET_BYTES_ATTEMPTS || !isTransientFailure(e)) throw e
+            delay(GET_BYTES_RETRY_BACKOFF_MS * attempt)
+        }
     }
 }
 

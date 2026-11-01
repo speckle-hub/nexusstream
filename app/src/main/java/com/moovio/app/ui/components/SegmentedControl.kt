@@ -44,7 +44,7 @@ import com.moovio.app.ui.theme.rememberMoovioHaptics
  * shouting twice.
  */
 @Composable
-fun PillSegmentedControl(
+fun SegmentedControl(
     labels: List<String>,
     selected: Int,
     onSelect: (Int) -> Unit,

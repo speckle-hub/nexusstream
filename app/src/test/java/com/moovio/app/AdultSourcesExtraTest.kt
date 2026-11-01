@@ -216,7 +216,7 @@ class AdultSourcesExtraTest {
             "pornhub", "xvideos", "xnxx", "hqporner",
             "xhamster",
             "eporner", "beeg",
-            "missav", "javguru", "supjav", "vjav",
+            "javguru", "supjav", "vjav",
         ).forEach { id ->
             assertTrue("missing source: $id", AdultSources.byId(id) != null)
         }
@@ -227,8 +227,9 @@ class AdultSourcesExtraTest {
         assertNull(AdultSources.byId("avgle"))
         // Source hygiene pass: removed from the active registry (consistently 403/blocked/
         // unreachable — see AdultSources). Their source objects/parser tests remain, but a
-        // regression that re-registers one should fail here.
-        listOf("spankbang", "youporn", "redtube", "jable").forEach { id ->
+        // regression that re-registers one should fail here. `missav` joined this list on
+        // 2026-11-01 (§2bo decision 7): Cloudflare 403, the same reason as spankbang/jable.
+        listOf("spankbang", "youporn", "redtube", "jable", "missav").forEach { id ->
             assertNull("removed source re-registered: $id", AdultSources.byId(id))
         }
     }

@@ -572,7 +572,7 @@ class VideoDownloadManager(private val context: Context) {
                 .getOrNull().orEmpty().isNotBlank()
             if (!configured) return@launch
             if (!exported.add(id)) return@launch
-            val ok = DownloadExporter.export(context, app.container.settings, id, exportFileName(meta))
+            val ok = DownloadExporter.export(context, app.container.settings, download, exportFileName(meta))
             // Failed export (e.g. a transient provider error) is retried on the next completion event.
             if (!ok) exported.remove(id)
         }

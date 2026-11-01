@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -47,11 +48,6 @@ class SettingsStore(private val context: Context) {
         // Source hygiene: list/query never-probed "experimental" sources (off = quarantined).
         val SHOW_EXPERIMENTAL_SOURCES = booleanPreferencesKey("show_experimental_sources")
         val CACHE_META = booleanPreferencesKey("cache_meta")
-        val LAST_TAB = intPreferencesKey("last_tab")
-        // Bumped whenever the bottom-bar tab list changes shape. The persisted tab is stored as an
-        // *index*, so reordering or removing a tab silently points a returning user at the wrong
-        // destination. On a mismatch the saved index is ignored and the app starts on Home.
-        val TAB_LAYOUT_VERSION = intPreferencesKey("tab_layout_version")
         // Newline-joined recent search terms (DataStore has no string-list type). Stored here so the
         // Search screen can offer them back instead of showing a dead "Start typing" empty state.
         val RECENT_SEARCHES = stringPreferencesKey("recent_searches")
@@ -155,7 +151,9 @@ class SettingsStore(private val context: Context) {
     val nsfwLock: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.NSFW_LOCK] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val nsfwPin: StateFlow<String?> = context.dataStore.data.map { it[Keys.NSFW_PIN] }.stateIn(scope, SharingStarted.WhileSubscribed(5000), null)
     val nsfwBiometric: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.NSFW_BIOMETRIC] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
-    val nsfwUnlocked: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.NSFW_UNLOCKED] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
+    /** NSFW unlock lives in memory only — it is cleared on process death so the app re-locks
+     * on next launch. Only the PIN / biometric preference is persisted. */
+    val nsfwUnlocked = MutableStateFlow(false)
     val autoNsfwFromAddons: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.AUTO_NSFW_FROM_ADDONS] ?: true }.stateIn(scope, SharingStarted.WhileSubscribed(5000), true)
     val nsfwGlobalSearch: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.NSFW_GLOBAL_SEARCH] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -168,7 +166,6 @@ class SettingsStore(private val context: Context) {
      */
     val showExperimentalSources: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_EXPERIMENTAL_SOURCES] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
     val cacheMeta: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.CACHE_META] ?: true }.stateIn(scope, SharingStarted.WhileSubscribed(5000), true)
-    val lastTab: StateFlow<Int> = context.dataStore.data.map { it[Keys.LAST_TAB] ?: 0 }.stateIn(scope, SharingStarted.WhileSubscribed(5000), 0)
 
     // ---- Phase 11 ----
     val dynamicColor: StateFlow<Boolean> = context.dataStore.data.map { it[Keys.DYNAMIC_COLOR] ?: false }.stateIn(scope, SharingStarted.WhileSubscribed(5000), false)
@@ -256,13 +253,13 @@ class SettingsStore(private val context: Context) {
     suspend fun setNsfwLock(v: Boolean) = context.dataStore.edit { it[Keys.NSFW_LOCK] = v }
     suspend fun setNsfwPin(v: String?) = context.dataStore.edit { if (v == null) it.remove(Keys.NSFW_PIN) else it[Keys.NSFW_PIN] = v }
     suspend fun setNsfwBiometric(v: Boolean) = context.dataStore.edit { it[Keys.NSFW_BIOMETRIC] = v }
-    suspend fun setNsfwUnlocked(v: Boolean) = context.dataStore.edit { it[Keys.NSFW_UNLOCKED] = v }
+    /** Updates the in-memory unlock flag only — nothing is persisted, so process death re-locks. */
+    fun setNsfwUnlocked(v: Boolean) { nsfwUnlocked.value = v }
     suspend fun setAutoNsfwFromAddons(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_NSFW_FROM_ADDONS] = v }
     suspend fun setNsfwGlobalSearch(v: Boolean) = context.dataStore.edit { it[Keys.NSFW_GLOBAL_SEARCH] = v }
     suspend fun setShowNsfwExtensions(v: Boolean) = context.dataStore.edit { it[Keys.SHOW_NSFW_EXTENSIONS] = v }
     suspend fun setShowExperimentalSources(v: Boolean) = context.dataStore.edit { it[Keys.SHOW_EXPERIMENTAL_SOURCES] = v }
     suspend fun setCacheMeta(v: Boolean) = context.dataStore.edit { it[Keys.CACHE_META] = v }
-    suspend fun setLastTab(v: Int) = context.dataStore.edit { it[Keys.LAST_TAB] = v }
 
     suspend fun setDynamicColor(v: Boolean) = context.dataStore.edit { it[Keys.DYNAMIC_COLOR] = v }
     suspend fun setAmoledBlack(v: Boolean) = context.dataStore.edit { it[Keys.AMOLED_BLACK] = v }
@@ -425,31 +422,6 @@ class SettingsStore(private val context: Context) {
     }
 
     /**
-     * One-shot read of the persisted tab index, for cold-boot restore. Reading the DataStore
-     * directly (rather than the [lastTab] StateFlow, whose initial value is always 0) avoids
-     * mistaking "not loaded yet" for "Home" and lets the restore run exactly once.
-     */
-    /**
-     * One-shot read of the persisted tab index, for cold-boot restore. Reading the DataStore
-     * directly (rather than the [lastTab] StateFlow, whose initial value is always 0) avoids
-     * mistaking "not loaded yet" for "Home" and lets the restore run exactly once.
-     *
-     * Returns [FALLBACK_TAB] when the stored index predates the current tab layout — the Phase 9
-     * restructure folded six tabs into five and reordered them, so an index saved by an older
-     * install would otherwise resolve to a different tab than the one the user last used.
-     */
-    suspend fun lastTabSnapshot(): Int {
-        val prefs = context.dataStore.data.first()
-        if (prefs[Keys.TAB_LAYOUT_VERSION] != CURRENT_TAB_LAYOUT_VERSION) return FALLBACK_TAB
-        return prefs[Keys.LAST_TAB] ?: FALLBACK_TAB
-    }
-
-    /** Records the tab layout the persisted [LAST_TAB] index was captured against. */
-    suspend fun stampTabLayoutVersion() = context.dataStore.edit {
-        it[Keys.TAB_LAYOUT_VERSION] = CURRENT_TAB_LAYOUT_VERSION
-    }
-
-    /**
      * Push [term] to the front of the recent-search list, de-duplicating case-insensitively and
      * keeping only the newest [MAX_RECENT] entries.
      */
@@ -478,15 +450,6 @@ class SettingsStore(private val context: Context) {
 
         /** Below this, a "search" is just a keystroke, so nothing is worth remembering. */
         const val MIN_SEARCH_LENGTH = 2
-
-        /**
-         * Incremented on every bottom-bar tab list change: 1 = the original six tabs
-         * (Home/Manga/NSFW/Search/Library/Settings), 2 = the five-tab Browse layout.
-         */
-        const val CURRENT_TAB_LAYOUT_VERSION = 2
-
-        /** Tab index meaning "no saved tab" — always Home. */
-        const val FALLBACK_TAB = 0
 
         /** Cap on remembered manga reading positions. */
         const val MAX_MANGA_PROGRESS = 200

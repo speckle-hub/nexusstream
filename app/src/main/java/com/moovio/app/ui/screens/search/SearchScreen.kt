@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -271,7 +272,7 @@ private fun SuggestionHeader(
             Box(
                 Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(CircleShape)
                     .clickable { onClear() },
                 contentAlignment = Alignment.Center,
             ) {

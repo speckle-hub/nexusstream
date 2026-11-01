@@ -29,7 +29,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
-import com.moovio.app.ui.components.PillSegmentedControl
+import com.moovio.app.ui.components.SegmentedControl
 import com.moovio.app.ui.screens.anime.AnimeScreen
 import com.moovio.app.ui.screens.manga.MangaScreen
 import com.moovio.app.ui.nav.Routes
@@ -81,7 +81,7 @@ fun BrowseScreen(nav: NavHostController) {
             }
         }
 
-        PillSegmentedControl(
+        SegmentedControl(
             labels = labels,
             selected = section,
             onSelect = { section = it },

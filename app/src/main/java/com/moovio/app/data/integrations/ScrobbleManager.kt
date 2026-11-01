@@ -68,9 +68,14 @@ class ScrobbleManager(private val settings: SettingsStore) {
             else -> ScrobbleResult(provider, false, "Unknown provider")
         }
 
-    /** AniList expects a numeric media id; only sync when the item came from AniList. */
+    /** AniList expects a numeric media id; only sync when the item came from AniList (never a TMDB id). */
     private suspend fun aniList(token: String, e: ScrobbleEvent): ScrobbleResult {
         val mediaId = e.item.id.toIntOrNull() ?: return skipped("anilist", "no AniList id")
+        // A TMDB-sourced item carries a TMDB id, not an AniList id — sending it would corrupt
+        // the tracker's history. Skip unless the addon explicitly identifies as AniList.
+        if (e.item.addonId?.equals("anilist", ignoreCase = true) != true) {
+            return skipped("anilist", "id not from AniList addon")
+        }
         val status = if (e.progress >= 0.9) "COMPLETED" else "CURRENT"
         val progress = (e.episode ?: 1).coerceAtLeast(1)
         // Values are inlined (no GraphQL variables) to keep the body a simple string template.
@@ -129,6 +134,12 @@ class ScrobbleManager(private val settings: SettingsStore) {
     /** MAL v2 needs the MAL numeric id; AniList/TMDB ids do not map, so we skip rather than guess. */
     private suspend fun mal(token: String, e: ScrobbleEvent): ScrobbleResult {
         val id = e.item.id.toIntOrNull() ?: return skipped("mal", "no MAL id (ID mapping not configured)")
+        // A TMDB-sourced item carries a TMDB id, not a MAL id — sending it would corrupt the
+        // tracker's history. Skip unless the addon explicitly identifies as MAL.
+        if (e.item.addonId?.equals("myanimelist", ignoreCase = true) != true
+            && e.item.addonId?.equals("mal", ignoreCase = true) != true) {
+            return skipped("mal", "id not from MAL addon")
+        }
         val body = if (e.progress >= 0.9) """{"status":"completed"}""" else """{"status":"watching"}"""
         httpPostJson(
             "https://api.myanimelist.net/v2/anime/$id/my_list_status",
@@ -141,6 +152,11 @@ class ScrobbleManager(private val settings: SettingsStore) {
     private suspend fun kitsu(token: String, e: ScrobbleEvent): ScrobbleResult {
         val id = e.item.id.takeIf { it.all { c -> c.isDigit() } }
             ?: return skipped("kitsu", "no Kitsu id (ID mapping not configured)")
+        // A TMDB-sourced item carries a TMDB id, not a Kitsu id — sending it would corrupt the
+        // tracker's history. Skip unless the addon explicitly identifies as Kitsu.
+        if (e.item.addonId?.equals("kitsu", ignoreCase = true) != true) {
+            return skipped("kitsu", "id not from Kitsu addon")
+        }
         val body = """
             {"data":{"type":"libraryEntries","attributes":{"progress":${e.episode ?: 1},"status":"current"}}}
         """.trimIndent()

@@ -3,6 +3,8 @@ package com.moovio.app.data.download
 import android.content.Context
 import com.moovio.app.data.remote.Http
 import com.moovio.app.data.remote.httpGetBytes
+import com.moovio.app.ui.vm.runCatchingCancellable
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -163,7 +165,14 @@ class MangaDownloadManager(private val context: Context) {
                 }
                 val file = File(dir, names[i])
                 if (!file.exists() || file.length() == 0L) {
-                    val data = runCatching { httpGetBytes(d.pages[i]) }.getOrNull()
+                    val data = try {
+                        runCatchingCancellable { httpGetBytes(d.pages[i]) }.getOrNull()
+                    } catch (_: CancellationException) {
+                        // Job cancelled by pause() — stop cleanly; status stays PAUSED.
+                        update(key) { it.copy(status = DownloadStatus.PAUSED) }
+                        _downloads.value[key]?.let { persistMeta(it) }
+                        return@launch
+                    }
                     if (data == null || data.isEmpty()) {
                         update(key) { it.copy(status = DownloadStatus.FAILED, error = "Page ${i + 1} failed") }; notifyFailed(_downloads.value[key]?.mangaTitle ?: "Chapter", "Page ${i + 1} failed")
                         _downloads.value[key]?.let { persistMeta(it) }

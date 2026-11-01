@@ -1139,7 +1139,7 @@ class PlayerActivity : ComponentActivity() {
         recordProgress()
         runCatching { loudnessEnhancer?.release() }
         loudnessEnhancer = null
-        player?.release()
+        runCatching { player?.release() }
         player = null
         // Detach the CloudStream toast host only when this Activity is really going away.
         if (isFinishing) {
@@ -1443,7 +1443,7 @@ private fun PlayerScreen(
 
     // Periodic ticker: refreshes the playhead, duration and play/pause state every 250 ms.
     LaunchedEffect(player) {
-        while (isActive) {
+        while (isActive && player != null) {
             if (!scrubbing) {
                 position = player.currentPosition.coerceAtLeast(0)
                 duration = player.duration.coerceAtLeast(0)
@@ -1455,27 +1455,31 @@ private fun PlayerScreen(
     }
 
     DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onTracksChanged(t: Tracks) { tracks = t }
-            // Instant play/pause feedback instead of waiting for the next tick.
-            override fun onIsPlayingChanged(playing: Boolean) {
-                isPlaying = playing
-                if (!scrubbing) {
-                    position = player.currentPosition.coerceAtLeast(0)
-                    duration = player.duration.coerceAtLeast(0)
+        val p = player
+        var listener: Player.Listener? = null
+        if (p != null) {
+            listener = object : Player.Listener {
+                override fun onTracksChanged(t: Tracks) { tracks = t }
+                // Instant play/pause feedback instead of waiting for the next tick.
+                override fun onIsPlayingChanged(playing: Boolean) {
+                    isPlaying = playing
+                    if (!scrubbing) {
+                        position = p.currentPosition.coerceAtLeast(0)
+                        duration = p.duration.coerceAtLeast(0)
+                    }
+                }
+                override fun onPlaybackStateChanged(state: Int) {
+                    isBuffering = state == Player.STATE_BUFFERING
+                }
+                // Record the caption timeline so the sync overlay can shift it in time.
+                override fun onCues(cueGroup: CueGroup) {
+                    cueHistory.add(p.currentPosition.coerceAtLeast(0) to cueGroup.cues)
+                    while (cueHistory.size > CUE_HISTORY_LIMIT) cueHistory.removeAt(0)
                 }
             }
-            override fun onPlaybackStateChanged(state: Int) {
-                isBuffering = state == Player.STATE_BUFFERING
-            }
-            // Record the caption timeline so the sync overlay can shift it in time.
-            override fun onCues(cueGroup: CueGroup) {
-                cueHistory.add(player.currentPosition.coerceAtLeast(0) to cueGroup.cues)
-                while (cueHistory.size > CUE_HISTORY_LIMIT) cueHistory.removeAt(0)
-            }
+            p.addListener(listener)
         }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
+        onDispose { listener?.let { p.removeListener(it) } }
     }
 
     val sheetOpen = showTracks || showEpisodes || showSpeedAudio || showExternal || showSleep
@@ -2440,14 +2444,14 @@ private fun GestureHud(mode: GestureMode, level: Float, position: Long, duration
                 Modifier
                     .width(6.dp)
                     .height(110.dp)
-                    .background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(50)),
+                    .background(Color.White.copy(alpha = 0.25f), CircleShape),
             ) {
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(level)
                         .align(Alignment.BottomStart)
-                        .background(Color.White, RoundedCornerShape(50)),
+                        .background(Color.White, CircleShape),
                 )
             }
             Spacer(Modifier.height(8.dp))

@@ -51,7 +51,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -318,7 +317,6 @@ private fun UpdateAvailableDialog(
                     info.tag,
                     style = MaterialTheme.typography.titleMedium,
                     color = moovio.accent,
-                    fontWeight = FontWeight.Bold,
                 )
             }
         },

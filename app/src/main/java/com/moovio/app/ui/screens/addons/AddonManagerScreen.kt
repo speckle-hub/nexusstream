@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -371,7 +372,7 @@ private fun manifestHost(url: String): String = url
 @Composable
 private fun MetaChip(text: String) {
     val moovio = LocalMoovioColors.current
-    val shape = RoundedCornerShape(50)
+    val shape = CircleShape
     Box(
         modifier = Modifier
             .clip(shape)

@@ -179,7 +179,7 @@ class MoovioApp : Application(), ImageLoaderFactory {
             override fun onActivityStopped(activity: Activity) {
                 if (startedActivities > 0) startedActivities--
                 if (startedActivities == 0) {
-                    appScope.launch { runCatching { container.settings.setNsfwUnlocked(false) } }
+                    appScope.launch { container.settings.setNsfwUnlocked(false) }
                 }
             }
 

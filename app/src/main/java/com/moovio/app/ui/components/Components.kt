@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -361,7 +362,7 @@ fun PosterCard(
                         .align(Alignment.TopStart)
                         .padding(2.dp)
                         .size(40.dp)
-                        .clip(RoundedCornerShape(50))
+                        .clip(CircleShape)
                         .clickable { remove() },
                     contentAlignment = Alignment.TopStart,
                 ) {
@@ -369,7 +370,7 @@ fun PosterCard(
                         Modifier
                             .padding(4.dp)
                             .size(22.dp)
-                            .clip(RoundedCornerShape(50))
+                            .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.62f)),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -850,7 +851,7 @@ fun SearchField(
             Box(
                 Modifier
                     .size(7.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(CircleShape)
                     .background(moovio.accent.copy(alpha = a))
             )
             Spacer(Modifier.width(8.dp))
@@ -860,7 +861,7 @@ fun SearchField(
             Box(
                 Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(CircleShape)
                     .clickable { onClear?.invoke() ?: onValueChange("") },
                 contentAlignment = Alignment.Center,
             ) {

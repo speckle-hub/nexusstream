@@ -27,6 +27,8 @@ const config: Config = {
         },
         rule: "rgba(239, 237, 232, 0.10)",
         "rule-soft": "rgba(239, 237, 232, 0.06)",
+        "border-ink": "rgba(10, 10, 9, 0.45)",
+        "text-mist": "#8C887F",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],

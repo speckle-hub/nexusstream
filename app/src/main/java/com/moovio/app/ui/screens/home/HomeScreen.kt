@@ -28,6 +28,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.zIndex
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -362,7 +363,7 @@ private fun CarouselDots(count: Int, selected: Int, modifier: Modifier = Modifie
                     .padding(horizontal = 4.dp)
                     .height(6.dp)
                     .width(width)
-                    .clip(RoundedCornerShape(50))
+                    .clip(CircleShape)
                     // White reads cleanly over the artwork/gradient at every palette tint.
                     .background(if (active) Color.White else Color.White.copy(alpha = 0.35f)),
             )
@@ -518,7 +519,7 @@ private fun SeeAll(onClick: () -> Unit) {
     val moovio = LocalMoovioColors.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onClick() }.padding(start = 8.dp),
+        modifier = Modifier.clip(CircleShape).clickable { onClick() }.padding(start = 8.dp),
     ) {
         Text("See all", style = MaterialTheme.typography.labelLarge, color = moovio.accent, fontWeight = FontWeight.SemiBold)
         Icon(Icons.Filled.ChevronRight, null, tint = moovio.accent, modifier = Modifier.size(18.dp))
@@ -641,14 +642,14 @@ private fun ContinueWatchingRow(
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
                                 .size(48.dp)
-                                .clip(RoundedCornerShape(50))
+                                .clip(CircleShape)
                                 .clickable { onRemove(entry) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Box(
                                 Modifier
                                     .size(26.dp)
-                                    .clip(RoundedCornerShape(50))
+                                    .clip(CircleShape)
                                     .background(Color.Black.copy(alpha = 0.62f)),
                                 contentAlignment = Alignment.Center,
                             ) {

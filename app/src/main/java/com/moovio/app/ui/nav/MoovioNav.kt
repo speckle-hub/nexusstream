@@ -126,8 +126,8 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 // truncate labels. It is now one "Browse" destination with a segmented control (see BrowseScreen,
 // which also carries Anime in place of the old NSFW segment). `Routes.MANGA` remains registered so
 // that screen is still reachable by route; `Routes.NSFW` is now the isolated, route-only NSFW Hub.
-// The persisted tab index is versioned (SettingsStore.CURRENT_TAB_LAYOUT_VERSION) so old six-tab
-// indices are discarded rather than silently resolving to a different destination.
+// The last tab is deliberately not persisted any more (§2bh): a cold start always lands on Home,
+// and only a process-death restore is redirected there by MoovioApp(startAtHome = …).
 private val tabs = listOf(
     Tab(Routes.HOME, "Home", Icons.Filled.Home),
     Tab(Routes.SEARCH, "Search", Icons.Filled.Search),
