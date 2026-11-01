@@ -17,22 +17,26 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # Name the SDK packages this build actually needs (the app compiles against android-36).
+      # The action's default list still includes the retired legacy `tools` package, and sdkmanager
+      # exits 1 when it can't find it — that is what failed the first run 11 s in, before any Gradle
+      # task started. `api-level` / `build-tools` are not inputs this action reads, so pinning them
+      # here had no effect; build-tools are left to AGP, which downloads the version it wants once
+      # the licences are accepted below.
       - uses: android-actions/setup-android@v3
         with:
-          api-level: 36
-          build-tools: "34.0.0"
+          packages: "platform-tools platforms;android-36"
+          accept-android-sdk-licenses: true
 
       - uses: gradle/actions/wrapper-validation@v3
 
       - uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-read-only: false
 
       - name: Compile debug Kotlin
-        run: ./gradlew :app:compileDebugKotlin
+        run: ./gradlew :app:compileDebugKotlin --no-daemon
 
       - name: Run unit tests
-        run: ./gradlew :app:testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
 
       - name: Assemble debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug --no-daemon
