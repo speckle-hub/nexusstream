@@ -6,14 +6,59 @@ import com.moovio.app.data.model.MediaType
 import com.moovio.app.data.model.MetaDetail
 import com.moovio.app.data.model.Video
 
+/**
+ * True when [ua] impersonates a browser.
+ *
+ * MangaDex now fronts `api.mangadex.org` and `uploads.mangadex.org` with
+ * [POWBlock](https://github.com/8Protons/POWBlock), a JavaScript proof-of-work check, and it picks
+ * its targets **by User-Agent**: a browser-shaped UA gets `HTTP 200` with an HTML challenge page
+ * instead of JSON, while a non-browser UA gets the normal API answer. Measured 2026-11-01, five
+ * requests each:
+ *
+ *  - `Mozilla/5.0 … Chrome/120.0 Mobile Safari/537.36 Moovio/1.0` → challenge page, 5/5
+ *  - `Mozilla/5.0 (Linux; Android 10; K) … Chrome/120.0.0.0 …` → challenge page, 5/5
+ *  - `okhttp/4.12.0`, `curl/8.4.0`, `MangaDex-Client/1.0` → JSON, 5/5
+ *
+ * Both hosts matter: the challenge is also served for cover images under `/covers/`. This is why
+ * the Manga tab reported "No manga found. Check your connection" with a perfectly good connection
+ * — the body parsed as HTML, every row fetcher swallowed the exception, and the section came back
+ * empty.
+ *
+ * Pure and Android-free so the rule is unit-tested (`MangaDexIdentityTest`).
+ */
+internal fun isBrowserLikeUserAgent(ua: String): Boolean =
+    ua.contains("Mozilla/", ignoreCase = true) || ua.contains("AppleWebKit", ignoreCase = true)
+
+/**
+ * The User-Agent to send to MangaDex: the user's configured identity when it is *not* a browser
+ * impersonation, otherwise [MangaDexClient.USER_AGENT].
+ *
+ * Settings → Network lets the user spoof a browser UA for hosts that demand one; MangaDex is the
+ * exact opposite, so that override must not follow them here.
+ */
+internal fun mangaDexUserAgent(configured: String): String =
+    if (configured.isBlank() || isBrowserLikeUserAgent(configured)) MangaDexClient.USER_AGENT else configured
+
 /** MangaDex API client for normal + NSFW manga. */
 object MangaDexClient {
     private const val BASE = "https://api.mangadex.org"
     private const val UPLOADS = "https://uploads.mangadex.org"
 
+    /**
+     * Identity every MangaDex request carries. Deliberately **not** browser-shaped: MangaDex's
+     * bot check answers a browser UA with an HTML challenge page (see [isBrowserLikeUserAgent]),
+     * so a descriptive client UA is both what its API guidelines ask for and the only thing that
+     * reaches the JSON endpoints.
+     */
+    const val USER_AGENT = "Moovio/1.0 (Android; +https://github.com/speckle-hub/nexusstream)"
+
+    /** Per-request headers; applied after the global identity so this UA always wins. */
+    private fun headers(): Map<String, String> =
+        mapOf("User-Agent" to mangaDexUserAgent(Http.customUserAgent))
+
     private suspend fun get(path: String, params: List<Pair<String, String>>): JsonObject {
         val q = params.joinToString("&") { "${java.net.URLEncoder.encode(it.first, "UTF-8")}=${java.net.URLEncoder.encode(it.second, "UTF-8")}" }
-        return parseJson(httpGetCached("$BASE$path?$q")).asJsonObject
+        return parseJson(httpGetCached("$BASE$path?$q", headers())).asJsonObject
     }
 
     private fun coverUrl(mangaId: String, o: JsonObject): String? {
@@ -115,7 +160,7 @@ object MangaDexClient {
     suspend fun nsfwByTag(tagId: String, limit: Int = 30): List<MediaItem> = nsfwList("followedCount", tagId, limit)
 
     suspend fun details(id: String): MetaDetail? {
-        val root = parseJson(httpGetCached("$BASE/manga/$id?includes[]=cover_art&includes[]=author&includes[]=artist")).asJsonObject
+        val root = parseJson(httpGetCached("$BASE/manga/$id?includes[]=cover_art&includes[]=author&includes[]=artist", headers())).asJsonObject
         val data = root.getAsJsonObject("data") ?: return null
         val attr = data.getAsJsonObject("attributes") ?: return null
         val title = attr.getAsJsonObject("title")?.let { t -> t.get("en")?.asString ?: t.entrySet().firstOrNull()?.value?.asString } ?: return null
@@ -201,7 +246,7 @@ object MangaDexClient {
     /** One `/manga/{id}/feed` request. */
     private suspend fun feedChapters(mangaId: String, params: List<Pair<String, String>>): List<Video> {
         val q = params.joinToString("&") { "${it.first}=${java.net.URLEncoder.encode(it.second, "UTF-8")}" }
-        val root = parseJson(httpGet("$BASE/manga/$mangaId/feed?$q")).asJsonObject
+        val root = parseJson(httpGet("$BASE/manga/$mangaId/feed?$q", headers())).asJsonObject
         val arr = root.getAsJsonArray("data") ?: return emptyList()
         return arr.mapNotNull { el ->
             if (!el.isJsonObject) return@mapNotNull null
@@ -226,7 +271,7 @@ object MangaDexClient {
 
     /** Page image URLs for a chapter via the at-home server. */
     suspend fun chapterPages(chapterId: String): List<String> {
-        val root = parseJson(httpGet("$BASE/at-home/server/$chapterId")).asJsonObject
+        val root = parseJson(httpGet("$BASE/at-home/server/$chapterId", headers())).asJsonObject
         val baseUrl = root.get("baseUrl")?.asString ?: return emptyList()
         val chapter = root.getAsJsonObject("chapter") ?: return emptyList()
         val hash = chapter.get("hash")?.asString ?: return emptyList()

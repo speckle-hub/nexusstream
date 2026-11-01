@@ -1,15 +1,15 @@
 <network-security-config>
     <!--
-      Cleartext HTTP is blocked by default. Only system CAs are trusted: trusting user-installed
-      CAs would let any user-added certificate intercept all app traffic (API keys, cookies,
-      add-on manifests).
+      Cleartext HTTP is allowed because *media* URLs are user/third-party supplied: Stremio
+      add-ons, scraped providers and their CDNs still hand out plain http:// stream and segment
+      URLs. Blocking it (v1.11.2 briefly did) makes those streams unplayable and un-downloadable
+      while the seeded metadata endpoints — which are all HTTPS — keep working, so the failure
+      only shows up as "this stream/download doesn't work".
 
-      Legacy third-party add-on hosts that require plain HTTP can be scoped here via domain-config
-      with cleartextTrafficPermitted="true". No add-on currently ships on the allowlist — every
-      seeded repository and metadata endpoint (Cinemeta, OpenSubtitles, TMDB, AniList, MangaDex)
-      uses HTTPS.
+      Only system CAs are trusted: trusting user-installed CAs would let any user-added
+      certificate intercept all app traffic (API keys, cookies, add-on manifests).
     -->
-    <base-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

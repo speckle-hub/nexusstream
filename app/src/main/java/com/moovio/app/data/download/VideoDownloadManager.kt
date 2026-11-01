@@ -84,6 +84,31 @@ fun videoDownloadId(itemKey: String, url: String): String =
 internal fun parseDownloadUrl(url: String): Uri? =
     Uri.parse(url).takeIf { it.scheme != null }
 
+/** File extensions Media3 classifies as adaptive (HLS / DASH / SmoothStreaming) from the URI alone. */
+private val ADAPTIVE_EXTENSIONS = listOf(".m3u8", ".mpd", ".ism", ".isml")
+
+/**
+ * True when Media3 will treat this request as a **progressive** download — the only content type
+ * that accepts a custom cache key.
+ *
+ * `DownloadRequest` asserts `customCacheKey must be null for type: <contentType>` for HLS, DASH and
+ * SmoothStreaming, and it infers the type from the mime type when one is given, otherwise from the
+ * URI's last path segment (mirroring `Util.inferContentTypeForUriAndMimeType`). This helper mirrors
+ * exactly that inference so the key is attached only where Media3 accepts it.
+ *
+ * Pure and Android-free so the rule is unit-tested (`VideoDownloadManagerTest`).
+ */
+internal fun supportsCustomCacheKey(url: String, mimeType: String? = null): Boolean {
+    if (mimeType != null) {
+        return mimeType != MimeTypes.APPLICATION_M3U8 &&
+            mimeType != MimeTypes.APPLICATION_MPD &&
+            mimeType != MimeTypes.APPLICATION_SS
+    }
+    val lastSegment = url.substringBefore('?').substringBefore('#')
+        .trimEnd('/').substringAfterLast('/').lowercase()
+    return ADAPTIVE_EXTENSIONS.none { lastSegment.endsWith(it) }
+}
+
 /** Completed vs in-progress vs orphaned bytes for the storage meter / cleanup UI. */
 data class DownloadStorageStats(
     /** Bytes held by finished, indexed downloads. */
@@ -120,6 +145,13 @@ class VideoDownloadManager(private val context: Context) {
     private val lock = Any()
     private val samples = HashMap<String, Pair<Long, Long>>() // id -> (bytes, timestampMs)
 
+    /**
+     * Last transport error per download id, straight from Media3's `finalException`. The persisted
+     * [Download] only carries a numeric reason, which is useless in a toast ("Download failed (4)");
+     * this keeps the readable cause ("Response code: 403") for the row and the notification.
+     */
+    private val lastErrors = HashMap<String, String>()
+
     /** Ensures only one progress ticker runs at a time (state changes and polling can race). */
     private val tickerRunning = AtomicBoolean(false)
 
@@ -134,14 +166,20 @@ class VideoDownloadManager(private val context: Context) {
             download: Download,
             finalException: Exception?,
         ) {
-            onChanged(download)
+            val reason = finalException?.let { describeError(it) }
+            onChanged(download, reason)
             if (download.state == Download.STATE_FAILED) {
-                maybeFailover(download)
-                val title = items[download.request.id]?.title ?: "Download"
-                val error = items[download.request.id]?.error
-                val msg = if (!error.isNullOrBlank()) "Download failed for $title: $error" else "Download failed for $title"
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                // A backup mirror takes over silently: only a download with no untried alternate is
+                // reported to the user. Previously every failed attempt raised a toast, even when a
+                // mirror replaced it a moment later and the download then completed.
+                val retrying = maybeFailover(download)
+                if (!retrying) {
+                    val title = items[download.request.id]?.title ?: "Download"
+                    val error = reason ?: items[download.request.id]?.error
+                    val msg = if (!error.isNullOrBlank()) "Download failed for $title: $error" else "Download failed for $title"
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                    }
                 }
             }
             if (download.state == Download.STATE_COMPLETED) maybeExport(download)
@@ -151,6 +189,7 @@ class VideoDownloadManager(private val context: Context) {
             synchronized(lock) {
                 items.remove(download.request.id)
                 samples.remove(download.request.id)
+                lastErrors.remove(download.request.id)
             }
             publish()
         }
@@ -228,6 +267,7 @@ class VideoDownloadManager(private val context: Context) {
         synchronized(lock) {
             items.remove(id)
             samples.remove(id)
+            lastErrors.remove(id)
         }
         publish()
     }
@@ -261,7 +301,11 @@ class VideoDownloadManager(private val context: Context) {
                 // bytes can be released right away. (HLS stores one key per segment; those files
                 // are reclaimed by the orphan sweep in `clearTemporaryFiles`.)
                 runCatching { DownloadManagerProvider.cache(context).removeResource(id) }
-                synchronized(lock) { items.remove(id) }
+                synchronized(lock) {
+                    items.remove(id)
+                    samples.remove(id)
+                    lastErrors.remove(id)
+                }
             }
             if (ids.isNotEmpty()) publish()
         }
@@ -391,13 +435,19 @@ class VideoDownloadManager(private val context: Context) {
     private fun buildRequest(id: String, url: String, kind: VideoKind, meta: VideoDownloadMeta): DownloadRequest {
         val uri = parseDownloadUrl(url)
             ?: throw IllegalArgumentException("Invalid download URL: $url")
+        val mimeType = if (kind == VideoKind.HLS) MimeTypes.APPLICATION_M3U8 else null
         val builder = DownloadRequest.Builder(id, uri)
-            .setCustomCacheKey(id)
+        // A custom cache key is only legal on *progressive* downloads. Media3's DownloadRequest
+        // asserts `customCacheKey must be null for type: <contentType>` for HLS/DASH/SmoothStreaming,
+        // and setting it unconditionally here made every adaptive download throw while the request
+        // was still being built — it never reached the queue, so the only symptom was a failure
+        // toast a moment after "Download started".
+        if (supportsCustomCacheKey(url, mimeType)) builder.setCustomCacheKey(id)
         builder.setData(
             runCatching { Http.gson.toJson(meta).toByteArray(Charsets.UTF_8) }
                 .getOrDefault(byteArrayOf())
         )
-        if (kind == VideoKind.HLS) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        if (mimeType != null) builder.setMimeType(mimeType)
         return builder.build()
     }
 
@@ -419,15 +469,16 @@ class VideoDownloadManager(private val context: Context) {
         }
     }
 
-    private fun onChanged(download: Download) {
-        if (applyDownload(download)) publish()
+    private fun onChanged(download: Download, error: String? = null) {
+        if (applyDownload(download, error)) publish()
         // Media3's listener reliably reports state transitions (queued -> downloading -> done), so
         // this is where the byte/percent ticker is (re)armed; the ticker keeps the UI live between
         // those transitions, since the listener does not emit continuous byte progress.
         if (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED) {
             ensureProgressTicker()
         }
-        if (download.state == Download.STATE_FAILED) maybeFailover(download)
+        // State failures are handled by the listener's STATE_FAILED branch, which also has the
+        // `finalException`; failover must run exactly once per failure, not once per callback path.
     }
 
     /**
@@ -435,11 +486,16 @@ class VideoDownloadManager(private val context: Context) {
      * it. Returns true only when something the row actually renders changed, so callers can skip
      * no-op [StateFlow] emissions.
      */
-    private fun applyDownload(download: Download): Boolean {
+    private fun applyDownload(download: Download, error: String? = null): Boolean {
         val id = download.request.id
         val now = System.currentTimeMillis()
         val bytes = download.bytesDownloaded
         return synchronized(lock) {
+            if (download.state == Download.STATE_FAILED) {
+                error?.let { lastErrors[id] = it }
+            } else {
+                lastErrors.remove(id)
+            }
             val prev = samples[id]
             val speed = if (prev != null && now > prev.second && download.state == Download.STATE_DOWNLOADING) {
                 ((bytes - prev.first) * 1000L / (now - prev.second)).coerceAtLeast(0L)
@@ -502,11 +558,6 @@ class VideoDownloadManager(private val context: Context) {
     }.getOrDefault(false)
 
     /**
-     * A download failed: if it has an untried backup mirror, transparently replace it with the next
-     * one instead of leaving a dead entry. The set of tried URLs travels in the request metadata, so
-     * the fallback also survives a process restart.
-     */
-    /**
      * A download finished: copy it into the user's chosen export folder (Settings → Download
      * folder), when one is configured. Skipped silently otherwise; the download remains playable
      * offline from the app cache either way.
@@ -532,13 +583,13 @@ class VideoDownloadManager(private val context: Context) {
      * one instead of leaving a dead entry. The set of tried URLs travels in the request metadata, so
      * the fallback also survives a process restart.
      */
-    private fun maybeFailover(download: Download) {
-        val meta = decodeDownloadMeta(download.request) ?: return
-        if (meta.alternates.isEmpty()) return
-        val itemKey = itemKeyOf(meta) ?: return
+    private fun maybeFailover(download: Download): Boolean {
+        val meta = decodeDownloadMeta(download.request) ?: return false
+        if (meta.alternates.isEmpty()) return false
+        val itemKey = itemKeyOf(meta) ?: return false
         val attempted = meta.attempted.toSet() + meta.url
         val candidates = (listOf(meta.url) + meta.alternates).distinct()
-        val next = candidates.firstOrNull { it !in attempted } ?: return
+        val next = candidates.firstOrNull { it !in attempted } ?: return false
         val failedId = download.request.id
         val nextId = videoDownloadId(itemKey, next)
         val nextMeta = meta.copy(url = next, attempted = attempted.toList())
@@ -551,8 +602,18 @@ class VideoDownloadManager(private val context: Context) {
             }
             synchronized(lock) { items.remove(failedId) }
             publish()
-            sendAdd(buildRequest(nextId, next, kind, nextMeta))
+            // A mirror that cannot even be turned into a request must not crash the IO scope; the
+            // dead entry is already gone from the list, so the failure is simply dropped.
+            runCatching { sendAdd(buildRequest(nextId, next, kind, nextMeta)) }
         }
+        // A replacement is on its way, so the failure is not reported to the user.
+        return true
+    }
+
+    /** Readable one-liner for a Media3/HTTP exception (`Response code: 403`, `Connection reset`…). */
+    private fun describeError(error: Throwable): String {
+        val message = error.message?.takeIf { it.isNotBlank() }
+        return message ?: error.javaClass.simpleName
     }
 
     private fun publish() {
@@ -576,7 +637,11 @@ class VideoDownloadManager(private val context: Context) {
             totalBytes = contentLength,
             speedBytesPerSec = speed,
             etaSeconds = eta,
-            error = if (state == Download.STATE_FAILED) failureText(failureReason) else null,
+            // The listener's `finalException` message when we have one this session, otherwise the
+            // numeric Media3 reason — a bare "(4)" tells the user nothing.
+            error = if (state == Download.STATE_FAILED) {
+                lastErrors[request.id] ?: failureText(failureReason)
+            } else null,
             updatedAt = updateTimeMs,
             nsfw = meta?.nsfw ?: false,
         )

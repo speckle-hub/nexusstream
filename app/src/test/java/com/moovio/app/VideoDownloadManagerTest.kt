@@ -1,6 +1,7 @@
 package com.moovio.app
 
 import com.moovio.app.data.download.downloadRequestHeaders
+import com.moovio.app.data.download.supportsCustomCacheKey
 import com.moovio.app.data.download.videoDownloadId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -86,5 +87,44 @@ class VideoDownloadManagerTest {
         val headers = downloadRequestHeaders(streamHeaders = emptyMap<String, String>())
         assertFalse(headers.isEmpty())
         assertEquals("Mozilla/5.0", headers["User-Agent"]!!.substring(0, 11))
+    }
+
+    // ---- supportsCustomCacheKey ------------------------------------------------
+    //
+    // Media3's DownloadRequest asserts `customCacheKey must be null for type: <contentType>` for
+    // every adaptive content type. Attaching one unconditionally made every HLS download throw
+    // while the request was being built, so no adaptive download could ever be queued.
+
+    @Test
+    fun `progressive mp4 accepts a custom cache key`() {
+        assertTrue(supportsCustomCacheKey("https://cdn.example/video.mp4"))
+        assertTrue(supportsCustomCacheKey("https://cdn.example/v.mp4?sig=abc&exp=1"))
+    }
+
+    @Test
+    fun `hls by extension refuses a custom cache key`() {
+        assertFalse(supportsCustomCacheKey("https://cdn.example/master.m3u8"))
+        assertFalse(supportsCustomCacheKey("https://cdn.example/master.m3u8?token=abc"))
+        assertFalse(supportsCustomCacheKey("https://cdn.example/MASTER.M3U8"))
+    }
+
+    @Test
+    fun `hls by mime type refuses a custom cache key without an m3u8 path`() {
+        assertFalse(supportsCustomCacheKey("https://cdn.example/play/12345", "application/x-mpegURL"))
+    }
+
+    @Test
+    fun `dash and smooth streaming refuse a custom cache key`() {
+        assertFalse(supportsCustomCacheKey("https://cdn.example/manifest.mpd"))
+        assertFalse(supportsCustomCacheKey("https://cdn.example/manifest.ism"))
+        assertFalse(supportsCustomCacheKey("https://cdn.example/manifest.isml"))
+        assertFalse(supportsCustomCacheKey("https://cdn.example/stream", "application/dash+xml"))
+        assertFalse(supportsCustomCacheKey("https://cdn.example/stream", "application/vnd.ms-sstr+xml"))
+    }
+
+    @Test
+    fun `a non adaptive mime type still accepts a custom cache key`() {
+        assertTrue(supportsCustomCacheKey("https://cdn.example/stream", "video/mp4"))
+        assertTrue(supportsCustomCacheKey("https://cdn.example/stream", "video/webm"))
     }
 }

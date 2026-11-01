@@ -166,15 +166,32 @@ class MangaViewModel(private val container: AppContainer) : ViewModel() {
     val installedExt = container.addonRepository.mangaInstalled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val loading = MutableStateFlow(true)
+
+    /** Why the last load produced nothing — the empty state shows this instead of guessing. */
     val error = MutableStateFlow<String?>(null)
+
+    private var refreshJob: Job? = null
 
     init { refresh() }
 
     fun refresh() {
-        viewModelScope.launch {
-            loading.value = true; error.value = null
-            runCatching { container.catalogRepository.rowsForSection(MediaType.MANGA) }
-                .onSuccess { rows.value = it }
+        if (refreshJob?.isActive == true) return
+        // Paint the rails this tab showed last time before touching the network (same contract as
+        // Browse → Anime), so revisiting Manga does not flash the empty state.
+        container.catalogRepository.cachedSectionRows(MediaType.MANGA)?.let { cached ->
+            rows.value = cached
+            loading.value = false
+        }
+        refreshJob = viewModelScope.launch {
+            if (rows.value.isEmpty()) loading.value = true
+            error.value = null
+            runCatchingCancellable { container.catalogRepository.rowsForSection(MediaType.MANGA) }
+                .onSuccess { fetched ->
+                    // `CatalogRepository` refuses to cache an empty section, so an empty answer
+                    // means "every source failed", not "this section is empty" — keep the rails
+                    // the user is already looking at instead of replacing them with nothing.
+                    if (fetched.isNotEmpty() || rows.value.isEmpty()) rows.value = fetched
+                }
                 .onFailure { error.value = it.message ?: "Failed to load" }
             loading.value = false
         }

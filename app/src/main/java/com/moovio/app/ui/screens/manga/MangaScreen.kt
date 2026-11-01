@@ -56,6 +56,7 @@ fun MangaScreen(nav: NavHostController, embedded: Boolean = false) {
     val moovio = LocalMoovioColors.current
     val rows by vm.rows.collectAsStateSafe()
     val loading by vm.loading.collectAsStateSafe()
+    val error by vm.error.collectAsStateSafe()
     val installed by vm.installedExt.collectAsStateSafe()
     val listState = rememberLazyListState()
 
@@ -125,20 +126,33 @@ fun MangaScreen(nav: NavHostController, embedded: Boolean = false) {
 
         if (loading && rows.isEmpty()) items(4) { LoadingRow() }
         if (!loading && rows.isEmpty()) item {
-            // If Mihon/Aniyomi extensions are installed, say explicitly why they can't fill
-            // this list — otherwise "No manga found" implies they should have.
-            val extHint = if (installed.isNotEmpty()) {
-                "Check your connection and try again. Installed Mihon/Aniyomi extensions are " +
-                    "not executable yet and cannot provide chapters."
+            val reason = error
+            if (reason != null) {
+                // Report the real cause. The generic "check your connection" line used to hide
+                // everything from an HTTP 500 to a bot-check page, which is exactly how a working
+                // connection came to look broken.
+                EmptyState(
+                    "Couldn't load manga",
+                    reason,
+                    actionLabel = "Retry",
+                    onAction = { vm.refresh() },
+                )
             } else {
-                "Check your connection and try again."
+                // If Mihon/Aniyomi extensions are installed, say explicitly why they can't fill
+                // this list — otherwise "No manga found" implies they should have.
+                val extHint = if (installed.isNotEmpty()) {
+                    "Check your connection and try again. Installed Mihon/Aniyomi extensions are " +
+                        "not executable yet and cannot provide chapters."
+                } else {
+                    "Check your connection and try again."
+                }
+                EmptyState(
+                    "No manga found",
+                    extHint,
+                    actionLabel = "Retry",
+                    onAction = { vm.refresh() },
+                )
             }
-            EmptyState(
-                "No manga found",
-                extHint,
-                actionLabel = "Retry",
-                onAction = { vm.refresh() },
-            )
         }
 
         items(rows) { row ->

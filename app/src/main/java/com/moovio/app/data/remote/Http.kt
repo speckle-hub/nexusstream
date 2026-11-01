@@ -124,8 +124,22 @@ private fun Request.Builder.globalIdentity(): Request.Builder {
 const val METADATA_TTL_MS = 6L * 60 * 60 * 1000
 
 /**
+ * True when [body] is a markup document rather than the JSON these cached helpers expect.
+ *
+ * An HTML body here is not an API answer: it is a bot-check / Cloudflare interstitial served with
+ * **HTTP 200** (MangaDex's POWBlock does exactly that for browser-shaped User-Agents). Caching one
+ * poisoned the on-disk metadata cache for six hours, so even a fixed build kept seeing the
+ * challenge page, and the caller's JSON parse failed with a message the UI reported as
+ * "check your connection".
+ */
+internal fun looksLikeMarkup(body: String): Boolean = body.trimStart().startsWith("<")
+
+/**
  * GET with the shared on-disk cache in front of the network: a fresh cached body is returned
  * without any request, otherwise the response is stored (6 h by default).
+ *
+ * A cached HTML page left behind by an older build is treated as a miss (and overwritten on the
+ * next success), and a fresh one is never stored — see [looksLikeMarkup].
  */
 suspend fun httpGetCached(
     url: String,
@@ -133,8 +147,9 @@ suspend fun httpGetCached(
     maxAgeMs: Long = METADATA_TTL_MS,
 ): String {
     val cache = Http.cache?.takeIf { Http.cacheEnabled }
-    cache?.get(url, maxAgeMs)?.let { return it }
+    cache?.get(url, maxAgeMs)?.takeIf { !looksLikeMarkup(it) }?.let { return it }
     val body = httpGet(url, headers)
+    if (looksLikeMarkup(body)) throw java.io.IOException("HTML instead of JSON from $url (bot check or outage)")
     cache?.put(url, body)
     return body
 }
@@ -151,8 +166,9 @@ suspend fun httpPostJsonCached(
         .joinToString("") { "%02x".format(it) }
     val key = "POST:$url:$digest"
     val cache = Http.cache?.takeIf { Http.cacheEnabled }
-    cache?.get(key, maxAgeMs)?.let { return it }
+    cache?.get(key, maxAgeMs)?.takeIf { !looksLikeMarkup(it) }?.let { return it }
     val resp = httpPostJson(url, body)
+    if (looksLikeMarkup(resp)) throw java.io.IOException("HTML instead of JSON from $url (bot check or outage)")
     cache?.put(key, resp)
     return resp
 }
