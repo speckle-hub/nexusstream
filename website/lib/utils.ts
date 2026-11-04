@@ -23,6 +23,6 @@ export const DESKTOP_MSI_URL = `${GITHUB_URL}/releases/download/v0.1.1/Moovio-0.
 export const ANDROID_VERSION = "1.14.0";
 export const ANDROID_APK_SIZE = "26.7 MB";
 export const ANDROID_MIN_SDK = "Android 7.0";
-export const TEST_COUNT = "348";
+export const TEST_COUNT = "370";
 export const SFW_SOURCE_COUNT = "14";
 export const DESKTOP_VERSION = "0.1.1";

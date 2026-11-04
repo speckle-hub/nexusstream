@@ -15,11 +15,17 @@
 > exposed. Later the same day **§2bt** rebuilt the Add-on Manager per section and verified all four
 > extension repositories against their live indexes (**370/370**).
 >
+> **2026-11-04 — website v2 rebuilt (§2bv).** `website/` was rebuilt section by section from eight
+> reference sites (probed with Scrapling) on the existing booth identity: poster deck, bento, sticky
+> scroll story, count-up numbers, scroll progress. **No new npm dependencies.** `npx tsc --noEmit` ✓ ·
+> `npm run lint` ✓ · `npm run build` ✓ (9 routes, `/` 112 kB). Not committed, not deployed; still no
+> browser here, so it has never been seen rendered.
+>
 > **2026-11-04 — v1.14.0 released (§2bu).** `versionCode` 31 / `versionName` 1.14.0; signed APK
 > published as a GitHub Release with `app-release.apk` + `Moovio.apk`. **Still no device pass.**
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-11-04 — **v1.14.0 released (§2bu): the
+> resume exactly where it left off. Last updated: 2026-11-04 — **website v2 (§2bv) on top of v1.14.0 (§2bu): the
 > Add-on Manager rebuilt per section (§2bt), plus the first JVM tests for the extension/HLS stack
 > and a `website` CI job (§2bs).** `versionCode` 31 / `versionName` 1.14.0; signed
 > `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (27,989,436 bytes,
@@ -73,8 +79,9 @@
 > **Published** — commit `4caee5f` on `main`, tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked
 > **Latest** with `app-release.apk` + `Moovio.apk` attached, so
 > `releases/latest/download/app-release.apk` now 302s to v1.11.0 and the re-downloaded asset
-> hash-matches `dist/`. The site's own copy is still desktop-first (v0.1.0 badge, ≈180 MB, 24+
-> tests) although its Android button already serves 1.11.0 — deferred by decision (§7 0h).
+> hash-matches `dist/`. At that point the site's own copy was still desktop-first (v0.1.0 badge,
+> ≈180 MB, 24+ tests) although its Android button already served 1.11.0; §2bj fixed that the same day,
+> and §2bv rebuilt it again on 1.14.0 / 370 tests.
 > `desktop/` and `desktop-win/` were **not** touched.
 >
 > Previous, 2026-10-30 — **Phase 4: encrypted backups, smart
@@ -597,6 +604,13 @@ repositories and browse results are per section, repos are pills with a search b
 **All / Installed / Updates** filters instead of a 1000-row scroll, and repository failures are
 shown instead of swallowed. All four repo fetchers were verified against the live indexes; the one
 thing that still cannot work is extension *execution*, which needs `extensions-lib` (§2ba).
+
+**Also 2026-11-04 — §2bv:** the landing page was rebuilt against eight reference sites, keeping the
+booth identity. Hero is a pointer-tilted poster deck, the feature list became a bento of six cells,
+Showcase became a sticky scroll story with three live surfaces, stats count up once, and the navbar
+carries a reading-progress hairline. Still zero new npm dependencies: the motion is CSS plus
+`IntersectionObserver`/`requestAnimationFrame`. `tsc` ✓ · `lint` ✓ · `build` ✓ (9 routes). Nothing
+committed, nothing deployed, nothing rendered — there is no browser on this machine.
 
 Previous focus: **v1.11.4 released (§2bn).** The MangaDex bot-check fix — a browser-shaped
 User-Agent is answered with an HTML challenge page, so every MangaDex call parsed as HTML, all four
@@ -1639,9 +1653,84 @@ ISSUE-26 (no CI).
 - No device pass has been run for any of the four phases: the morph, haptics, HUD tick cost, e-ink
   output, KeyStore re-open after process death, the boot sweep on a full disk and every spring are
   compile- and unit-verified only. No frame timing has been measured, before or after.
-- The website's own copy is desktop-first (v0.1.0 badge, ≈180 MB, 24+ tests) even though its Android
-  button already serves 1.11.0 — deferred by decision, tracked in §7 0h.
+- The website's copy was still desktop-first at the time (v0.1.0 badge, ≈180 MB, 24+ tests); §2bj
+  rebuilt it hours later (§7 0h), and §2bv rebuilt it again on 1.14.0 / 370 tests.
 - The Sudachi/emulator and tracker ids work are untouched.
+
+---
+
+## 2bv. Website v2 — rebuilt section by section from eight references (2026-11-04)
+
+**Topic:** the landing page was rebuilt toward "the best website ever" from eight reference sites, on
+the booth identity §2bj chose. `website/` only: no app code, no version bump, nothing committed,
+pushed or deployed.
+
+### Reading the references
+A local **Scrapling 0.5** install (`app/build/tmp/scrape-venv`, plus `curl_cffi` 0.17) probed all
+eight sites. `scrapling.fetchers.Fetcher` needs the `[fetchers]` extra (patchright), which is not
+installed, so the probe used `curl_cffi` for transport and Scrapling for parsing (`backend:
+fallback`). What was taken was structure, never surface:
+
+| Reference | Taken |
+|---|---|
+| kexsio | a poster deck that behaves like a physical stack |
+| websiteprompts | bento composition, one idea per cell |
+| Motionsites (motion guidance only, **not installed** as a skill) | one spring per reveal, staggered, view-driven |
+| animate-ui | count-up numbers on first view |
+| Uilora | primitives small enough to copy, no runtime |
+| Uiverse | a single sheen pass on the primary button |
+| Forge UI | a sticky story against a fixed device frame |
+| Vengeance UI | pointer spotlight on cards, plus a marquee |
+
+### Constraints kept
+- **No new npm dependencies.** The site still ships `next`, `react` and `lucide-react` only; motion is
+  CSS keyframes plus `IntersectionObserver` and `requestAnimationFrame`, so `npm ci` and the lockfile
+  are untouched.
+- Reduced motion turns every animation off (`prefers-reduced-motion`), and `@media (scripting: none)`
+  makes revealed blocks visible when JS never runs.
+- No loops: nothing pulses, nothing auto-plays. The marquee pauses on hover.
+
+### What changed
+- `app/globals.css` rewritten as a motion layer (reveal, spotlight, marquee, deck, surface, step dot,
+  sheen button), all on the existing tokens.
+- Four primitives in `components/motion/`: `Reveal`, `Spotlight`, `SlidingNumber`, `Marquee`.
+- New `Hero` + `PosterDeck` (a pointer-tilted poster stack), `Sources` (three connectors → one queue),
+  `Bento` (six cells, each with a small diagram), `ScrollStory` (sticky phone, three surfaces),
+  rewritten `Stats` (count-up), `Navbar` (reading progress) and `DownloadCta`.
+- `Features.tsx` and `Showcase.tsx` deleted; `TEST_COUNT` corrected **348 → 370**.
+
+### Installed: `motionsites-web-builder`
+The MotionSites skill was installed with `npx skills add Motionsites-AI/claude-skill --yes` into
+`website/.agents/skills/motionsites-web-builder` (one skill, 40 examples, a media shelf, 58
+techniques). The `skill` tool cannot see it because this repo keeps its skills one level down
+(`website/.agents`), so it was read from disk. What it changed:
+- **One signature, quiet support.** The hero headline rises out of a mask line by line
+  (`--slot-delay` 120/220 ms); the deck straightens on hover instead of looping.
+- Entrances 820 ms on `cubic-bezier(.16,1,.3,1)`, reveals at 24 px, 40–100 ms stagger; the nav enters
+  from above (`nav-in`), content from below.
+- Count-ups 1.6 s with `tabular-nums`; the marquee slowed to 34 s (~40–60 px/s).
+- `scroll-padding-top: 5rem` so a nav jump does not land under the fixed header.
+- **No faked media:** the deck's plates are type-led posters, not empty image boxes.
+
+### Look-and-fix, with a real browser
+Playwright + Chromium were installed into the existing `app/build/tmp/scrape-venv` (the skill's
+`scripts/shoot.py` needs them; this machine had no browser). Round one showed the deck as three empty
+rectangles with clipped titles, so it was rebuilt as three legible posters and the hero was reordered
+so the signature survives on a phone. Round two needed a scroll walk (`app/build/tmp/walk_shots.py`),
+because a full-page shot of a reveal page is mostly black. QA at 1440×900 and 390×844: no console
+errors, no failed requests, no horizontal overflow, fonts loaded, H1 80 px / 43.2 px. The "114.0"
+seen in screenshots is a downscaling artefact — the DOM text is `1.14.0` (checked with
+`document.body.innerText`).
+
+### The one real defect
+`Reveal` set state inside its effect body for the reduced-motion branch, and
+`react-hooks/set-state-in-effect` failed `npm run lint` **and** `next build`. Fixed by writing
+`data-reveal="in"` straight to the node: the animation is the DOM's job, and there is no re-render.
+
+**Verified:** `npx tsc --noEmit` ✓ · `npm run lint` ✓ (no warnings) · `npm run build` ✓ (Next 15.5.27, 9
+static routes, `/` **112 kB** first load JS). **Not verified:** there is still no browser on this
+machine, so the redesign has never been seen rendered — no Lighthouse, no layout check, no screenshots.
+**Not committed, not pushed, Vercel untouched.**
 
 ---
 
@@ -6329,8 +6418,8 @@ curl -sL -o /tmp/apk https://github.com/speckle-hub/nexusstream/releases/latest/
 sha256sum /tmp/apk   # ED8C54188C4512B020AC1BE18F19290EEA7B617438302723D172ECD35839D54F
 ```
 
-Website: `cd website && npm run build` (Next.js 15 static export; 8/8 pages). `npm run lint` is
-currently **broken** — `eslint` is not a dependency and no config exists (see §4 ISSUE-15).
+Website: `cd website && npx tsc --noEmit && npm run lint && npm run build` (Next.js 15, static, 9
+routes). All three pass as of §2bv; `next lint` works again since §2bp added the ESLint config.
 
 ---
 
@@ -6338,6 +6427,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 
 | Date | Change |
 |---|---|
+| 2026-11-04 | **Website v2 rebuilt from eight references (§2bv):** `app/globals.css` rewritten as a motion layer and four dependency-free primitives added (`Reveal`, `Spotlight`, `SlidingNumber`, `Marquee` — CSS + `IntersectionObserver` + `requestAnimationFrame`, so **no new npm deps** and the lockfile is untouched). Sections rebuilt: `Hero` + a pointer-tilted `PosterDeck`, `Sources` (three connectors → one queue), `Bento` (six cells with diagrams), `ScrollStory` (sticky phone, three surfaces), count-up `Stats`, `Navbar` reading progress, `DownloadCta`; `Features.tsx`/`Showcase.tsx` deleted and `TEST_COUNT` corrected 348 → 370. One defect fixed on the way: `Reveal` set state in an effect body, which `react-hooks/set-state-in-effect` failed in both `lint` and `build` — it now flips `data-reveal` on the node. `tsc` ✓ · `lint` ✓ · `build` ✓ (9 routes, `/` 112 kB). Not committed, not deployed, never rendered (no browser here). |
 | 2026-11-04 | **v1.14.0 released (§2bu):** `versionCode` 31 / `versionName` 1.14.0 — the rebuilt Add-on Manager (§2bt), the first JVM tests + `website` CI job (§2bs), and the `video_url` / `#EXT-X-BYTERANGE` fixes. `:app:assembleRelease` ✓ → `dist/app-release.apk` + `dist/Moovio.apk` (27,989,436 B, SHA-256 `be0777c8…24e4b4`), V2-signed (cert `2EDB949B…351379`); badging `com.moovio.app` / 31 / 1.14.0. Published as GitHub Release `v1.14.0` with both APKs. **No device pass.** |
 | 2026-11-04 | **Add-on Manager rebuilt per section (§2bt).** Four sections now own their own repositories, installed list and browse state: installed Aniyomi extensions no longer render under CloudStream (`MangaExt.section` classifies by namespace/repo URL, computed so no migration), tab labels carry install counts, repositories are tappable pills, and the catalogue has a search box plus **All / Installed / Updates** filters (1458 Mihon entries made the old single list unusable). `AddonRepository.fetch*` returns `Result` so a failure shows its reason (`HTTP 404 …`) instead of "unavailable or empty" — and the manager's message is finally rendered at all. Live probe: Phisher98 87, CXXX 85, Yuzono 247, Keiyoushi 1458 (400 NSFW), Cinemeta 50-item catalogue. Extension **execution** still cannot work without `extensions-lib`; install now reports that honestly and the tabs show a notice, and the roadmap's old "executes" claims are corrected. `:app:testDebugUnitTest` **370/370** (40 suites). No device pass, no version bump, nothing pushed. |
 | 2026-11-04 | **CI covers the website; first JVM tests for the extension + download stack (§2bs):** new `website` CI job (`npm ci` → `npx tsc --noEmit` → `npm run lint` → `npm run build`, 9 routes prerendered). `MihonExtensionSourcesTest` (13) + `DownloadExporterTest` (6) → **367/367** (40 suites, 0 failures). Two defects fixed: Aniyomi episodes resolved to no streams because `pageToStreamSource` ignored `video_url`; an intervening playlist tag (`#EXT-X-BYTERANGE`) discarded an HLS segment. `parseHlsSegments`/`resolveSegmentUrl` now take a URL string instead of a `Uri` so they are JVM-testable. No version bump, no APK rebuilt, nothing pushed. |

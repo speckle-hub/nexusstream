@@ -1,8 +1,8 @@
 import { Navbar } from "@/components/sections/Navbar";
 import { Hero } from "@/components/sections/Hero";
 import { Sources } from "@/components/sections/Sources";
-import { Features } from "@/components/sections/Features";
-import { Showcase } from "@/components/sections/Showcase";
+import { Bento } from "@/components/sections/Bento";
+import { ScrollStory } from "@/components/sections/ScrollStory";
 import { Stats } from "@/components/sections/Stats";
 import { Faq } from "@/components/sections/Faq";
 import { DownloadCta } from "@/components/sections/DownloadCta";
@@ -15,8 +15,8 @@ export default function Page() {
       <main>
         <Hero />
         <Sources />
-        <Features />
-        <Showcase />
+        <Bento />
+        <ScrollStory />
         <Stats />
         <Faq />
         <DownloadCta />

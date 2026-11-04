@@ -4,43 +4,45 @@ import {
   SFW_SOURCE_COUNT,
   TEST_COUNT,
 } from "@/lib/utils";
+import { Reveal } from "@/components/motion/Reveal";
+import { SlidingNumber } from "@/components/motion/SlidingNumber";
 
-const stats = [
-  { value: ANDROID_VERSION, label: "Current Android release", accent: true },
-  { value: TEST_COUNT, label: "Unit tests, all passing" },
-  { value: ANDROID_APK_SIZE.replace(" MB", ""), unit: "MB", label: "Signed APK" },
-  { value: SFW_SOURCE_COUNT, label: "Built-in playable sources" },
+const numeric = [
+  { value: Number(TEST_COUNT), label: "Unit tests, all passing", decimals: 0 },
+  { value: Number(ANDROID_APK_SIZE.replace(" MB", "")), label: "Signed APK", decimals: 1, unit: "MB" },
+  { value: Number(SFW_SOURCE_COUNT), label: "Built-in playable sources", decimals: 0 },
 ];
 
 export function Stats() {
   return (
     <section aria-label="Project numbers" className="border-b border-rule">
       <div className="shell py-20 md:py-24">
-        <p className="mono text-[12px] text-amber">00:27:40</p>
+        <Reveal>
+          <p className="marker mono max-w-[240px] text-[11.5px] text-amber">00:27:40</p>
+        </Reveal>
+
         <dl className="mt-10 grid grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-4 md:gap-x-0">
-          {stats.map((s, i) => (
-            <div
-              key={s.label}
-              className={
-                i === 0
-                  ? "flex flex-col md:pr-8"
-                  : "flex flex-col md:border-l md:border-rule md:px-8"
-              }
+          <Reveal className="md:pr-8">
+            <dd className="mono text-[clamp(2.1rem,4.6vw,3.4rem)] leading-[0.95] tracking-[-0.03em] text-amber">
+              {ANDROID_VERSION}
+            </dd>
+            <dt className="mt-4 text-[13px] leading-[1.5] text-muted">Current Android release</dt>
+          </Reveal>
+
+          {numeric.map((stat, index) => (
+            <Reveal
+              key={stat.label}
+              delay={70 + index * 60}
+              className="md:border-l md:border-rule md:px-8"
             >
-              <dd
-                className={`mono order-1 text-[clamp(2.2rem,5vw,3.6rem)] leading-[0.95] tracking-[-0.03em] ${
-                  s.accent ? "text-amber" : "text-paper"
-                }`}
-              >
-                {s.value}
-                {s.unit ? (
-                  <span className="ml-1 text-[0.4em] tracking-normal text-muted">{s.unit}</span>
+              <dd className="mono text-[clamp(2.1rem,4.6vw,3.4rem)] leading-[0.95] tracking-[-0.03em] text-paper">
+                <SlidingNumber value={stat.value} decimals={stat.decimals} />
+                {stat.unit ? (
+                  <span className="ml-1 text-[0.4em] tracking-normal text-muted">{stat.unit}</span>
                 ) : null}
               </dd>
-              <dt className="order-2 mt-4 text-[13.5px] leading-[1.5] text-muted">
-                {s.label}
-              </dt>
-            </div>
+              <dt className="mt-4 text-[13px] leading-[1.5] text-muted">{stat.label}</dt>
+            </Reveal>
           ))}
         </dl>
       </div>

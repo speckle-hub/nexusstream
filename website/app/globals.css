@@ -3,9 +3,10 @@
 @tailwind utilities;
 
 /* ─────────────────────────────────────────────────────────────
-   Moovio — projection booth
-   Matte black, hairline rules, one amber beam. Colour belongs to
-   the artwork inside the product views, never to the chrome.
+   Moovio — projection booth, v2
+   Matte black, hairline rules, one amber beam. Motion here is
+   authored: it reveals content, tracks the pointer, or shows time
+   passing. No looping decoration, no glow, no gradient text.
    ───────────────────────────────────────────────────────────── */
 
 @layer base {
@@ -38,14 +39,13 @@
     border-radius: 2px;
   }
 
-  /* Anchors clear the fixed bar without an uneven one-off offset. */
-  section[id] {
-    scroll-margin-top: 72px;
+  section[id],
+  div[id] {
+    scroll-margin-top: 84px;
   }
 }
 
 @layer components {
-  /* Page gutter: one width for every section. */
   .shell {
     margin-inline: auto;
     width: 100%;
@@ -59,7 +59,6 @@
     }
   }
 
-  /* Figures, timecodes and counts. One format, tabular by construction. */
   .mono {
     font-family: var(--font-mono), ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
@@ -67,21 +66,43 @@
     letter-spacing: 0.01em;
   }
 
+  /* Section marker: a timecode and a hairline that runs to the edge. */
+  .marker {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .marker::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(239, 237, 232, 0.1);
+  }
+
   .btn {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    height: 46px;
-    padding-inline: 18px;
+    height: 48px;
+    padding-inline: 20px;
     border-radius: 10px;
     border: 1px solid transparent;
     font-size: 14px;
     font-weight: 500;
+    overflow: hidden;
+    isolation: isolate;
     transition:
-      background-color 150ms cubic-bezier(0.2, 0.6, 0.2, 1),
-      border-color 150ms cubic-bezier(0.2, 0.6, 0.2, 1),
-      color 150ms cubic-bezier(0.2, 0.6, 0.2, 1);
+      background-color 180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+      border-color 180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+      color 180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+      transform 180ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  }
+
+  .btn:active {
+    transform: translateY(1px);
   }
 
   .btn-primary {
@@ -91,6 +112,26 @@
 
   .btn-primary:hover {
     background: #efc391;
+  }
+
+  /* Uiverse-style sheen: one pass per hover, nothing on touch. */
+  .btn-primary::after {
+    content: "";
+    position: absolute;
+    inset: -40% -10%;
+    pointer-events: none;
+    background: linear-gradient(
+      104deg,
+      transparent 38%,
+      rgba(255, 255, 255, 0.32) 50%,
+      transparent 62%
+    );
+    transform: translateX(-130%);
+  }
+
+  .btn-primary:hover::after {
+    transform: translateX(130%);
+    transition: transform 780ms cubic-bezier(0.2, 0.6, 0.2, 1);
   }
 
   .btn-quiet {
@@ -105,14 +146,13 @@
 
   .link-quiet {
     color: #8c887f;
-    transition: color 150ms cubic-bezier(0.2, 0.6, 0.2, 1);
+    transition: color 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
   }
 
   .link-quiet:hover {
     color: #efede8;
   }
 
-  /* The signature: a 1px beam segment. Used for emphasis, never decoration. */
   .beam {
     display: block;
     height: 1px;
@@ -120,11 +160,22 @@
   }
 }
 
-/* One entrance, on the hero only. Nothing loops, nothing floats. */
-@keyframes booth-rise {
+/* ── Reveal (Motionsites skill: one spring, staggered, view-driven) ───────── */
+
+[data-reveal="out"] {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+[data-reveal="in"] {
+  animation: reveal-up 820ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+@keyframes reveal-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(24px);
   }
   to {
     opacity: 1;
@@ -132,27 +183,207 @@
   }
 }
 
-.rise {
-  animation: booth-rise 560ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
+/* The hero beam draws once, instead of sliding in. */
+@keyframes beam-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
-.rise-2 {
-  animation-delay: 70ms;
+.beam-draw {
+  transform-origin: left center;
+  animation: beam-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) 160ms both;
 }
 
-.rise-3 {
-  animation-delay: 140ms;
+/* ── Spotlight (Vengeance: pointer-tracked highlight, cards only) ─────────── */
+
+.spotlight {
+  position: relative;
+  isolation: isolate;
 }
 
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 0%),
+    rgba(223, 164, 92, 0.12),
+    transparent 68%
+  );
+  opacity: 0;
+  transition: opacity 260ms cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.spotlight:hover::before {
+  opacity: 1;
+}
+
+/* ── Marquee (Vengeance / Uiverse: pause on hover, stop on reduced motion) ── */
+
+.marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+.marquee__track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x var(--marquee-duration, 48s) linear infinite;
+}
+
+.marquee:hover .marquee__track {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ── Poster deck (Kexsio: a physical stack, not a slideshow) ─────────────── */
+
+.deck {
+  perspective: 1100px;
+}
+
+.deck-card {
+  transition:
+    transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 520ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* ── Sticky story: surfaces cross-fade, the frame stays put ───────────────── */
+
+.surface {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(10px) scale(0.99);
+  transition:
+    opacity 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.surface[data-active="true"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.step-dot {
+  transition:
+    background-color 240ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    transform 240ms cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.step-dot[data-active="true"] {
+  background: #dfa45c;
+  transform: scaleX(2.4);
+}
+
+/* Without JS there is no observer, so revealed blocks must simply be visible. */
+@media (scripting: none) {
+  [data-reveal="out"] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── MotionSites pass: one signature, everything else quiet ───────────────── */
+
+/* Signature: the headline rises out of a slot, line by line, once. */
+.slot {
+  display: block;
+  overflow: hidden;
+  /* Room for descenders inside the mask, without opening a gap between lines. */
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+
+.slot > span {
+  display: block;
+  transform: translateY(112%);
+  animation: slot-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--slot-delay, 120ms);
+}
+
+@keyframes slot-rise {
+  from {
+    transform: translateY(112%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* The nav enters from above; everything below it enters from below. */
+.nav-enter {
+  animation: nav-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes nav-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A number that changes width while counting must not shift its neighbours. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A nav jump must not land under the fixed 4rem header. */
+html {
+  scroll-padding-top: 5rem;
+}
+
+/* Anchor links must not land under the fixed header. */
+html {
+  scroll-padding-top: 5rem;
+}
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  .rise,
-  .rise-2,
-  .rise-3 {
+
+  [data-reveal="in"],
+  .beam-draw {
     animation: none !important;
   }
+
+  /* The rest state is the final state: no slot, no drop-in, no tilt. */
+  .slot > span,
+  .nav-enter {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .marquee__track {
+    animation: none;
+  }
+
+  .btn-primary::after {
+    display: none;
+  }
+
   *,
   *::before,
   *::after {

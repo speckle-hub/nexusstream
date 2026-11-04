@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Home, Library, Play, Search, Settings } from "lucide-react";
+import type { CSSProperties } from "react";
 import {
   ANDROID_APK_SIZE,
   ANDROID_MIN_SDK,
@@ -9,42 +9,92 @@ import {
   DESKTOP_VERSION,
   TEST_COUNT,
 } from "@/lib/utils";
+import { Marquee } from "@/components/motion/Marquee";
+import { Reveal } from "@/components/motion/Reveal";
+import { PosterDeck } from "./PosterDeck";
 
 const facts = [
-  ["Minimum", ANDROID_MIN_SDK],
-  ["Tests", `${TEST_COUNT} unit`],
+  ["Release", ANDROID_VERSION],
+  ["Tests", `${TEST_COUNT} passing`],
+  ["Requires", ANDROID_MIN_SDK],
   ["Account", "Not required"],
 ];
 
-const posters = [
-  { title: "Nine Rivers", tone: "#191A1C", progress: 62 },
-  { title: "Paper Lanterns", tone: "#201C17", progress: 18 },
-  { title: "Salt & Static", tone: "#181A18", progress: 84 },
+const ecosystem = [
+  "Stremio",
+  "CloudStream",
+  "Aniyomi",
+  "Mihon",
+  "TMDB",
+  "AniList",
+  "MangaDex",
+  "Trakt",
+  "OpenSubtitles",
+  "Chromecast",
 ];
 
 export function Hero() {
   return (
-    <section id="top" className="relative border-b border-rule">
-      <div className="shell">
-        <div className="grid gap-16 pb-20 pt-28 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-12 lg:pb-28 lg:pt-36">
-          <div>
-            <p className="rise mono text-[12px] text-muted">
-              Android {ANDROID_VERSION} · 31 October 2026
-            </p>
+    <section id="top" className="relative overflow-hidden border-b border-rule">
+      {/* One warm wash, from the top right, like light through a booth window. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(900px 520px at 78% -14%, rgba(223,164,92,0.10) 0%, rgba(223,164,92,0.03) 38%, transparent 70%)",
+        }}
+      />
 
-            <span aria-hidden className="beam rise rise-2 mt-7 w-14" />
+      <div className="shell relative">
+        {/*
+          Mobile order is copy → CTA → deck → facts, so the signature still lands in the
+          first scroll. Desktop places the same blocks in two columns with the deck centred.
+        */}
+        <div className="grid gap-10 pb-16 pt-28 lg:grid-cols-[1.04fr_0.96fr] lg:items-center lg:gap-x-10 lg:gap-y-8 lg:pb-24 lg:pt-36">
+          <div className="lg:col-start-1 lg:row-start-1">
+            <Reveal>
+              <p className="mono flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-muted">
+                <span className="text-amber">Android {ANDROID_VERSION}</span>
+                <span className="h-px w-6 bg-rule" aria-hidden />
+                <span>Free · Open source · No account</span>
+              </p>
+            </Reveal>
 
-            <h1 className="rise rise-2 mt-8 max-w-[13ch] text-[clamp(2.6rem,6vw,4.5rem)] font-medium leading-[1.04] tracking-[-0.03em] text-paper">
-              Every source. One player.
+            <Reveal delay={40}>
+              <span aria-hidden className="beam beam-draw mt-7 w-16" />
+            </Reveal>
+
+            {/* The signature: two lines rise out of their slots, once, 100 ms apart. */}
+            <h1 className="mt-7 max-w-[15ch] text-[clamp(2.7rem,6.4vw,5rem)] font-medium leading-[1.02] tracking-[-0.035em] text-paper">
+              <span className="slot" style={{ "--slot-delay": "120ms" } as CSSProperties}>
+                <span>Every source.</span>
+              </span>
+              <span className="slot" style={{ "--slot-delay": "220ms" } as CSSProperties}>
+                <span>
+                  <span className="text-amber-soft">One</span> player.
+                </span>
+              </span>
             </h1>
 
-            <p className="rise rise-3 mt-7 max-w-[52ch] text-[16.5px] leading-[1.65] text-muted">
-              Moovio plays movies, TV, anime and manga from the sources you already use:
-              Stremio add-ons, CloudStream extensions and fourteen built-in scrapers. One
-              search, one library, one player, no account.
-            </p>
+            <Reveal delay={140}>
+              <p className="mt-7 max-w-[54ch] text-[16.5px] leading-[1.65] text-muted">
+                Moovio plays movies, TV, anime and manga from the sources you already use:
+                Stremio add-ons, CloudStream extensions and fourteen built-in scrapers. One
+                search, one library, one player.
+              </p>
+            </Reveal>
+          </div>
 
-            <div className="rise rise-3 mt-9 flex flex-wrap items-center gap-x-7 gap-y-4">
+          <Reveal
+            delay={180}
+            className="order-3 flex justify-center lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center lg:justify-end"
+          >
+            <PosterDeck />
+          </Reveal>
+
+          <Reveal delay={200} className="order-2 lg:order-none lg:col-start-1 lg:row-start-2">
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-4">
               <Link href={APK_URL} className="btn btn-primary">
                 Download for Android
                 <span className="mono text-[11px] opacity-70">{ANDROID_APK_SIZE}</span>
@@ -53,96 +103,26 @@ export function Hero() {
                 Windows build <span className="mono text-[12px]">v{DESKTOP_VERSION}</span>
               </Link>
             </div>
+          </Reveal>
 
-            <dl className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-rule pt-6">
-              {facts.map(([k, v]) => (
-                <div key={k}>
-                  <dt className="mono text-[11px] text-faint">{k}</dt>
-                  <dd className="mt-2 text-[14px] text-paper">{v}</dd>
+          <Reveal delay={260} className="order-4 lg:order-none lg:col-start-1 lg:row-start-3">
+            <dl className="grid max-w-lg grid-cols-2 gap-x-8 gap-y-5 border-t border-rule pt-6 sm:grid-cols-4">
+              {facts.map(([label, value]) => (
+                <div key={label}>
+                  <dt className="mono text-[10.5px] uppercase tracking-[0.14em] text-faint">
+                    {label}
+                  </dt>
+                  <dd className="mt-2 text-[14.5px] text-paper">{value}</dd>
                 </div>
               ))}
             </dl>
-          </div>
-
-          <div className="rise rise-3 flex justify-center lg:justify-end">
-            <PhoneView />
-          </div>
+          </Reveal>
         </div>
+      </div>
+
+      <div className="border-t border-rule-soft py-4">
+        <Marquee items={ecosystem} durationSeconds={34} />
       </div>
     </section>
-  );
-}
-
-/**
- * The real Home feed at phone scale. This is the page's one rich surface: the still and the
- * poster wall carry the colour, everything around them is a hairline and a label.
- */
-function PhoneView() {
-  return (
-    <div className="w-full max-w-[308px]">
-      <div className="rounded-[34px] border border-rule bg-ink-raised p-2 shadow-[0_30px_60px_-40px_rgba(0,0,0,0.9)]">
-        <div className="overflow-hidden rounded-[26px] border border-rule-soft bg-ink">
-          <div className="flex items-center justify-between px-4 pt-3">
-            <span className="mono text-[10px] text-faint">9:41</span>
-            <span className="mono text-[10px] text-faint">5G</span>
-          </div>
-
-          <div className="flex items-center justify-between px-4 pb-3 pt-5">
-            <span className="text-[15px] font-medium text-paper">Home</span>
-            <Search className="h-4 w-4 text-muted" strokeWidth={1.5} />
-          </div>
-
-          <div className="mx-4 overflow-hidden rounded-[12px] border border-rule-soft">
-            <div className="relative h-[124px] w-full">
-              <div
-                className="absolute inset-0"
-                style={{
-                  background:
-                    "radial-gradient(120% 95% at 78% 0%, #3D2C19 0%, #191410 52%, #0C0B0A 100%)",
-                }}
-              />
-              <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-amber px-2 py-[3px] text-[10px] font-medium text-ink">
-                <Play className="h-2.5 w-2.5" strokeWidth={2} />
-                Play
-              </div>
-              <div className="absolute inset-x-3 bottom-3">
-                <p className="text-[13px] font-medium text-paper">Aurora Protocol</p>
-                <p className="mono mt-1 text-[10px] text-muted">2026 · S1 E4 · 47 min</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-4 pt-4">
-            <p className="mono text-[10px] text-faint">Continue watching</p>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {posters.map((p) => (
-                <div key={p.title}>
-                  <div
-                    className="relative aspect-[2/3] overflow-hidden rounded-[8px] border border-rule-soft"
-                    style={{
-                      background: `linear-gradient(180deg, ${p.tone} 0%, #0C0C0B 100%)`,
-                    }}
-                  >
-                    <span className="absolute inset-x-1.5 bottom-2 line-clamp-2 text-[9px] leading-[1.25] text-paper/90">
-                      {p.title}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-px w-full bg-rule">
-                    <div className="h-px bg-amber/70" style={{ width: `${p.progress}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-around border-t border-rule-soft py-3">
-            <Home className="h-4 w-4 text-paper" strokeWidth={1.5} />
-            <Search className="h-4 w-4 text-faint" strokeWidth={1.5} />
-            <Library className="h-4 w-4 text-faint" strokeWidth={1.5} />
-            <Settings className="h-4 w-4 text-faint" strokeWidth={1.5} />
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
