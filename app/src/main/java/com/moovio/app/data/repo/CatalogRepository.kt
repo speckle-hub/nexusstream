@@ -3,6 +3,8 @@ package com.moovio.app.data.repo
 import com.moovio.app.data.adult.AdultRepository
 import com.moovio.app.data.cloudstream.CloudStreamSources
 import com.moovio.app.data.local.SettingsStore
+import com.moovio.app.data.mihon.MihonExtensionRepository
+import com.moovio.app.data.mihon.MihonExtensionSources
 import com.moovio.app.data.model.Addon
 import com.moovio.app.data.model.CatalogDef
 import com.moovio.app.data.model.CatalogRow
@@ -33,6 +35,7 @@ class CatalogRepository(
     private val addonRepo: AddonRepository,
     private val settings: SettingsStore,
     private val cloudStreamRepo: CloudStreamRepository,
+    private val mihonRepo: MihonExtensionRepository,
 ) {
 
     /**
@@ -99,7 +102,7 @@ class CatalogRepository(
             async { safeRow("Trending Anime", MediaType.ANIME) { AniListClient.trendingAnime() } },
             async { safeRow("Now Playing", MediaType.MOVIE) { TmdbClient.nowPlaying() } },
         )
-        val base = jobs.mapNotNull { it.await() }
+        val base = jobs.map { it.await() }.filterNotNull()
         (base + stremioRowsFor(setOf(MediaType.MOVIE, MediaType.SERIES, MediaType.ANIME)))
             .mapNotNull { it.scrubbed() }
     }
@@ -146,7 +149,7 @@ class CatalogRepository(
                     async { safeRow("Upcoming", MediaType.MOVIE) { TmdbClient.upcoming() } },
                     async { safeRow("Action", MediaType.MOVIE) { TmdbClient.discoverMovies("28") } },
                     async { safeRow("Comedy", MediaType.MOVIE) { TmdbClient.discoverMovies("35") } },
-                ).mapNotNull { it.await() }
+                ).map { it.await() }.filterNotNull()
                 rows + sfwSectionRows(section) + stremioRowsFor(setOf(MediaType.MOVIE))
             }
 
@@ -156,7 +159,7 @@ class CatalogRepository(
                     async { safeRow("Top Rated", MediaType.SERIES) { TmdbClient.topRatedTv() } },
                     async { safeRow("Airing Today", MediaType.SERIES) { TmdbClient.airingToday() } },
                     async { safeRow("Drama", MediaType.SERIES) { TmdbClient.discoverTv("18") } },
-                ).mapNotNull { it.await() }
+                ).map { it.await() }.filterNotNull()
                 rows + sfwSectionRows(section) + stremioRowsFor(setOf(MediaType.SERIES))
             }
 
@@ -167,8 +170,8 @@ class CatalogRepository(
                     async { safeRow("Action", MediaType.ANIME) { AniListClient.byGenre("Action") } },
                     async { safeRow("Romance", MediaType.ANIME) { AniListClient.byGenre("Romance") } },
                     async { safeRow("Fantasy", MediaType.ANIME) { AniListClient.byGenre("Fantasy") } },
-                ).mapNotNull { it.await() }
-                rows + sfwSectionRows(section) + stremioRowsFor(setOf(MediaType.ANIME))
+                ).map { it.await() }.filterNotNull()
+                rows + sfwSectionRows(section) + stremioRowsFor(setOf(MediaType.ANIME)) + mihonSectionRows(section)
             }
 
             MediaType.MANGA -> listOf(
@@ -176,7 +179,7 @@ class CatalogRepository(
                 async { safeRow("Latest Updates", MediaType.MANGA) { MangaDexClient.latest() } },
                 async { safeRow("Action", MediaType.MANGA) { MangaDexClient.byGenre("391b0423-d847-456f-aff0-8b0cfc03066b") } },
                 async { safeRow("Romance", MediaType.MANGA) { MangaDexClient.byGenre("423e2eae-a7a2-4a8b-ac03-a8351462d71d") } },
-            ).mapNotNull { it.await() }
+            ).map { it.await() }.filterNotNull() + mihonSectionRows(section)
 
             else -> emptyList()
         }
@@ -190,6 +193,51 @@ class CatalogRepository(
     private suspend fun sfwSectionRows(section: MediaType): List<CatalogRow> =
         ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.homeRows(section).rows }
             .getOrDefault(emptyList())
+
+    // ---- Mihon / Aniyomi extension rows -------------------------------------------
+
+    /**
+     * Latest rows from installed Mihon / Aniyomi extensions for [section].
+     * NSFW sections only consult NSFW-flagged extensions; SFW sections skip them.
+     */
+    private suspend fun mihonSectionRows(section: MediaType): List<CatalogRow> = coroutineScope {
+        val isNsfw = section == MediaType.NSFW_ANIME || section == MediaType.NSFW_MANGA
+        val sources = runCatching { mihonRepo.allSources() }
+            .getOrDefault(emptyList())
+            .take(MAX_MIHON_SOURCES)
+        sources.map { source ->
+            async {
+                val items = runCatching {
+                    mihonRepo.latest(source, isNsfw = isNsfw)
+                }.getOrDefault(emptyList())
+                    .filter { it.type == section }
+                if (items.isEmpty()) null
+                else CatalogRow(MihonExtensionSources.sourceName(source), items, type = section)
+            }
+        }.map { it.await() }.filterNotNull()
+    }
+
+    /**
+     * Search installed Mihon / Aniyomi extensions for [query] in [section].
+     * NSFW sections only consult NSFW-flagged extensions.
+     */
+    private suspend fun mihonSearch(
+        query: String,
+        section: MediaType,
+    ): List<MediaItem> = coroutineScope {
+        val isNsfw = section == MediaType.NSFW_ANIME || section == MediaType.NSFW_MANGA
+        val sources = runCatching { mihonRepo.allSources() }
+            .getOrDefault(emptyList())
+            .take(MAX_MIHON_SOURCES)
+        sources.map { source ->
+            async {
+                ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
+                    mihonRepo.search(source, query, isNsfw = isNsfw)
+                }.getOrDefault(emptyList())
+                    .filter { it.type == section }
+            }
+        }.flatMap { it.await() }.distinctBy { it.id }
+    }
 
     // ---- NSFW ---------------------------------------------------------------
 
@@ -381,6 +429,9 @@ class CatalogRepository(
                     .getOrDefault(emptyList())
             },
             {
+                mihonSearch(query, MediaType.NSFW_ANIME)
+            },
+            {
                 ScraperRace.raceResult(ADDON_TIMEOUT_MS) {
                     addonSearch(query, MediaType.NSFW_ANIME, nsfwOnly = true)
                 }.getOrDefault(emptyList())
@@ -506,9 +557,11 @@ class CatalogRepository(
             MediaType.ANIME -> listOf(
                 { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { AniListClient.searchAnime(query) }.getOrDefault(emptyList()) },
                 { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }.getOrDefault(emptyList()) },
+                { mihonSearch(query, MediaType.ANIME) },
             )
             MediaType.MANGA -> listOf(
                 { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }.getOrDefault(emptyList()) },
+                { mihonSearch(query, MediaType.MANGA) },
             )
             MediaType.NSFW_ANIME -> listOf(
                 // Routed through searchNsfwAnime() before this method is reached; kept as a strict
@@ -574,6 +627,9 @@ class CatalogRepository(
 
         /** Section rows stay good this long, so tab switches paint without touching the network. */
         const val SECTION_ROWS_TTL_MS = 10 * 60_000L
+
+        /** Mihon / Aniyomi extension sources queried per search. */
+        const val MAX_MIHON_SOURCES = 10
     }
 
     /**
@@ -624,6 +680,8 @@ class CatalogRepository(
             { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { MangaDexClient.search(query) }.getOrDefault(emptyList()) },
             { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwRepository.search(query).items }.getOrDefault(emptyList()) },
             { ScraperRace.raceResult(ADDON_TIMEOUT_MS) { SfwAnimeRepository.searchTitles(query).first }.getOrDefault(emptyList()) },
+            { mihonSearch(query, MediaType.ANIME) },
+            { mihonSearch(query, MediaType.MANGA) },
         )
 
         val jobs = builtInFetchers.map { fetch -> launch { collect(fetch) } } +

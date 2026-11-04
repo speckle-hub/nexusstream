@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.moovio.app.data.mihon.MihonExtensionSources
 import com.moovio.app.data.model.AddonKind
 import com.moovio.app.data.model.CloudStreamExt
 import com.moovio.app.data.model.MangaExt
@@ -184,6 +186,7 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
     val busy by vm.busy.collectAsStateSafe()
     val csInstalled by vm.cloudStreamInstalled.collectAsStateSafe()
     val mangaInstalled by vm.mangaInstalled.collectAsStateSafe()
+    val mihonLoaded by vm.mihonLoadedSources.collectAsStateWithLifecycle(emptyList())
     val showNsfw by vm.showNsfwExtensions.collectAsStateSafe()
     val mangaUpdates by vm.mangaUpdates.collectAsStateSafe()
     val myRepos = repos.filter { it.kind == kind }
@@ -197,29 +200,6 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
     }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Honesty banner (§2ba): Aniyomi/Mihon APKs install, toggle and update — but the source
-        // runtime that would execute them does not exist yet. Never let the list imply otherwise.
-        if (kind == AddonKind.ANIYOMI || kind == AddonKind.KEIYOUSHI) {
-            item {
-                SurfaceCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text(
-                            "Installed but not yet executable",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = moovio.accent,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Playback/reading from these extensions is not available yet. " +
-                                "You can install, enable, update and remove them — they will not " +
-                                "provide streams or chapters until the extension runtime ships.",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = moovio.textTertiary,
-                        )
-                    }
-                }
-            }
-        }
         // No repositories are preinstalled — the user adds their own by URL.
         item {
             Column {
@@ -329,29 +309,22 @@ private fun ProviderTab(vm: AddonViewModel, kind: AddonKind) {
                 }
             }
         }
-        if (csInstalled.isNotEmpty() || mangaInstalled.isNotEmpty()) {
+        if (csInstalled.isNotEmpty() || mangaInstalled.isNotEmpty() || mihonLoaded.isNotEmpty()) {
             item { Text("Installed", style = MaterialTheme.typography.titleMedium, color = moovio.textSecondary) }
-            // Repeat the notice right at the installed list: this is where a user most expects
-            // the extensions to be ready to use.
-            if (mangaInstalled.isNotEmpty()) item {
-                Text(
-                    "Installed but not yet executable — playback/reading from these extensions is not available yet.",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = moovio.textTertiary,
-                )
-            }
 
             items(csInstalled) { ext ->
                 InstalledRow(ext.name, ext.version, ext.language) { vm.uninstallCloudStream(ext.url) }
             }
             items(mangaInstalled) { ext ->
                 val update = mangaUpdates[ext.pkg]
+                val live = mihonLoaded.any { s -> MihonExtensionSources.sourceName(s) == ext.name }
                 InstalledExtRow(
                     name = ext.name,
                     version = ext.version,
                     detail = listOfNotNull(ext.lang, ext.sources.firstOrNull()?.name).joinToString(" · "),
                     nsfw = ext.nsfw,
                     enabled = !ext.disabled,
+                    live = live,
                     updateAvailable = update != null,
                     onToggle = { vm.setMangaExtEnabled(ext.pkg, it) },
                     onUpdate = { update?.let { vm.installMangaExt(it) } },
@@ -401,7 +374,7 @@ private fun ExtRow(name: String, version: String?, lang: String?, desc: String?,
     }
 }
 
-/** Installed Aniyomi/Mihon extension: enable switch, update action, remove. */
+/** Installed Aniyomi/Mihon extension: enable switch, live indicator, update action, remove. */
 @Composable
 private fun InstalledExtRow(
     name: String,
@@ -409,6 +382,7 @@ private fun InstalledExtRow(
     detail: String?,
     nsfw: Boolean,
     enabled: Boolean,
+    live: Boolean,
     updateAvailable: Boolean,
     onToggle: (Boolean) -> Unit,
     onUpdate: () -> Unit,
@@ -421,6 +395,7 @@ private fun InstalledExtRow(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(name, style = MaterialTheme.typography.titleMedium, color = moovio.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (nsfw) MetaChip("18+")
+                    if (live) MetaChip("Live")
                     if (updateAvailable) MetaChip("Update")
                 }
                 Text(listOfNotNull(version, detail).joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = moovio.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)

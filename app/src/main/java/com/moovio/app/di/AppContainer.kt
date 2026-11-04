@@ -11,6 +11,7 @@ import com.moovio.app.data.local.AddonStore
 import com.moovio.app.data.local.LibraryStore
 import com.moovio.app.data.local.MetadataCache
 import com.moovio.app.data.local.SettingsStore
+import com.moovio.app.data.mihon.MihonExtensionRepository
 import com.moovio.app.data.repo.AddonRepository
 import com.moovio.app.data.repo.CatalogRepository
 import com.moovio.app.data.repo.CloudStreamRepository
@@ -42,9 +43,13 @@ class AppContainer(context: Context) {
     val mangaExtensionRepository =
         MangaExtensionRepository(context.applicationContext, addonStore, addonRepository)
 
-    val catalogRepository = CatalogRepository(addonRepository, settings, cloudStreamRepository)
-    val metadataRepository = MetadataRepository(addonRepository, cloudStreamRepository)
-    val streamRepository = StreamRepository(addonRepository, cloudStreamRepository)
+    // Executes installed Aniyomi / Mihon extension APKs (reflection-based tachiyomi runtime).
+    val mihonExtensionRepository =
+        MihonExtensionRepository(context.applicationContext, addonStore, mangaExtensionRepository)
+
+    val catalogRepository = CatalogRepository(addonRepository, settings, cloudStreamRepository, mihonExtensionRepository)
+    val metadataRepository = MetadataRepository(addonRepository, cloudStreamRepository, mihonExtensionRepository)
+    val streamRepository = StreamRepository(addonRepository, cloudStreamRepository, mihonExtensionRepository)
 
     // Phase 12 integrations.
     val scrobbleManager = ScrobbleManager(settings)

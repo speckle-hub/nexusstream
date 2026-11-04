@@ -6,6 +6,7 @@ import com.moovio.app.data.adult.AdultRepository
 import com.moovio.app.data.download.DownloadStorageStats
 import com.moovio.app.data.download.VideoDownload
 import com.moovio.app.data.hentai.HentaiRepository
+import com.moovio.app.data.mihon.MihonExtensionRepository
 import com.moovio.app.data.model.Addon
 import com.moovio.app.data.model.CatalogRow
 import com.moovio.app.data.model.CloudStreamExt
@@ -1034,6 +1035,14 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
     /** Number of live providers contributed by loaded CloudStream plugins. */
     fun loadedProviderCount(): Int = runCatching { container.cloudStreamRepository.providers().size }.getOrDefault(0)
 
+    /** Number of loaded Aniyomi / Mihon extension sources (live this session). */
+    fun loadedMihonSourceCount(): Int = runCatching { container.mihonExtensionRepository.allSources().size }.getOrDefault(0)
+
+    /** Loaded Aniyomi / Mihon extension source instances (live this session). */
+    val mihonLoadedSources: StateFlow<List<Any>> =
+        container.mihonExtensionRepository.loaded
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     /** Add-on Manager: whether `nsfw = 1` extensions/repos are listed (off = SFW-only manager). */
     val showNsfwExtensions: StateFlow<Boolean> = container.settings.showNsfwExtensions
 
@@ -1153,16 +1162,16 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
     /**
-     * Download the extension APK and record it as installed (this is also the update path — it
-     * replaces the file and descriptor for the same package).
+     * Download the extension APK, record it as installed, and load it into the Mihon runtime so
+     * its sources become searchable and playable this session. Re-installing the same package
+     * replaces the file and descriptor (the update path).
      */
     fun installMangaExt(ext: MangaExt) {
         viewModelScope.launch {
             busy.value = true
-            container.mangaExtensionRepository.install(ext)
+            container.mihonExtensionRepository.install(ext)
                 .onSuccess {
-                    // Honest confirmation: install works, execution does not (§2ba).
-                    message.value = "Installed ${it.name} — not executable yet (no runtime)"
+                    message.value = "Installed ${it.name} — sources live"
                     recomputeMangaUpdates()
                 }
                 .onFailure { message.value = "Install failed: ${it.message}" }

@@ -7,6 +7,9 @@ import com.moovio.app.data.adult.AdultSources
 import com.moovio.app.data.adult.adultTitlesMatch
 import com.moovio.app.data.cloudstream.CloudStreamSources
 import com.moovio.app.data.hentai.HentaiRepository
+import com.moovio.app.data.mihon.MihonExtensionRepository
+import com.moovio.app.data.mihon.MihonExtensionRuntime
+import com.moovio.app.data.mihon.MihonExtensionSources
 import com.moovio.app.data.model.MediaItem
 import com.moovio.app.data.model.MediaType
 import com.moovio.app.data.model.MetaDetail
@@ -28,6 +31,7 @@ import kotlinx.coroutines.withTimeout
 class MetadataRepository(
     private val addonRepo: AddonRepository,
     private val cloudStreamRepo: CloudStreamRepository,
+    private val mihonRepo: MihonExtensionRepository,
 ) {
 
     /**
@@ -56,6 +60,35 @@ class MetadataRepository(
             val provider = cloudStreamRepo.providerFor(item.addonId)
             val d = provider?.let { runCatching { CloudStreamSources.metaDetail(it, item) }.getOrNull() }
             return d ?: fallbackDetail(item)
+        }
+
+        // Mihon / Aniyomi extension items resolve their own metadata and chapter list.
+        if (item.addonId?.startsWith(MihonExtensionSources.ADDON_PREFIX) == true) {
+            val sourceName = MihonExtensionRuntime.sourceNameOf(item.addonId) ?: return fallbackDetail(item)
+            val source = mihonRepo.allSources().firstOrNull { MihonExtensionSources.sourceName(it) == sourceName }
+                ?: return fallbackDetail(item)
+            val detail = runCatching { mihonRepo.details(source, item.id) }.getOrNull()
+            if (detail != null) {
+                val title = detail["title"] as? String ?: item.title
+                val poster = detail["thumbnail_url"] as? String ?: item.poster
+                val description = detail["description"] as? String
+                val chapters = runCatching { mihonRepo.chapters(source, item.id) }.getOrDefault(emptyList())
+                val videos = chapters.map { mihonRepo.chapterToVideo(it) }
+                return MetaDetail(
+                    id = item.id,
+                    type = item.stremioType ?: "movie",
+                    name = title,
+                    poster = poster,
+                    background = poster ?: item.backdrop ?: item.poster,
+                    description = description,
+                    releaseInfo = detail["updated_at"] as? String ?: item.year,
+                    genres = item.genres,
+                    videos = videos,
+                    totalEpisodes = videos.size.takeIf { it > 0 },
+                    addonId = item.addonId,
+                )
+            }
+            return fallbackDetail(item)
         }
         val candidates = candidateSources(item)
         var best: MetaDetail? = null

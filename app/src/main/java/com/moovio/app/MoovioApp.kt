@@ -84,6 +84,10 @@ class MoovioApp : Application(), ImageLoaderFactory {
         appScope.launch {
             runCatching { container.cloudStreamRepository.reloadAll() }
         }
+        // Re-load installed Aniyomi / Mihon extension APKs so their sources are live this session.
+        appScope.launch {
+            runCatching { container.mihonExtensionRepository.reloadAll() }
+        }
         // Apply the user's max-parallel-downloads setting to Media3, and keep it live on change.
         collectSafely(container.settings.maxParallel) {
             DownloadManagerProvider.setMaxParallel(this@MoovioApp, it)

@@ -5,11 +5,16 @@ import com.moovio.app.data.adult.AdultSources
 import com.moovio.app.data.hentai.HentaiEpisode
 import com.moovio.app.data.hentai.HentaiRepository
 import com.moovio.app.data.cloudstream.CloudStreamSources
+import com.moovio.app.data.mihon.MihonExtensionRepository
+import com.moovio.app.data.mihon.MihonExtensionRuntime
+import com.moovio.app.data.mihon.MihonExtensionSources
 import com.moovio.app.data.sfw.SfwAnimeEpisode
 import com.moovio.app.data.sfw.SfwAnimeRepository
 import com.moovio.app.data.sfw.SfwAnimeSources
+import com.moovio.app.data.sfw.SfwDetail
 import com.moovio.app.data.sfw.SfwEpisode
 import com.moovio.app.data.sfw.SfwRepository
+import com.moovio.app.data.sfw.SfwSource
 import com.moovio.app.data.sfw.SfwSources
 import com.moovio.app.data.sfw.sfwSeasonEpisode
 import com.moovio.app.data.local.AddonStore
@@ -38,6 +43,7 @@ data class StreamsResult(
 class StreamRepository(
     private val addonRepo: AddonRepository,
     private val cloudStreamRepo: CloudStreamRepository,
+    private val mihonRepo: MihonExtensionRepository,
 ) {
 
     /** Resolve (stremioType, id) for stream addon queries. */
@@ -118,6 +124,19 @@ class StreamRepository(
             val video = videoId?.takeIf { it.isNotBlank() }?.let { Video(id = it) }
             val direct = runCatching { cloudStreamRepo.streamsFor(item, video) }.getOrDefault(emptyList())
             return StreamsResult(direct)
+        }
+
+        // Mihon / Aniyomi extension items: videoId is a chapter / episode URL. Resolve its pages
+        // through the extension and serve each page as a direct StreamSource.
+        if (item.addonId?.startsWith(MihonExtensionSources.ADDON_PREFIX) == true) {
+            val sourceName = MihonExtensionRuntime.sourceNameOf(item.addonId) ?: return StreamsResult()
+            val source = mihonRepo.sourceFor(sourceName) ?: return StreamsResult()
+            val chapterUrl = videoId ?: item.id
+            val pages = runCatching { mihonRepo.pages(source, chapterUrl) }.getOrDefault(emptyList())
+            val streams = pages.map { page ->
+                mihonRepo.pageToStreamSource(page, source)
+            }.filter { it.url != null }
+            return StreamsResult(streams)
         }
 
         // NSFW anime gets a built-in stream source so the section plays with zero add-ons

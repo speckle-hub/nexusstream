@@ -5,6 +5,7 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn retrofit2.**
+-dontwarn javax.script.ScriptEngineFactory
 
 # Torrent streaming engine (TorrentStream-Android over jlibtorrent).
 # JNI bridges and the TorrentListener callbacks are resolved by name at runtime, so they must

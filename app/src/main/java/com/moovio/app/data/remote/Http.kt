@@ -197,7 +197,7 @@ private const val GET_BYTES_RETRY_BACKOFF_MS = 250L
  * (timeout, reset, DNS hiccup) or a 5xx / 408 / 429 response. Other 4xx answers are final —
  * retrying them would only add latency to a request that can never succeed.
  */
-private fun isTransientFailure(t: Throwable): Boolean {
+internal fun isTransientFailure(t: Throwable): Boolean {
     if (t !is java.io.IOException) return false
     val msg = t.message ?: return true
     if (!msg.startsWith("HTTP ")) return true

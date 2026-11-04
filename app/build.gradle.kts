@@ -38,8 +38,8 @@ android {
         applicationId = "com.moovio.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 29
-        versionName = "1.12.0"
+        versionCode = 30
+        versionName = "1.13.0"
         vectorDrawables { useSupportLibrary = true }
         // TMDB key lives in the gitignored local.properties (or the TMDB_API_KEY env var), never in source.
         buildConfigField(
@@ -65,10 +65,10 @@ android {
 
     buildTypes {
         release {
-            // Minify stays off until it can be smoke-tested on a device: R8 shrinking of
-            // reflection/JNI paths (Gson models, Media3, jlibtorrent) can fail only at runtime.
-            // proguard-rules.pro is already prepared, so enabling this is a one-line change.
-            isMinifyEnabled = false
+            // R8 minify is on: proguard-rules.pro keeps Gson model fields, Media3/jlibtorrent
+            // JNI reflection paths, and CloudStream provider shim classes. Smoke-test on a
+            // device before shipping a release build.
+            isMinifyEnabled = true
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
@@ -154,6 +154,13 @@ dependencies {
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
     testImplementation("junit:junit:4.13.2")
+
+    // Instrumented tests run on a device/emulator and have access to Android framework
+    // classes (Context, DataStore, PathClassLoader, …). Required to cover the high-risk
+    // code §7 0j calls out: CloudStream shims, SettingsStore (DataStore), Http.
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
 
     // In-app torrent streaming engine (jlibtorrent) so Real 18+ / P2P Stremio streams play directly.
     implementation("com.github.TorrentStream:TorrentStream-Android:2.7.0")
