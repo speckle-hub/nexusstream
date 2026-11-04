@@ -13,8 +13,8 @@ export const DESKTOP_MSI_URL =
  * Facts quoted across the page. Kept here so the version can never drift between the hero,
  * the numbers row and the download block again (it had three different values).
  */
-export const ANDROID_VERSION = "1.12.0";
-export const ANDROID_APK_SIZE = "44.1 MB";
+export const ANDROID_VERSION = "1.13.0";
+export const ANDROID_APK_SIZE = "26.7 MB";
 export const ANDROID_MIN_SDK = "Android 7.0";
 export const TEST_COUNT = "348";
 export const SFW_SOURCE_COUNT = "14";

@@ -7,13 +7,13 @@
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-11-01 — **v1.12.0 released (§2bp): the §2bo
-> hygiene pass plus the ISSUE-16…26 backlog fixes that were still uncommitted.** `versionCode` 29 /
-> `versionName` 1.12.0; signed `:app:assembleRelease` ✅ → `dist/app-release.apk` +
-> `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `a35d3094…C6EA23F`), published with tag `v1.12.0` and
-> a GitHub Release carrying both assets. Verified `:app:compileDebugKotlin` ✓ ·
-> `:app:testDebugUnitTest` ✓ **348/348** (38 suites) · `npx tsc --noEmit` ✓ · `next lint` ✓.
-> Detail in §2bp.
+> resume exactly where it left off. Last updated: 2026-11-04 — **v1.13.0 released (§2bq): R8 minify
+> on, androidTest coverage added, Mihon/Aniyomi extension execution via reflection-based tachiyomi
+> runtime.** `versionCode` 30 / `versionName` 1.13.0; signed `:app:assembleRelease` ✅ →
+> `app/build/outputs/apk/release/app-release.apk` + `Moovio.apk` (27,989,436 bytes,
+> SHA-256 `…`), published with tag `v1.13.0` and a GitHub Release carrying both assets.
+> Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **348/348** (38 suites) ·
+> `npx tsc --noEmit` ✓ · `next lint` ✓. Detail in §2bq.
 >
 > Previous, 2026-11-01 — **backlog hygiene pass (§2bo): dead
 > tab-restore API deleted, `MainActivity`'s last stray `Bold` removed, the website's 10 unused
@@ -549,13 +549,14 @@ over v1.9.0** (different package id *and* different key) — existing users rein
 
 ## 2. Current focus
 
-**Topic: v1.12.0 released (§2bp) — Android + `website/`.** The §2bo hygiene pass — dead tab-restore
-API, `MainActivity`'s `Bold`, ten unused website dependencies, live-version references corrected, 12
-capsule radii → `CircleShape`, `PillSegmentedControl` → `SegmentedControl`, stub repo indexes pruned,
-MissAV retired — together with the ISSUE-16…26 backlog fixes that were still uncommitted.
-`versionCode` 29 / `versionName` 1.12.0; signed APK 44,129,215 bytes (SHA-256 `a35d3094…C6EA23F`),
-tag `v1.12.0`, GitHub Release with both assets. Verified `:app:testDebugUnitTest` ✓ **348/348** (38
-suites). No device pass. Detail in §2bp.
+**Topic: v1.13.0 released (§2bq) — Android + `website/`.** R8 minify flipped ON
+(`isMinifyEnabled = true`; proguard-rules.pro keeps Gson models, Media3/jlibtorrent JNI paths,
+CloudStream shim classes, `javax.script`), androidTest coverage added
+(`SettingsStoreInstrumentedTest`, `HttpInstrumentedTest`), Mihon/Aniyomi extension execution via
+reflection-based tachiyomi runtime (`data/mihon/`), ISSUE-16…26 backlog fixes.
+`versionCode` 30 / `versionName` 1.13.0; signed APK 27,989,436 bytes, tag `v1.13.0`, GitHub Release
+with both assets. Verified `:app:testDebugUnitTest` ✓ **348/348** (38 suites). No device pass yet.
+Detail in §2bq.
 
 Previous focus: **v1.11.4 released (§2bn).** The MangaDex bot-check fix — a browser-shaped
 User-Agent is answered with an HTML challenge page, so every MangaDex call parsed as HTML, all four
@@ -6039,6 +6040,18 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 
 | Date | Change |
 |---|---|
+| 2026-11-04 | **v1.13.0 released (§2bq):** `versionCode` 30 / `versionName` 1.13.0. R8 minify flipped ON
+  (`isMinifyEnabled = true`; proguard keeps Gson models, Media3/jlibtorrent JNI paths, CloudStream
+  shim classes, `javax.script.ScriptEngineFactory` dontwarn). androidTest coverage added:
+  `SettingsStoreInstrumentedTest` (DataStore round-trips, OAuth nonce consumption, scrobble
+  snapshot) and `HttpInstrumentedTest` (markup detection, transient-failure classification, gzip,
+  JSON); `Http.isTransientFailure` widened `private` → `internal`. Mihon/Aniyomi extension
+  execution via reflection-based tachiyomi runtime (`data/mihon/`) — DEX scanning, source
+  instantiation, tachiyomi API methods called reflectively, no compile-time dependency on
+  `extensions-lib`. `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **348/348** (38
+  suites) · `:app:assembleRelease` ✅ → `app-release.apk` + `Moovio.apk` (27,989,436 bytes).
+  Tag `v1.13.0` pushed; GitHub Release published with both assets. Website `ANDROID_VERSION`
+  → 1.13.0, `ANDROID_APK_SIZE` → 26.7 MB. |
 | 2026-09-30 | Created roadmap; ran full API audit; filed ISSUE-1…8. |
 | 2026-09-30 | Fixed ISSUE-1…5 (default add-ons + migration, CloudStream parser, Jikan fallback, gzip pb, MangaDex external chapters). |
 | 2026-09-30 | `:app:compileDebugKotlin` → BUILD SUCCESSFUL (only pre-existing warnings). |
