@@ -49,6 +49,10 @@ object UpdateChecker {
     /**
      * Repository the updater queries when Settings has none configured. The in-app GitHub Release
      * for this repo carries `app-release.apk`, so the launch dialog can download and install it.
+     *
+     * A repo rename (roadmap §7 item 0) has to change this slug, `MangaDexClient.USER_AGENT` and
+     * `REPO` in `website/lib/utils.ts` together, and `UpdateCheckerTest` asserts the current value
+     * so a half-done rename fails the build instead of shipping a dead updater.
      */
     const val DEFAULT_REPO = "speckle-hub/nexusstream"
 

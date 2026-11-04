@@ -27,6 +27,13 @@ import java.io.File
  * extension: NSFW-flagged extensions only surface in `NSFW_ANIME` / `NSFW_MANGA` / `REAL`
  * sections, never in general search or Home. This mirrors the CloudStream `nsfw` handling.
  */
+/** What an install actually achieved: the stored descriptor, plus whether sources can run. */
+data class MangaInstallOutcome(
+    val ext: MangaExt,
+    val loadedSources: Int,
+    val loadError: String?,
+)
+
 class MihonExtensionRepository(
     private val context: Context,
     private val store: AddonStore,
@@ -48,17 +55,27 @@ class MihonExtensionRepository(
     }
 
     /**
-     * Install [ext]: download its APK (delegated to [MangaExtensionRepository]), then load it
-     * into the runtime so its sources become searchable / playable this session.
+     * True when this build can execute extension sources. The tachiyomi source APIs are not on the
+     * classpath yet (they need AGP ≥ 8.9 / compileSdk 37, see `build.gradle.kts`), so an installed
+     * APK is scanned and stored but no source can be instantiated.
      */
-    suspend fun install(ext: MangaExt): Result<MangaExt> = withContext(Dispatchers.IO) {
-        val installed = mangaRepo.install(ext)
-        installed.onSuccess { descriptor ->
-            // Load the newly installed APK into the runtime.
-            val file = File(descriptor.apkPath!!)
-            runtime.load(context, file)
+    val canExecuteSources: Boolean get() = MihonExtensionRuntime.canExecuteSources
+
+    /**
+     * Install [ext]: download its APK (delegated to [MangaExtensionRepository]), then try to load
+     * it into the runtime. Loading is best-effort and its outcome is reported back, because on a
+     * build without the source APIs the download succeeds while the sources stay unusable — that
+     * used to be announced as "sources live".
+     */
+    suspend fun install(ext: MangaExt): Result<MangaInstallOutcome> = withContext(Dispatchers.IO) {
+        mangaRepo.install(ext).map { descriptor ->
+            val load = runtime.load(context, File(descriptor.apkPath!!))
+            MangaInstallOutcome(
+                ext = descriptor,
+                loadedSources = load.getOrNull()?.size ?: 0,
+                loadError = load.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
+            )
         }
-        installed
     }
 
     /** Enable / disable an installed extension. Disabled extensions are not loaded. */

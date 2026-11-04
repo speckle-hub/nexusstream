@@ -219,6 +219,9 @@ object MihonExtensionSources {
             ?: page["page_url_orig"] as? String
             ?: page["page_url_img"] as? String
             ?: page["page_url_viewer"] as? String
+            // Aniyomi anime episodes expose their stream URL here; Mihon chapters use the
+            // `page_url*` fields above. Without this an Aniyomi episode resolved to no streams.
+            ?: page["video_url"] as? String
             ?: page["url"] as? String
             ?: ""
         val quality = page["quality"] as? String

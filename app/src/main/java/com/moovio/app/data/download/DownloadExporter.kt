@@ -109,11 +109,9 @@ object DownloadExporter {
         if (manifestBytes.isEmpty()) return@runCatching false
         val manifestText = String(manifestBytes)
 
-        // Resolve the base URL (manifest dir) for relative segment URLs.
-        val baseUri = Uri.parse(manifestUri.toString().substringBeforeLast('/') + '/')
-
-        // Parse segment URLs from the master playlist (basic #EXTINF → next line extraction).
-        val segmentUrls = parseHlsSegments(manifestText, baseUri)
+        // Parse segment URLs from the playlist (basic #EXTINF → next line extraction). Relative
+        // entries resolve against the manifest's own directory.
+        val segmentUrls = parseHlsSegments(manifestText, manifestUri.toString())
 
         // Look up each segment in cache.
         val segments = mutableListOf<Pair<String, ByteArray>>() // (segmentUrl, bytes)
@@ -149,26 +147,36 @@ object DownloadExporter {
         true
     }.getOrDefault(false)
 
-    /** Parse segment URLs from an HLS master playlist (basic #EXTINF → URL-line extraction). */
-    private fun parseHlsSegments(manifest: String, base: Uri): List<String> {
-        val lines = manifest.lines()
+    /**
+     * Parse segment URLs from an HLS playlist (basic #EXTINF → URL-line extraction).
+     *
+     * Deliberately free of Android types — [manifestUrl] is a plain string, not a `Uri` — so the
+     * parsing rules can be unit-tested on the JVM (roadmap §2bs).
+     */
+    internal fun parseHlsSegments(manifest: String, manifestUrl: String): List<String> {
         val urls = mutableListOf<String>()
         var expectUrl = false
-        for (line in lines) {
+        for (line in manifest.lines()) {
             val trimmed = line.trim()
-            if (expectUrl && trimmed.isNotBlank() && !trimmed.startsWith("#")) {
-                urls.add(resolveUrl(base, trimmed))
+            if (trimmed.isEmpty()) continue
+            if (trimmed.startsWith("#")) {
+                // Tags such as #EXT-X-BYTERANGE can sit between a segment and its URL, so a tag
+                // never cancels a pending URL — only consuming the URL line does.
+                if (trimmed.startsWith("#EXTINF")) expectUrl = true
+                continue
+            }
+            if (expectUrl) {
+                urls += resolveSegmentUrl(manifestUrl, trimmed)
                 expectUrl = false
             }
-            expectUrl = trimmed.startsWith("#EXTINF")
         }
         return urls
     }
 
-    /** Resolve a possibly-relative URL against a base. */
-    private fun resolveUrl(base: Uri, ref: String): String =
+    /** Resolve a possibly-relative segment reference against the manifest's directory. */
+    internal fun resolveSegmentUrl(manifestUrl: String, ref: String): String =
         if (ref.startsWith("http://", ignoreCase = true) || ref.startsWith("https://", ignoreCase = true)) ref
-        else base.toString().substringBeforeLast('/') + '/' + ref
+        else manifestUrl.substringBeforeLast('/') + '/' + ref
 
     /** Read all bytes from a cache span's file. */
     private fun readSpanBytes(span: CacheSpan): ByteArray {
@@ -244,8 +252,8 @@ object DownloadExporter {
         }
     }
 
-    /** Sanitize a directory name (remove path separators and dangerous chars). */
-    private fun sanitizeDirName(name: String): String =
+    /** Sanitize a directory name (remove path separators and dangerous chars). JVM-testable. */
+    internal fun sanitizeDirName(name: String): String =
         name.replace(Regex("[/\\\\:*?\"<>|]"), "_").trim().ifBlank { "Moovio download" }
 
     /** A MIME type SAF providers accept for the exported file (kept generic to avoid rejections). */

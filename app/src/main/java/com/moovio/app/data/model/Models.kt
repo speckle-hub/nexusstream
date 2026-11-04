@@ -275,7 +275,31 @@ data class MangaExt(
      * `enabled` instead would silently disable every extension written before the field existed.
      */
     val disabled: Boolean = false,
-)
+) {
+    /**
+     * Which Add-on Manager section this extension belongs to.
+     *
+     * Aniyomi and Mihon extensions are the same APK format and share one installed list; what
+     * differs is the index they came from. Aniyomi namespaces its packages under
+     * `eu.kanade.tachiyomi.animeextension.*`, and its repositories live under names like
+     * `…/aniyomi-extensions/…` or `…/anime-repo/…`, so those two strings classify an extension
+     * without any new stored field — which also means extensions installed before this existed are
+     * classified correctly, with no migration.
+     *
+     * Computed (no backing field), so Gson neither serializes nor expects it.
+     */
+    val section: AddonKind
+        get() {
+            val hay = "$pkg ${repoUrl.orEmpty()}".lowercase()
+            return if (
+                hay.contains("animeextension") || hay.contains("aniyomi") || hay.contains("anime-repo")
+            ) {
+                AddonKind.ANIYOMI
+            } else {
+                AddonKind.KEIYOUSHI
+            }
+        }
+}
 
 data class MangaSource(
     val id: Long,

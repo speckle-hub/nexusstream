@@ -113,7 +113,8 @@ persist via DataStore + file cache.
 
 ## Build from source
 
-Requirements: **JDK 17**, **Android SDK 34** (platform + build-tools), Gradle wrapper included.
+Requirements: **JDK 17**, **Android SDK 36** (platform + platform-tools; build-tools are chosen by AGP),
+Gradle wrapper included.
 
 1. Clone the repo.
 2. Create `local.properties` at the root pointing at your SDK and (optionally) your TMDB key:
@@ -156,10 +157,11 @@ cryptic "missing required property storePassword".
 > longer sign an update, and the new one never enters the tree. The history has to be purged as
 > well (see `roadmap.md` §2ax) — otherwise the old blob stays downloadable from the repository.
 
-R8 minify is currently **off** (`proguard-rules.pro` is prepared — enabling is a one-line change).
+R8 minify is **on** (`isMinifyEnabled = true`); `proguard-rules.pro` keeps the Gson models, the
+Media3/jlibtorrent JNI paths and the CloudStream shim classes.
 
 ### Notes
-- **Min SDK 24** · **Target SDK 34** · versionName `1.12.0` (`versionCode` 29).
+- **Min SDK 24** · **Target SDK 34** · **compileSdk 36** · versionName `1.14.0` (`versionCode` 31).
 - The GitHub repository is still `speckle-hub/nexusstream`; the release assets are published as
   `Moovio.apk` and `app-release.apk`.
 - `roadmap.md` is the project's living working document (full history, decisions log, device-test

@@ -187,14 +187,18 @@ class AddonRepository(private val store: AddonStore) {
 
     // ---- Provider extension catalogues -------------------------------------
 
-    suspend fun fetchCloudStream(repoUrl: String): List<CloudStreamExt> =
-        withContext(Dispatchers.IO) { runCatching { CloudStreamRepo.fetch(repoUrl) }.getOrDefault(emptyList()) }
+    // These return the failure instead of swallowing it: the Add-on Manager shows *why* a
+    // repository failed (404, gzip/protobuf decoding, DNS), which was previously reported as the
+    // indistinguishable "unavailable or empty".
 
-    suspend fun fetchAniyomi(repoUrl: String): List<MangaExt> =
-        withContext(Dispatchers.IO) { runCatching { AniyomiRepo.fetch(repoUrl) }.getOrDefault(emptyList()) }
+    suspend fun fetchCloudStream(repoUrl: String): Result<List<CloudStreamExt>> =
+        withContext(Dispatchers.IO) { runCatching { CloudStreamRepo.fetch(repoUrl) } }
 
-    suspend fun fetchKeiyoushi(repoUrl: String): List<MangaExt> =
-        withContext(Dispatchers.IO) { runCatching { KeiyoushiRepo.fetch(repoUrl) }.getOrDefault(emptyList()) }
+    suspend fun fetchAniyomi(repoUrl: String): Result<List<MangaExt>> =
+        withContext(Dispatchers.IO) { runCatching { AniyomiRepo.fetch(repoUrl) } }
+
+    suspend fun fetchKeiyoushi(repoUrl: String): Result<List<MangaExt>> =
+        withContext(Dispatchers.IO) { runCatching { KeiyoushiRepo.fetch(repoUrl) } }
 
     suspend fun installCloudStream(ext: CloudStreamExt) {
         runCatching {
@@ -264,9 +268,9 @@ class AddonRepository(private val store: AddonStore) {
             val kind = runCatching { repo.kind }.getOrNull() ?: continue
             val url = runCatching { repo.url }.getOrNull()?.takeIf { it.isNotBlank() } ?: continue
             val catalogue = when (kind) {
-                AddonKind.CLOUDSTREAM -> fetchCloudStream(url)
-                AddonKind.ANIYOMI -> fetchAniyomi(url)
-                AddonKind.KEIYOUSHI -> fetchKeiyoushi(url)
+                AddonKind.CLOUDSTREAM -> fetchCloudStream(url).getOrElse { emptyList() }
+                AddonKind.ANIYOMI -> fetchAniyomi(url).getOrElse { emptyList() }
+                AddonKind.KEIYOUSHI -> fetchKeiyoushi(url).getOrElse { emptyList() }
                 AddonKind.STREMIO -> emptyList()
             }
             if (catalogue.isNotEmpty()) synced++

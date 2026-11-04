@@ -1,5 +1,6 @@
 package com.moovio.app.ui.vm
 
+import com.moovio.app.data.model.AddonKind
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moovio.app.data.adult.AdultRepository
@@ -1018,6 +1019,15 @@ class DetailViewModel(private val container: AppContainer, private val item: Med
     }
 }
 
+/** One section's browse state: which repository was opened and what it returned. */
+data class RepoBrowse(
+    val kind: AddonKind? = null,
+    val repoName: String? = null,
+    val repoUrl: String? = null,
+    val items: List<Any> = emptyList(),
+    val error: String? = null,
+)
+
 class AddonViewModel(private val container: AppContainer) : ViewModel() {
     val addons: StateFlow<List<Addon>> =
         container.addonRepository.addons.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -1056,7 +1066,18 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
 
     val message = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
-    val catalog = MutableStateFlow<List<Any>>(emptyList())
+
+    /** True when this build can run Aniyomi/Mihon extension sources (see `build.gradle.kts`). */
+    val mihonRuntimeAvailable: Boolean get() = container.mihonExtensionRepository.canExecuteSources
+
+    /**
+     * Last browsed catalogue **per provider section**.
+     *
+     * There used to be one shared catalogue, so the extensions of a CloudStream repo also rendered
+     * in the Aniyomi/Mihon tabs (and vice versa). Keying it by [AddonKind] keeps each section's
+     * browse results to itself, and still remembers them when the user switches tabs.
+     */
+    val browse = MutableStateFlow<Map<AddonKind, RepoBrowse>>(emptyMap())
 
     fun install(url: String) {
         viewModelScope.launch {
@@ -1104,49 +1125,57 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun addRepo(repo: RemoteRepo) { viewModelScope.launch { container.addonRepository.addRepo(repo) } }
-    fun removeRepo(url: String) { viewModelScope.launch { container.addonRepository.removeRepo(url) } }
 
-    fun browseCloudStream(url: String) {
+    /** Forget [url] and drop the catalogue it was showing. */
+    fun removeRepo(url: String) {
         viewModelScope.launch {
-            busy.value = true
-            // Everything from an adult repository (CXXX) is NSFW even though its plugin entries
-            // carry no per-provider flag, so the repo flag is stamped onto each entry here.
-            val repoNsfw = container.addonRepository.repos.first()
-                .firstOrNull { it.url == url }?.nsfw == true
-            catalog.value = container.addonRepository.fetchCloudStream(url)
-                .map { if (repoNsfw && !it.nsfw) it.copy(nsfw = true) else it }
-            if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
-            busy.value = false
-        }
-    }
-    fun browseAniyomi(url: String) {
-        viewModelScope.launch {
-            busy.value = true
-            catalog.value = container.addonRepository.fetchAniyomi(url)
-            if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
-            recomputeMangaUpdates()
-            busy.value = false
+            container.addonRepository.removeRepo(url)
+            browse.value = browse.value.mapValues { (_, state) ->
+                if (state.repoUrl == url) RepoBrowse() else state
+            }
         }
     }
 
-    /** Recompute which installed extensions have a newer entry in the browsed catalogue. */
-    private fun recomputeMangaUpdates() {
+    /**
+     * Fetch [repo]'s catalogue into [kind]'s section. A failure keeps its reason so the UI can show
+     * it ("HTTP 404 …", "HTML instead of JSON …"), instead of a blanket "unavailable or empty".
+     */
+    fun browseRepo(kind: AddonKind, repo: RemoteRepo) {
+        viewModelScope.launch {
+            busy.value = true
+            val fetched = when (kind) {
+                AddonKind.CLOUDSTREAM -> container.addonRepository.fetchCloudStream(repo.url).map { list ->
+                    // Everything from an adult repository (CXXX) is NSFW even though its plugin
+                    // entries carry no per-provider flag, so the repo flag is stamped onto each.
+                    if (repo.nsfw) list.map { if (it.nsfw) it else it.copy(nsfw = true) } else list
+                }
+                AddonKind.ANIYOMI -> container.addonRepository.fetchAniyomi(repo.url)
+                AddonKind.KEIYOUSHI -> container.addonRepository.fetchKeiyoushi(repo.url)
+                AddonKind.STREMIO -> Result.success(emptyList())
+            }
+            val error = fetched.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
+            val items = fetched.getOrDefault(emptyList())
+            browse.value = browse.value + (kind to RepoBrowse(kind, repo.name, repo.url, items, error))
+            message.value = when {
+                error != null -> "${repo.name}: $error"
+                items.isEmpty() -> "${repo.name}: no extensions found"
+                else -> null
+            }
+            recomputeMangaUpdates(kind, items)
+            busy.value = false
+        }
+    }
+
+    /** Recompute which installed extensions have a newer entry in [kind]'s browsed catalogue. */
+    private fun recomputeMangaUpdates(kind: AddonKind, items: List<Any>) {
+        if (kind == AddonKind.CLOUDSTREAM) return
         val installed = mangaInstalled.value.associateBy { it.pkg }
-        val updates = (catalog.value.filterIsInstance<MangaExt>()).mapNotNull { candidate ->
+        val updates = items.filterIsInstance<MangaExt>().mapNotNull { candidate ->
             val current = installed[candidate.pkg] ?: return@mapNotNull null
             if (container.mangaExtensionRepository.updateAvailable(current, candidate))
                 candidate.pkg to candidate else null
         }.toMap()
         _mangaUpdates.value = updates
-    }
-    fun browseKeiyoushi(url: String) {
-        viewModelScope.launch {
-            busy.value = true
-            catalog.value = container.addonRepository.fetchKeiyoushi(url)
-            if (catalog.value.isEmpty()) message.value = "Repository unavailable or empty"
-            recomputeMangaUpdates()
-            busy.value = false
-        }
     }
     /** Download + load a CloudStream `.cs3` plugin so its providers become live stream sources. */
     fun installCloudStream(ext: CloudStreamExt) {
@@ -1170,9 +1199,15 @@ class AddonViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             busy.value = true
             container.mihonExtensionRepository.install(ext)
-                .onSuccess {
-                    message.value = "Installed ${it.name} — sources live"
-                    recomputeMangaUpdates()
+                .onSuccess { outcome ->
+                    // Report what actually happened: without the tachiyomi source APIs on the
+                    // classpath the APK is stored but its sources cannot run yet.
+                    message.value = if (outcome.loadedSources > 0) {
+                        "Installed ${outcome.ext.name} — sources live"
+                    } else {
+                        "Downloaded ${outcome.ext.name} — extension sources can't run in this build yet"
+                    }
+                    recomputeMangaUpdates(outcome.ext.section, browse.value[outcome.ext.section]?.items.orEmpty())
                 }
                 .onFailure { message.value = "Install failed: ${it.message}" }
             busy.value = false

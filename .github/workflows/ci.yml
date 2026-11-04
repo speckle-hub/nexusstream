@@ -40,3 +40,32 @@ jobs:
 
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
+
+  # The site is what the download CTA points at, so its type check, lint and prerender run on every
+  # push too — they used to be a manual step that nothing enforced (roadmap §2bs).
+  website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: TypeScript check
+        working-directory: website
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: website
+        run: npm run lint
+
+      - name: Prerender build
+        working-directory: website
+        run: npm run build

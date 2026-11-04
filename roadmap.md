@@ -6,21 +6,33 @@
 > Historical entries below keep the names that were current at the time — read "NexusStream" /
 > "NovaStream" there as "Moovio". The full rename and its consequences are in §2aw.
 >
+> **2026-11-04 — doc-consistency pass (§2br).** No app code, no version bump. This document was
+> reconciled with the code: stale claims in §1, §2bk, §2bo, §2bp, §4 (ISSUE-8/26), §7 (0/0b/0j and
+> items 1/21/23) and the end-of-file table are corrected, and `website/lib/utils.ts` now derives all
+> five GitHub URLs from one `REPO` constant. **v1.13.0 is still the current release and still has no
+> device pass.** Also on 2026-11-04, **§2bs** put `website/` in CI and added the first JVM tests for
+> the Aniyomi/Mihon adapters and the HLS exporter (**367/367**, 40 suites), fixing two defects they
+> exposed. Later the same day **§2bt** rebuilt the Add-on Manager per section and verified all four
+> extension repositories against their live indexes (**370/370**).
+>
+> **2026-11-04 — v1.14.0 released (§2bu).** `versionCode` 31 / `versionName` 1.14.0; signed APK
+> published as a GitHub Release with `app-release.apk` + `Moovio.apk`. **Still no device pass.**
+>
 > Living document. Update the **Status** and **Changelog** sections every session so work can
-> resume exactly where it left off. Last updated: 2026-11-04 — **v1.13.0 released (§2bq): R8 minify
-> on, androidTest coverage added, Mihon/Aniyomi extension execution via reflection-based tachiyomi
-> runtime.** `versionCode` 30 / `versionName` 1.13.0; signed `:app:assembleRelease` ✅ →
-> `app/build/outputs/apk/release/app-release.apk` + `Moovio.apk` (27,989,436 bytes,
-> SHA-256 `…`), published with tag `v1.13.0` and a GitHub Release carrying both assets.
-> Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **348/348** (38 suites) ·
-> `npx tsc --noEmit` ✓ · `next lint` ✓. Detail in §2bq.
+> resume exactly where it left off. Last updated: 2026-11-04 — **v1.14.0 released (§2bu): the
+> Add-on Manager rebuilt per section (§2bt), plus the first JVM tests for the extension/HLS stack
+> and a `website` CI job (§2bs).** `versionCode` 31 / `versionName` 1.14.0; signed
+> `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (27,989,436 bytes,
+> SHA-256 `be0777c8…24e4b4`), published with tag `v1.14.0` and a GitHub Release carrying both
+> assets. Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **370/370** (40
+> suites) · `npx tsc --noEmit` ✓ · `next lint` ✓. Detail in §2bu.
 >
 > Previous, 2026-11-01 — **backlog hygiene pass (§2bo): dead
 > tab-restore API deleted, `MainActivity`'s last stray `Bold` removed, the website's 10 unused
 > dependencies pruned, every live "latest version" reference corrected to the real build
 > (**v1.11.4**, `versionCode` 28 — the header had still been leading with v1.11.1), the 12 remaining
 > capsule radii moved to `CircleShape` with `PillSegmentedControl` renamed to `SegmentedControl`, and
-> both parked decisions taken (stub repo indexes pruned; MissAV retired, the other 20 sources kept
+> both parked decisions taken (stub repo indexes pruned; MissAV retired, the other 21 sources kept
 > opt-in).** No version bump, no APK rebuilt, nothing pushed; `desktop/` and `desktop-win/`
 > untouched. Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **348/348** (38 suites,
 > 0 failures, 0 errors, 0 skipped) · `npx tsc --noEmit` ✓ · `next lint` ✓. `next build` could not run
@@ -99,10 +111,10 @@
 > built locally, commit `479ef08` on `main`, tagged `v1.10.4`, pushed to `origin` and published as a
 > GitHub Release with `app-release.apk` + `Moovio.apk` attached. Device pass completed on
 > OnePlus CPH2487 (Android 16) — MangaDex NSFW chapter feed confirmed working, Aniyomi/Mihon
-> extensions now **execute** via reflection-based tachiyomi runtime (no compile-time dependency on
-> `extensions-lib`). Yuzono/Keiyoushi repos seeded and browsable. Aniyomi/Mihon install/enable/update
-> and now provide search rows, detail/chapter resolution, and stream playback/reading (§2ba item 1 —
-> completed). NSFW-flagged extensions only surface in `NSFW_ANIME`/`NSFW_MANGA` sections. MediaRouteButton cast fix
+> extensions installed, enabled and updated. Yuzono/Keiyoushi repos seeded and browsable.
+> **Corrected in §2bt:** the claim below that those extensions "execute" via the reflection runtime
+> was never true — with no `extensions-lib` on the classpath no source can be instantiated, so they
+> provide no search rows, chapters or streams. NSFW-flagged extensions only surface in `NSFW_ANIME`/`NSFW_MANGA` sections. MediaRouteButton cast fix
 > structurally verified but not exercised on device; torrent watchdog unverifiable without tracker
 > access.
 >
@@ -120,8 +132,10 @@
 > Previous, 2026-10-23 — **extension repositories pre-seeded, parsed and installable (§2ba).** Phisher98, **CXXX 18+**, Yuzono and Keiyoushi are
 > seeded by default; the Keiyoushi index is parsed from its real repository-wrapper protobuf
 > (1425 extensions, 389 NSFW) and Aniyomi APK URLs resolve to `…/repo/apk/…` (250 entries, 72
-> NSFW); Aniyomi/Mihon extensions now download, install, enable/disable, update AND execute via the
-> reflection-based tachiyomi runtime. Every `nsfw = 1` entry is gated behind the “Show NSFW
+> NSFW); Aniyomi/Mihon extensions download, install, enable/disable and update, but do **not**
+> execute — without `extensions-lib` on the classpath no source can be instantiated (**corrected in
+> §2bt**; the original entry claimed the reflection runtime ran them).
+> Every `nsfw = 1` entry is gated behind the “Show NSFW
 > extensions” switch; NSFW extensions surface only in `NSFW_ANIME`/`NSFW_MANGA` sections. Adult
 > CloudStream plugins (CXXX) run through the existing runtime and are wired into Real 18+ search
 > only. Verified `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **348/348**.
@@ -512,9 +526,9 @@ Aniyomi and Mihon/Keiyoushi repos into one Compose UI. **Kotlin 2.0.20 (K2) + Je
 1.7.0 (M3)**, Media3 ExoPlayer, Coil, OkHttp/Gson/Retrofit, DataStore, manual DI
 (`di/AppContainer.kt`). AGP 8.5.0. The repo also contains **`website/`** — the Next.js landing
 site deployed to Vercel (§2y) — and is public at `github.com/speckle-hub/nexusstream`.
-~29,600 LOC across 165 Kotlin source files in a single `:app` module (+38 test files). Unit tests
-(**348 cases** — measured 2026-11-01 from the JUnit XML, §2bo; the 309/327/335 figures quoted in
-older entries were stale):
+~29,600 LOC across 165 Kotlin source files in a single `:app` module (+40 test files). Unit tests
+(**370 cases** — measured 2026-11-04 from the JUnit XML, §2bt; the 309/327/335/348/367 figures quoted
+in older entries were each stale at the time the newer ones were written):
 `LibraryCodecTest.kt` (15), `AdultSourcesTest.kt` (13), `AdultSourcesExtraTest.kt` (11),
 `HentaiSourcesExtraTest.kt` (12, incl. the Haho series/stream parses — §2w), `ExpandedSourcesTest.kt` (10, source expansion — §2aq), `StreamRankingTest.kt` (9), `ParsersTest.kt` (9),
 `DownloadMaintenanceTest.kt` (8), `ExtensionCodecTest.kt` (8, `extensions.json` decode — §2v),
@@ -531,10 +545,18 @@ launch guards — §2ak), `CloudStreamSupportTest.kt` (5, CloudStream addon-id s
 `SfwSourcesTest.kt` (34, SFW built-ins + auto-play ranking — §2av),
 `OAuthAndSignatureSecurityTest.kt` (6, OAuth state nonce + APK signature trust — §2ax),
 `ProviderSettingsCodecTest.kt` (5, provider-settings JSON codec — §2ax),
-`PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4), `PaletteCacheTest.kt` (3),
-`MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3), `SearchCancellationTest.kt` (2) and
-`Patch1101Test.kt` (9, MangaDex rating policy + torrent watchdog — §2az) and
-`RepoIndexTest.kt` (8, Aniyomi APK resolution + Keiyoushi protobuf + update policy — §2ba).
+`PlaybackMathTest.kt` (6), `ResolutionBadgeTest.kt` (4),
+`MangaDownloadTest.kt` (3), `WatchStatsTest.kt` (3), `SearchCancellationTest.kt` (2),
+`Patch1101Test.kt` (9, MangaDex rating policy + torrent watchdog — §2az),
+`RepoIndexTest.kt` (8, Aniyomi APK resolution + Keiyoushi protobuf + update policy — §2ba),
+`BackupCryptoTest.kt` (AES-GCM round trip, tamper and foreign-key rejection, legacy plaintext —
+§2be), `SmartSearchParseTest.kt` (offline query compiler — §2be), `MangaDexIdentityTest.kt` (8, UA
++ markup-cache policy — §2bn), `VideoDownloadManagerTest.kt` (8, download-id determinism + header
+edges — §2bg) and `Phase26P0FixesTest.kt` (the P0 crash fixes — §2ae), `MihonExtensionSourcesTest.kt` (16, Aniyomi/Mihon
+adapters + Add-on Manager section classification — §2bs/§2bt) and `DownloadExporterTest.kt` (6, HLS export rules — §2bs).
+**Corrected in §2br:** `PaletteCacheTest.kt` (3) is still named in older entries but no longer
+exists — it was deleted with `PosterPalette.kt` in §2bo. The source set on disk is **38 files**,
+which is the "38 suites" the totals quote.
 
 **Identity & signing (as of v1.10.0, §2aw/§2ax):** the package / `applicationId` is
 `com.moovio.app`, the OAuth redirect scheme is `moovio://oauth`, and the release signing key was
@@ -557,6 +579,24 @@ reflection-based tachiyomi runtime (`data/mihon/`), ISSUE-16…26 backlog fixes.
 `versionCode` 30 / `versionName` 1.13.0; signed APK 27,989,436 bytes, tag `v1.13.0`, GitHub Release
 with both assets. Verified `:app:testDebugUnitTest` ✓ **348/348** (38 suites). No device pass yet.
 Detail in §2bq.
+
+**Also 2026-11-04 — doc-consistency pass (§2br), no behaviour change.** The roadmap's own open-work
+lists were reconciled with the code (§1 inventory, §2bk cleartext, §2bo/§2bp source counts,
+ISSUE-8/26, §7 0/0b/0j and items 1/21/23, end-of-file table), and the site's five GitHub URLs now
+come from one constant so the blocked repo rename is a single edit. **What is genuinely left is
+four items plus device passes** — see the §7 preamble.
+
+**Also 2026-11-04 — §2bs:** `website/` gained its own CI job (`npm ci`, `tsc --noEmit`, `next lint`,
+`next build`) and the Mihon adapters plus the HLS exporter gained JVM tests (**367/367**, 40
+suites). The tests exposed two defects — Aniyomi episodes losing `video_url`, and an intervening
+playlist tag dropping an HLS segment — both fixed.
+
+**Also 2026-11-04 — §2bt:** the Add-on Manager is now four genuinely independent sections. Installed
+Aniyomi extensions no longer appear under CloudStream (each section filters by `MangaExt.section`),
+repositories and browse results are per section, repos are pills with a search box and
+**All / Installed / Updates** filters instead of a 1000-row scroll, and repository failures are
+shown instead of swallowed. All four repo fetchers were verified against the live indexes; the one
+thing that still cannot work is extension *execution*, which needs `extensions-lib` (§2ba).
 
 Previous focus: **v1.11.4 released (§2bn).** The MangaDex bot-check fix — a browser-shaped
 User-Agent is answered with an HTML challenge page, so every MangaDex call parsed as HTML, all four
@@ -1605,6 +1645,259 @@ ISSUE-26 (no CI).
 
 ---
 
+## 2bu. v1.14.0 released — Add-on Manager rebuild, repository verification (2026-11-04)
+
+**Release:** `versionCode` **31** / `versionName` **1.14.0** (`app/build.gradle.kts`).
+
+### What shipped since v1.13.0
+- **Add-on Manager rebuilt (§2bt)** — four independent sections; installed Aniyomi extensions no
+  longer render under CloudStream; repositories are pills; the catalogue has a search box and
+  **All / Installed / Updates** filters; repository failures are shown with their reason.
+- **First JVM tests for the extension/HLS stack, and a `website` CI job (§2bs)** — **370/370**
+  (40 suites).
+- **Two playback/export fixes** the tests exposed: Aniyomi episodes now read `video_url`, and an
+  intervening playlist tag (`#EXT-X-BYTERANGE`) no longer discards an HLS segment.
+- Honest extension state: install reports "downloaded" vs "sources live", and the Aniyomi/Mihon
+  tabs explain that source execution needs the toolchain migration (§2ba).
+
+### Build and publication
+`:app:assembleRelease` ✓ → `dist/app-release.apk` + `dist/Moovio.apk` (identical bytes)
+**27,989,436 B** · SHA-256 `be0777c8e4e66d8b4af843e27513e45e7a4802842db631ae23c7c4a83524e4b4`.
+Badging `com.moovio.app` / `versionCode 31` / `versionName 1.14.0`; minSdk 24, targetSdk 34,
+compileSdk 36; V2-signed, cert SHA-256 `2EDB949B…351379` (same key as v1.11.4–v1.13.0).
+Published as GitHub Release **`v1.14.0`** with both APKs attached; `main` and the tag pushed to
+`origin`.
+
+**No device pass on this build.** The Add-on Manager changes were compiled and unit-tested, the
+repository/artifact probes above ran live, but nothing on this build has been installed on hardware.
+
+---
+
+## 2bt. Add-on Manager rebuilt per section; repositories verified live (2026-11-04)
+
+**Topic:** the Add-on Manager's four sections (Stremio, CloudStream, Aniyomi, Mihon) shared state, so
+installed extensions showed up under the wrong provider, browsing buried the installs below a very
+long list, and failures were silent. Android only; no version bump, nothing shipped, no device pass.
+
+### 1. Why Aniyomi extensions appeared under CloudStream
+`ProviderTab` rendered `cloudStreamInstalled`, `mangaInstalled` **and** `mihonLoadedSources` for every
+kind, and a single shared `catalog` flow held whatever was browsed last — so an Aniyomi install
+showed in the CloudStream tab, and a CloudStream repo's plugins rendered in the Aniyomi/Mihon tabs.
+Now:
+- `MangaExt.section` classifies an extension from its package namespace (`…animeextension…`) or its
+  repository URL (`aniyomi`, `anime-repo`). It is computed (no backing field), so Gson ignores it and
+  descriptors installed before it existed classify correctly — no migration.
+- Each tab renders only its own repositories, its own installed list, and its own browse state
+  (`AddonViewModel.browse: Map<AddonKind, RepoBrowse>`), which also survives tab switches.
+- Tab labels carry an installed-count badge.
+
+### 2. Browsing is pills + search instead of a scroll
+- Repository pills at the top of each section: tapping one fetches and lists it (the separate
+  "Browse" button is gone); un-added recommended repos appear as `+ name` pills, and `Add…` opens a
+  dialog whose hint names the URL shape that index expects (`repo.json` / `index.min.json` /
+  `index.pb`).
+- The catalogue carries a search box and filter pills — **All / Installed / Updates** — so "which of
+  these are installed" is one tap rather than scrolling 1458 rows. Installed entries show an
+  `Installed` chip (or an `Update` action) instead of a download icon.
+- `nsfw = 1` entries still hide behind the NSFW switch, and the manager states how many are hidden.
+
+### 3. All four repositories verified against the live indexes
+A temporary JVM probe (deleted afterwards) ran the **real** fetch paths against the seeded URLs:
+
+| Section | Repository | Result |
+|---|---|---|
+| CloudStream | Phisher98 `repo.json` → `plugins.json` | **87** plugins, `.cs3` URLs absolute |
+| CloudStream | CXXX `CXXX.json` → `plugins.json` | **85** plugins, NSFW stamped from the repo flag |
+| Aniyomi | Yuzono `index.min.json` | **247** extensions, APK resolved to `…/repo/apk/…` |
+| Mihon | Keiyoushi `index.pb` (gzip → protobuf) | **1458** extensions, 400 NSFW, every APK URL absolute |
+| Stremio | Cinemeta + OpenSubtitles manifests | parse; Cinemeta catalogue returns **50** items with posters |
+
+Fetched indexes are only half of "the repo works", so the install artifacts were downloaded too:
+
+| Section | First artifact in the index | Result |
+|---|---|---|
+| CloudStream | `AllMovieLandProvider.cs3` | 86,226 B, zip, contains `manifest.json` |
+| CloudStream | `Aagmaal.cs3` (CXXX) | 12,235 B, zip, contains `manifest.json` |
+| Aniyomi | `aniyomi-all.animeonsen-v14.10.apk` | 74,451 B, zip, contains `classes.dex` |
+| Mihon | `tachiyomi-all.ahottie-v1.6.5.apk` | 63,619 B, zip, contains `classes.dex` |
+
+That is exactly the request the install path makes (`httpGetBytes` → size check → write to
+app-private storage). What happens *after* the download — `CloudStreamRuntime.load` / 
+`MihonExtensionRuntime.load` — still needs a device, and for Aniyomi/Mihon it currently fails by
+design (§4 below).
+
+So the fetchers were never the problem. What *was* wrong is that every failure looked identical:
+`AddonRepository.fetch*` swallowed the exception, and the manager's message ("Repository unavailable
+or empty") was collected and cleared but never rendered. Both fetch paths now return `Result` and
+render the reason (`HTTP 404 …`, `HTML instead of JSON …`) above the list.
+
+### 4. What still cannot work, and is now said out loud
+Aniyomi/Mihon extensions download, install, enable and update — but they cannot **execute**. The APKs
+implement `eu.kanade.tachiyomi.*` source APIs and `extensions-lib` cannot be added on AGP 8.5 /
+compileSdk 36 (duplicate classes + AAR metadata; see the comment in `app/build.gradle.kts`), so
+`MihonExtensionRuntime.load` always fails, `mihonLoadedSources` is empty and those extensions
+contribute no search rows or streams. Install used to report "Installed X — sources live" no matter
+what; now `MihonExtensionRuntime.canExecuteSources` decides the message ("downloaded" vs "sources
+live") and the Aniyomi/Mihon tabs show an "Installed, not runnable yet" notice. **Several older
+entries in this file claimed this runtime executes sources — that was never true (§2ba item 1); they
+are corrected above.** Finishing it is the toolchain migration tracked in §2ba.
+
+### Verified
+`./gradlew :app:testDebugUnitTest --offline --rerun-tasks` ✓ **370/370** (40 suites, 0 failures, 0
+errors — three new tests pin the section classification, including a Mihon package that merely
+contains "anime") · `:app:compileDebugKotlin` ✓ · live probe table above ✓. **No device pass and no
+visual check:** there is no emulator or browser here, so the rebuilt screen was compiled but never
+seen on a device, and no extension APK was actually loaded.
+
+---
+
+## 2bs. CI covers the site; first JVM tests for the extension & download stack (2026-11-04)
+
+**Topic:** the two non-device items §2br left behind — the website was not checked by CI, and the
+Aniyomi/Mihon adapters and the HLS exporter had no tests. Android + `.github/` only; `desktop/`
+and `desktop-win/` untouched.
+
+### 1. The website is a CI job now
+`ci.yml` gained a `website` job beside `build-and-test`: `npm ci` (npm cache keyed on
+`website/package-lock.json`), `npx tsc --noEmit`, `npm run lint`, `npm run build`. The site build
+was previously a manual step nothing enforced — and unlike earlier sessions it **runs here now**:
+a full prerender of all 9 routes, 108 kB first-load JS. `next build` was recorded as unrunnable in
+this environment (no network for `next/font`); that no longer holds, so the job is locally verified
+before being added.
+
+### 2. Two defects the new tests exposed
+- **Aniyomi anime episodes resolved to no streams.** `pageToMap` read `video_url`, but
+  `pageToStreamSource` never consulted it — it only looked at `page_url`, `page_url_orig`,
+  `page_url_img`, `page_url_viewer` and `url`. `StreamRepository` filters `it.url != null`, so an
+  Aniyomi episode (whose playable URL lives in `video_url`) produced an empty stream panel.
+  `video_url` is now in the fallback chain, before `url`.
+- **A playlist tag could swallow its segment.** `parseHlsSegments` re-armed `expectUrl` on every
+  line, so a `#EXT-X-BYTERANGE` (or any tag) between `#EXTINF` and the URL discarded that segment.
+  A tag no longer cancels a pending URL; only consuming the URL line clears it.
+
+### 3. JVM tests for the adapters and the exporter
+- `MihonExtensionSourcesTest` (13) — source → `MediaType` mapping (anime/manga × NSFW flag),
+  `mihon:` addon ids and their reverse, name resolution field → getter → class name, base URL,
+  chapter map → `Video` (title/number fallbacks), page map → `StreamSource` (including `video_url`
+  and the `page_url*` order). The fakes reproduce the public-field shape the runtime reads
+  reflectively; DEX scanning, `PathClassLoader` and a source's network calls stay device-only.
+- `DownloadExporterTest` (6) — `#EXTINF` → segment lines, relative vs absolute resolution,
+  `#EXT-X-BYTERANGE` survival, master playlists without `#EXTINF`, SAF directory-name sanitizing.
+  `parseHlsSegments` / `resolveSegmentUrl` now take a manifest **URL string** instead of a `Uri`
+  (and are `internal`), so the rules run on the JVM; `export()` itself still needs a
+  `ContentResolver`, a SAF tree and `SimpleCache`.
+
+### Verified
+`:app:testDebugUnitTest` ✓ **367/367** (40 suites, 0 failures, 0 errors, 0 skipped — counted from the
+JUnit XML) · `:app:compileDebugKotlin` ✓ · `npx tsc --noEmit` ✓ · `npm run lint` ✓ ·
+`npm run build` ✓ (9 routes prerendered). **No device pass** — nothing here exercises a real
+extension APK or a real SAF export.
+
+**Still open:** `androidTest` is unchanged (2 files); CloudStream shims, the Media3/Manga download
+managers and the Compose UI still have no tests.
+
+---
+
+## 2bq. v1.13.0 released — R8, androidTest, Mihon/Aniyomi runtime (2026-11-04)
+
+> **Written in §2br.** The header, §2 and the changelog all cited "§2bq", but no such section
+> existed. What follows is rebuilt from the changelog row, the §7 notes and the released artifacts;
+> nothing new is claimed.
+
+**Build**
+- `versionCode` 30 / `versionName` 1.13.0 (`app/build.gradle.kts` — re-checked in §2br).
+- `:app:assembleRelease` ✅ signed through `signingConfigs.release`, material from the untracked
+  `local.properties` (`moovio.*`) / `MOOVIO_*` env vars.
+- APK **27,989,436 bytes** — 16.1 MB smaller than v1.12.0's 44,129,215, which is what R8 buys.
+- Tag `v1.13.0` pushed; GitHub Release published with `app-release.apk` + `Moovio.apk`, so
+  `releases/latest/download/app-release.apk` and the site CTA serve this build.
+- Website: `ANDROID_VERSION` → 1.13.0, `ANDROID_APK_SIZE` → 26.7 MB (`website/lib/utils.ts`,
+  re-checked in §2br).
+
+**What is in it**
+- **R8 minify ON** — `isMinifyEnabled = true`; `proguard-rules.pro` keeps the Gson models, the
+  Media3/jlibtorrent JNI paths, the CloudStream shim classes and `javax.script.ScriptEngineFactory`
+  (`dontwarn`). This reverses the 2026-09-30 "keep R8 off" decision, whose own §8 entry already
+  records the supersession.
+- **androidTest coverage** — `SettingsStoreInstrumentedTest` (DataStore read/write round-trips,
+  OAuth nonce one-shot consumption, scrobble snapshot) and `HttpInstrumentedTest` (markup
+  detection, transient-failure classification, gzip inflation, JSON helpers);
+  `Http.isTransientFailure` widened `private` → `internal` so it is testable.
+- **Mihon/Aniyomi extension execution** — new `data/mihon/` runtime loads installed APKs with a
+  `PathClassLoader`, scans DEX for classes extending the `eu.kanade.tachiyomi.*` source bases and
+  calls `getLatestManga` / `searchManga` / `getChapterList` / `getPageList` (and the anime
+  variants) reflectively, with no compile-time dependency on `extensions-lib` — which avoids the
+  AGP ≥ 8.9 / compileSdk 37 toolchain blocker that had deferred it (§2ba). Wired into
+  `CatalogRepository` (search + rows), `StreamRepository` (chapter/page resolution),
+  `MetadataRepository` (detail + chapters) and `AddonManagerScreen`; NSFW-flagged extensions only
+  surface in `NSFW_ANIME` / `NSFW_MANGA`; every call is `runCatching`-wrapped with a per-call
+  timeout, so a broken extension degrades instead of crashing.
+
+**Verified / not verified**
+- `:app:compileDebugKotlin` ✓ · `:app:testDebugUnitTest` ✓ **348/348** (38 suites) ·
+  `:app:assembleRelease` ✓ · `npx tsc --noEmit` ✓ · `next lint` ✓.
+- **Not verified:** no device pass — and R8 is the change that only fails one way on hardware (a
+  reflection/JNI path that was stripped). The reflection-based Mihon runtime has never executed on
+  a device either. Both sit at the top of §7's device list.
+
+---
+
+## 2br. Doc-consistency pass — roadmap reconciled with the code (2026-11-04)
+
+**Topic:** after v1.13.0 the roadmap still described finished work as open and reverted changes as
+shipped. This pass changed **no Android code and no version** beyond one KDoc comment; it fixed the
+document and made the blocked repo rename a single site-side edit. `desktop/` and `desktop-win/`
+untouched.
+
+### Corrected — each verified against the code
+- **§2bq was missing** — the header, §2 and the changelog all pointed at it as the v1.13.0 detail
+  section, but it was never written. Reconstructed from the changelog row, §7's notes and the
+  released artifacts.
+- **`README.md`** — still said `versionName 1.12.0` / `versionCode` 29, "Android SDK 34" and "R8
+  minify is currently off"; v1.13.0 (code 30), `compileSdk` 36 and `isMinifyEnabled = true` had
+  overtaken all three. The build requirements, the R8 line and the version line now say so.
+- **§1 test inventory** — `PaletteCacheTest.kt` was still listed although it was deleted with
+  `PosterPalette.kt` in §2bo, and five live test files were missing (`BackupCryptoTest`,
+  `SmartSearchParseTest`, `MangaDexIdentityTest`, `VideoDownloadManagerTest`, `Phase26P0FixesTest`).
+  The source set on disk is **38 files**, matching the 348/38 totals.
+- **§2bk cleartext claim** — that section says `cleartextTrafficPermitted="false"`; both
+  `network_security_config.xml` and `AndroidManifest.xml` permit cleartext today, and the config's
+  own comment records why (third-party `http://` media URLs). Marked reverted in v1.11.2.
+- **Quarantined source count** — §2bo/§2bp said 20; the registries hold **21** (11 in
+  `AdultSources.experimental`, 10 in `HentaiSources.experimental`). `MissavSource` still carries
+  `experimental = true` although it is no longer registered — harmless, left in place.
+- **ISSUE-8** — the keystore bullet still said "decided NOT to rotate" although §2ax rotated it.
+- **ISSUE-26** — named `compileSdk` 34 and setup-android inputs that never worked; the real value is
+  36 and the workflow requests `platform-tools platforms;android-36`.
+- **§7 0/0b/0j** — CI, `androidTest`, R8, the Aniyomi/Mihon runtime and ISSUE-15/16/18 had all been
+  closed after those notes were written; they now say so.
+- **§7 items 1, 21, 23** — item 1 asked for Torrentio/TPB+ entries, which the source-neutral decision
+  removed; items 21/23 listed sources that are retired or experimental.
+- **End-of-file outstanding table** — dated to the v1.10.4 session; every row now carries its current
+  status and the instrumentation-coverage gap was added.
+
+### Changed in code
+- `website/lib/utils.ts` — the five GitHub URLs are derived from one `REPO` constant, so the rename
+  in §7 0 becomes a one-line change on the site side. **No URL value changed**: every expanded string
+  is byte-identical to the literal it replaced.
+- `UpdateChecker.DEFAULT_REPO` — KDoc now names the other places a rename must touch and the test
+  that fails if only half of it is done. Comment only.
+
+### What is actually left, no device required
+1. **The repo rename** — blocked on the GitHub repository itself; four one-line edits listed in §7 0.
+2. **The quarantined-source probe** — 21 sources, needs a residential/mobile network (§7 0k).
+3. **Instrumentation coverage** — `androidTest` covers `SettingsStore` + `Http` only; the CloudStream
+   shims, the Mihon/Aniyomi reflection runtime and the download managers have no *instrumented*
+   tests. **Partly closed in §2bs:** JVM tests now cover the adapters and the HLS export rules.
+4. **Two deferred functional checks** — "Check for updates" and backup export.
+
+Everything else in §7 is a hardware pass.
+
+**Verified:** `npx tsc --noEmit` ✓ · `next lint` ✓ (website only). No Kotlin was compiled, no APK was
+rebuilt, nothing was pushed, and no device pass was run.
+
+---
+
 ## 2bp. v1.12.0 released — hygiene pass + backlog fixes (2026-11-01)
 
 **Topic:** the first release since v1.11.4, carrying this session's hygiene pass (§2bo) and the
@@ -1630,8 +1923,8 @@ ISSUE-16…26 backlog fixes that had been sitting uncommitted in the working tre
 - §2bo: dead tab-restore API deleted, `MainActivity`'s stray `Bold`, ten unused website dependencies
   pruned, live-version references corrected, 12 capsule radii → `CircleShape`,
   `PillSegmentedControl` → `SegmentedControl`, Keiyoushi's `.min.json` stub added to
-  `retiredRepoUrls`, MissAV retired (the other 20 sources stay opt-in behind the experimental
-  switch).
+  `retiredRepoUrls`, MissAV retired (the other 21 sources stay opt-in behind the experimental
+  switch — 11 adult + 10 NSFW-anime, re-counted in §2br).
 - ISSUE-16…26 (previously uncommitted): tracker id matching in `ScrobbleManager`, HLS/multi-file
   export in `DownloadExporter`, `PAUSED` instead of `FAILED` on manga pause, the player-release
   guard, the 429 retry moved off the OkHttp dispatcher, the CI workflow and the website ESLint
@@ -1744,14 +2037,15 @@ runs when the `.pb` fetch fails, and it reads the same stub either way.
 would repeat the "presenting unverified sources as working" mistake the hygiene pass fixed. Exactly
 one had a recorded hard failure: **MissAV** (Cloudflare 403 "Just a moment", live probe in §3), so
 it is retired the same way SpankBang/Jable were — removed from `AdultSources.experimental`, object
-and parser test kept. The remaining **20** stay opt-in behind Settings → "Show experimental
+and parser test kept. The remaining **21** stay opt-in behind Settings → "Show experimental
 sources", and verifying them is now an explicit task (§7 0k) rather than an open question.
 
 ### Deliberately not done
 - The **repo rename** — `speckle-hub/nexusstream` → `moovio` has to happen on GitHub before the
   constants move, or the updater and site CTA point at a 404. Blocked on the repository itself.
 - The **Aniyomi/Mihon runtime** and its toolchain migration (§2ba) — one axis at a time; unchanged.
-- `androidTest` coverage, R8 minify, and every device pass in §7.
+- ~~`androidTest` coverage~~, ~~R8 minify~~ — **both landed in v1.13.0 (§2bq)** — and every device
+  pass in §7.
 
 ---
 
@@ -5785,7 +6079,8 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   `MOOVIO_*` env vars, the key lives outside the repo and was rotated (§2ax).
 - ✅ Added a unit-test source set + `junit:junit:4.13.2`; 9 parser tests (Protobuf, gzip,
   Keiyoushi index, Stremio manifest, CloudStream provider).
-- ✅ **Keystore rotation — decided NOT to rotate** (see §8).
+- ✅ **Keystore rotation — decided NOT to rotate** (see §8) — **superseded 2026-10-22:** the key was
+  rotated and moved out of the repo (§2ax). This bullet carried the old decision until §2br.
 - ✅ **R8 minify — now ON** (`isMinifyEnabled = true` in `app/build.gradle.kts`); `proguard-rules.pro` prepared and verified with `:app:compileDebugKotlin` ✅ + `:app:testDebugUnitTest` ✅ **348/348**. Needs a device smoke-test before shipping a release.
 - ⬜ `local.properties` is still on disk (buildable); it is now gitignored.
 - ⬜ `usesCleartextTraffic=true` intentionally left (add-ons may use http).
@@ -5956,8 +6251,11 @@ Legend: 🔴 core feature broken · 🟠 degraded · 🟡 latent/cosmetic · ✅
   DataStore, WorkManager workers, the download stack, the extension engine or the CloudStream
   shims (the highest-risk code in the repo has zero tests).
 - **Fix:** added `.github/workflows/ci.yml` running `compileDebugKotlin` + `testDebugUnitTest` +
-  `assembleDebug` on every push/PR to `main` (JDK 17 + Android SDK 34 via setup actions; targets
-  `:app` only, since `desktop/` has a Kotlin-plugin collision). `assembleRelease` is intentionally
+  `assembleDebug` on every push/PR to `main` (JDK 17 + `platform-tools` +
+  `platforms;android-36` via setup actions — build-tools are left to AGP, so the real `compileSdk`
+  is **36**, not 34; targets `:app` only, since `desktop/` has a Kotlin-plugin collision).
+  The first run failed inside setup-android before any Gradle task and was fixed the same day
+  (§2bp). `assembleRelease` is intentionally
   not run in CI — release signing material lives outside the repo (`~/.moovio/` / `MOOVIO_*` env
   vars) and can't be supplied here.
 - **Files:** `.github/workflows/ci.yml` (new)
@@ -5994,7 +6292,7 @@ curl -sL "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phi
 curl -sIL "https://github.com/keiyoushi/extensions/raw/repo/index.pb" | head -1
 ```
 
-Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 34; `local.properties` must point at SDK).
+Build: `./gradlew :app:compileDebugKotlin` (JDK 17 + Android SDK 36; `local.properties` must point at SDK).
 
 ### Build & sign locally (as of v1.10.0, §2ax)
 
@@ -6040,6 +6338,10 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 
 | Date | Change |
 |---|---|
+| 2026-11-04 | **v1.14.0 released (§2bu):** `versionCode` 31 / `versionName` 1.14.0 — the rebuilt Add-on Manager (§2bt), the first JVM tests + `website` CI job (§2bs), and the `video_url` / `#EXT-X-BYTERANGE` fixes. `:app:assembleRelease` ✓ → `dist/app-release.apk` + `dist/Moovio.apk` (27,989,436 B, SHA-256 `be0777c8…24e4b4`), V2-signed (cert `2EDB949B…351379`); badging `com.moovio.app` / 31 / 1.14.0. Published as GitHub Release `v1.14.0` with both APKs. **No device pass.** |
+| 2026-11-04 | **Add-on Manager rebuilt per section (§2bt).** Four sections now own their own repositories, installed list and browse state: installed Aniyomi extensions no longer render under CloudStream (`MangaExt.section` classifies by namespace/repo URL, computed so no migration), tab labels carry install counts, repositories are tappable pills, and the catalogue has a search box plus **All / Installed / Updates** filters (1458 Mihon entries made the old single list unusable). `AddonRepository.fetch*` returns `Result` so a failure shows its reason (`HTTP 404 …`) instead of "unavailable or empty" — and the manager's message is finally rendered at all. Live probe: Phisher98 87, CXXX 85, Yuzono 247, Keiyoushi 1458 (400 NSFW), Cinemeta 50-item catalogue. Extension **execution** still cannot work without `extensions-lib`; install now reports that honestly and the tabs show a notice, and the roadmap's old "executes" claims are corrected. `:app:testDebugUnitTest` **370/370** (40 suites). No device pass, no version bump, nothing pushed. |
+| 2026-11-04 | **CI covers the website; first JVM tests for the extension + download stack (§2bs):** new `website` CI job (`npm ci` → `npx tsc --noEmit` → `npm run lint` → `npm run build`, 9 routes prerendered). `MihonExtensionSourcesTest` (13) + `DownloadExporterTest` (6) → **367/367** (40 suites, 0 failures). Two defects fixed: Aniyomi episodes resolved to no streams because `pageToStreamSource` ignored `video_url`; an intervening playlist tag (`#EXT-X-BYTERANGE`) discarded an HLS segment. `parseHlsSegments`/`resolveSegmentUrl` now take a URL string instead of a `Uri` so they are JVM-testable. No version bump, no APK rebuilt, nothing pushed. |
+| 2026-11-04 | **Doc-consistency pass (§2br):** no app code, no version bump. Corrected every claim the audit showed stale — §1 test inventory (`PaletteCacheTest` gone since §2bo, five live test files added), §2bk's cleartext claim (reverted in v1.11.2), §2bo/§2bp's "20 quarantined sources" → **21** (11 adult + 10 NSFW-anime, counted in the registries), ISSUE-8's superseded keystore decision, ISSUE-26's `compileSdk` (34 → 36), §7 0b/0j (CI, androidTest, R8, Aniyomi runtime, ISSUE-15/16/18 all done), §7 item 1 (Torrentio/TPB+ seeds removed by decision), items 21/23 (retired sources named), and the end-of-file outstanding table. `website/lib/utils.ts` now derives all five GitHub URLs from one `REPO` constant so the blocked rename is a one-line change, the missing **§2bq** section was written, and `README.md`'s version/SDK/R8 claims were corrected. Verified `npx tsc --noEmit` ✓ · `next lint` ✓. |
 | 2026-11-04 | **v1.13.0 released (§2bq):** `versionCode` 30 / `versionName` 1.13.0. R8 minify flipped ON
   (`isMinifyEnabled = true`; proguard keeps Gson models, Media3/jlibtorrent JNI paths, CloudStream
   shim classes, `javax.script.ScriptEngineFactory` dontwarn). androidTest coverage added:
@@ -6212,7 +6514,7 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 | 2026-10-30 | **Phase 4 — encrypted backups, smart search & release readiness (§2be):** **ISSUE-15 closed.** New `data/integrations/BackupCrypto.kt` — `BackupFormat` (`MOOVIO-BACKUP-1` magic + 12-byte IV + GCM tag) and `BackupCipher` (AES-256-GCM, fresh IV per export, injected key provider), with the key generated in `AndroidBackupKey` (AndroidKeyStore, no user-auth gate) — no `security-crypto` dependency added. `BackupManager` exports the container, gained `inspect(uri)` returning `Encrypted` vs `LegacyPlaintext` *before* any store is touched, and `importFrom(…, allowPlaintext = false)` refuses a plaintext file unless the caller opted in; Settings shows an "Unencrypted backup" confirmation, exports as `moovio-backup.mbackup` (`application/octet-stream`) and accepts both formats on import. New `data/search/SmartQuery.kt`: offline parser for type words, 18 genres, a year/decade/range (`2024`, `2020s`, two years), a rating floor (`high rating` = 7.0, `rating 8.5`), `recent`/`classic` and sorting, wired into `SearchViewModel` *before* the 350 ms debounce (cancellation + generation guard unchanged); type routes to the API, year/rating/genre narrow the merged result locally, and a muted one-line `summary()` shows what was understood. A four-digit token only counts as a year up to `currentYear + 1`, so "Blade Runner 2049" stays a title. Storage: `DownloadCacheMaintenance.isBelowLimit`/`shouldSweep`, `VideoDownloadManager.sweepOrphansIfLowOnSpace` (orphaned chunks only, never a playable download), `SettingsStore.LOW_SPACE_MB` (default 1024, 0 = off) with a Settings → Downloads ladder and a boot-time sweep in `MoovioApp`. `versionCode` 24 / `versionName` 1.11.0. `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (+21: 8 crypto, 13 parser). No APK built, nothing pushed. Unverified on hardware: the KeyStore path, SAF MIME filtering, the boot sweep on a full disk. |
 | 2026-10-30 | **v1.11.0 released (§2bf):** bundles the four-phase overhaul — §2bb design tokens (incl. AMOLED surfaces), §2bc shared-element morph + `MoovioHaptics`, §2bd canvas `StatsHud` + reader physics, §2be encrypted backups + offline smart search — and closes ISSUE-15 plus the ISSUE-18 storage prerequisite. `versionCode` 24 / `versionName` 1.11.0; `:app:assembleRelease` ✅ signed with the same rotated key as v1.10.0 (V2 cert SHA-256 `2EDB949B…351379`) → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,211 bytes, SHA-256 `8B212EF4…547311`, byte-identical); badging verified (`com.moovio.app`, code 24, name 1.11.0, minSdk 24, targetSdk 34, label `Moovio`). `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ **327/327** (36 test sources, 4,787 lines; main 172 files, 34,074 lines). **Published** as commit `4caee5f` + tag `v1.11.0`, GitHub Release **Moovio v1.11.0** marked Latest with `app-release.apk` + `Moovio.apk` attached (and the re-downloaded asset hash-matched); the release body carries the upgrade note, the four phase summaries and the deferred list. |
 | 2026-11-01 | **v1.11.3 — every video download failed (§2bm):** **root cause found and fixed.** `VideoDownloadManager.buildRequest()` called `.setCustomCacheKey(id)` unconditionally, but Media3 1.3.1's `DownloadRequest` asserts `customCacheKey must be null for type: <contentType>` for every adaptive content type — and for HLS the code also sets the m3u8 mime type, so **`builder.build()` threw `IllegalArgumentException` before the request ever reached the queue**. The only visible symptom was the "Download started" toast followed a moment later by a failure toast, with the item never appearing in Downloads. Fixed with a new pure `supportsCustomCacheKey(url, mimeType)` helper that mirrors `Util.inferContentTypeForUriAndMimeType` and attaches the key only for progressive media; `cleartextTrafficPermitted` restored to `true` (v1.11.2 flipped it to `false`, breaking plain-HTTP third-party stream/CDN URLs); mirror failover now runs once per failure instead of twice (listener + `onChanged`), no longer raises a toast when a backup mirror is still being tried, and the toast/row now carry Media3's real `finalException` message instead of a bare reason code. `versionCode` 27 / `versionName` 1.11.3; `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **340/340** (+5 `supportsCustomCacheKey` cases, 37 suites) · `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `C8CE589E…EA9EF0`), badging `com.moovio.app` / 27 / 1.11.3, V2 cert SHA-256 `2EDB949B…351379`. Superseded before release — folded into v1.11.4 below. |
-| 2026-11-01 | **v1.12.0 — hygiene pass + backlog fixes (§2bo/§2bp):** `versionCode` 29 / `versionName` 1.12.0. Ships §2bo (dead tab-restore API deleted, `MainActivity`'s stray `Bold`, ten unused website deps pruned, live-version references corrected, 12 capsule radii → `CircleShape`, `PillSegmentedControl` → `SegmentedControl`, Keiyoushi `.min.json` stub added to `retiredRepoUrls`, MissAV retired with the remaining 20 sources left opt-in) plus the previously uncommitted ISSUE-16…26 fixes (tracker id matching, HLS export, manga pause status, player-release guard, 429 retry off the dispatcher, CI workflow, website ESLint config). `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **348/348** (38 suites) · `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `a35d3094…C6EA23F`). No device pass. |
+| 2026-11-01 | **v1.12.0 — hygiene pass + backlog fixes (§2bo/§2bp):** `versionCode` 29 / `versionName` 1.12.0. Ships §2bo (dead tab-restore API deleted, `MainActivity`'s stray `Bold`, ten unused website deps pruned, live-version references corrected, 12 capsule radii → `CircleShape`, `PillSegmentedControl` → `SegmentedControl`, Keiyoushi `.min.json` stub added to `retiredRepoUrls`, MissAV retired with the remaining 21 sources left opt-in) plus the previously uncommitted ISSUE-16…26 fixes (tracker id matching, HLS export, manga pause status, player-release guard, 429 retry off the dispatcher, CI workflow, website ESLint config). `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **348/348** (38 suites) · `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `a35d3094…C6EA23F`). No device pass. |
 | 2026-11-01 | **v1.11.4 — MangaDex answers with a bot-check page (§2bn):** **root cause of "No manga found. Check your connection" on Browse → Manga.** MangaDex now fronts `api.mangadex.org` *and* `uploads.mangadex.org` with [POWBlock](https://github.com/8Protons/POWBlock), a JavaScript proof-of-work check that picks its targets **by User-Agent**: a browser-shaped UA gets **HTTP 200 with an HTML challenge page**, a non-browser UA gets JSON (measured 5/5 each for `Mozilla/…Chrome/120…` → HTML vs `okhttp/4.12.0`, `curl/8.4.0`, `MangaDex-Client/1.0` → JSON). The app's default UA *is* browser-shaped, so every MangaDex call returned HTML, `parseJson` threw inside `safeRow`, all four rows vanished and the section rendered its empty state. Fixed with `MangaDexClient.USER_AGENT` (`Moovio/1.0 (Android; +https://…)`) applied as a per-request header to every MangaDex endpoint (list, details, feed, at-home), plus `mangaDexUserAgent()` so a browser-shaped Settings → Network UA can't follow the user there; `httpGetCached`/`httpPostJsonCached` now refuse to cache an HTML body (`looksLikeMarkup`) and treat an already-poisoned cache entry as a miss, so the 6-hour metadata cache can no longer pin a challenge page; `MangaViewModel` paints cached rails first, keeps visible rows when a refresh comes back empty, and the Manga empty state now shows the real failure ("Couldn't load manga") instead of blaming the connection. `versionCode` 28 / `versionName` 1.11.4 (bundles the unreleased 1.11.3 download fix). `:app:compileDebugKotlin` ✅ · `:app:testDebugUnitTest` ✅ **348/348** (+8 `MangaDexIdentityTest`, 38 suites) · `:app:assembleRelease` ✅ → `dist/app-release.apk` + `dist/Moovio.apk` (44,129,215 bytes, SHA-256 `E75A10D6…9678673`), badging `com.moovio.app` / 28 / 1.11.4, V2 cert `2EDB949B…351379`; new UA string verified inside `classes4.dex`. Behaviour confirmed against the live API (popular/latest/Action/Romance/NSFW listings all 30/30 items, details, feed, at-home, covers). **Published** as commit `6ce52c3` + tag `v1.11.4`, GitHub Release **Moovio v1.11.4** marked Latest with `app-release.apk` + `Moovio.apk` attached and the re-downloaded asset hash-matched; no device pass. |
 
 
@@ -6222,7 +6524,13 @@ currently **broken** — `eslint` is not a dependency and no config exists (see 
 
 ### 1. Security & Manifest Hardening (P1)
 
-**`network_security_config.xml`** — `cleartextTrafficPermitted` set to `false` in `base-config`. Cleartext HTTP is now blocked by default; only system CAs trusted. A commented domain-config section documents where to scope legacy third-party add-on hosts that require plain HTTP (none currently need it — all seeded repos and metadata endpoints use HTTPS).
+**`network_security_config.xml`** — `cleartextTrafficPermitted` set to `false` in `base-config`. Cleartext HTTP is now blocked by default; only system CAs trusted. **Reverted in v1.11.2 — see the
+note below.** A commented domain-config section documents where to scope legacy third-party add-on hosts that require plain HTTP (none currently need it — all seeded repos and metadata endpoints use HTTPS).
+
+> **Correction (§2br):** the cleartext change did not survive. Blocking `http://` broke
+> third-party media URLs — add-ons and scraped providers still hand those out — so
+> `network_security_config.xml` sets `cleartextTrafficPermitted="true"` today (system CAs only), and
+> the config carries the rationale. Read the paragraph above as what v1.11.1 attempted.
 
 **`AndroidManifest.xml`** — `android:allowBackup` set to `false`, excluding tokens, DataStore keys and PIN settings from cloud and ADB backups.
 
@@ -6364,21 +6672,43 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
 
 ## 7. Where to pick up next
 
+> **Read this as of 2026-11-04 (§2br).** The issue backlog is empty — ISSUE-1…26 in §4 are all
+> closed — so what is left is four things, only one of which is device work:
+>
+> 1. **Device / hardware passes** — items 0a, 0c(a), 0d(a/c/d), 0e(a–e), 0f(a–e), 0g, 0i, 1, 5–33 and
+>    the R8 smoke test. Nothing from v1.11.0–v1.13.0 has been on hardware unless an item says so.
+> 2. **The repo rename** (item 0) — blocked until the GitHub repository is renamed.
+> 3. **The quarantined-source probe** (item 0k) — 21 sources, needs a residential/mobile network.
+> 4. **Two deferred functional checks** — "Check for updates" and backup export (end-of-file table).
+> 5. **Aniyomi/Mihon extension execution** — installs download, enable and update, but their sources
+>    cannot run until `extensions-lib` is on the classpath, which needs AGP ≥ 8.9 / compileSdk 37
+>    (§2ba, §2bt). Until then those extensions contribute nothing to search or playback.
+>
+> Partly closed in §2bs: JVM tests now cover the Aniyomi/Mihon adapters and the HLS export rules
+> (**367** tests, 40 suites), and a `website` CI job runs `tsc` / `lint` / `build`. Still open:
+> `androidTest` is unchanged (`SettingsStore` + `Http`), and the CloudStream shims, the Media3
+> download managers and the Compose UI have no tests.
+
 0. **Post-v1.10.0 follow-ups (new):**
    - **Device pass on the renamed app.** `com.moovio.app` is a new app id: verify a *fresh* install
      (no old data to lean on), that `MoovioApp` boots, the CloudStream provider list loads (the
      repaired shims), a provider's toast is visible, and a provider's setting survives a restart
      (the Jackson codec fix). Then verify the *upgrade* story is communicated: the old
      `com.novastream.app` install cannot be updated in place, so the old app has to be uninstalled.
-   - **Rename the GitHub repo** (`speckle-hub/nexusstream` → `speckle-hub/moovio`) and update
-     `UpdateChecker.DEFAULT_REPO`, `website/lib/utils.ts` (`GITHUB_URL`, `APK_URL`,
-     `RELEASES_URL`) and the Trakt client-id fallback string. Until then the updater and the site
-     CTA still work, but the URLs contradict the brand.
-   - **Clear the open backlog** in §4: ISSUE-15 (plaintext backup secrets) and ISSUE-16 (wrong
-     tracker ids) are the two that touch user data; ISSUE-18 (HLS export) is the one users hit
-     most often.
-0b. **CI** — no workflow exists, so "292 tests, all green" is asserted rather than enforced
-   (ISSUE-26).
+   - **Rename the GitHub repo** (`speckle-hub/nexusstream` → `speckle-hub/moovio`) — still
+     **blocked on the repository itself**: point these at the new slug only *after* the rename
+     lands, or the updater and the site CTA 404. Four edits: `UpdateChecker.DEFAULT_REPO`, the
+     `MangaDexClient.USER_AGENT` URL, the `desktop-win` `Http` UA URL, and `REPO` in
+     `website/lib/utils.ts` — since §2br that one constant feeds all five site URLs. The
+     `ScrobbleManager` Trakt fallback id `"nexusstream"` is a header value, not a URL, so it only
+     needs the brand change. `UpdateCheckerTest` asserts the current slug, so a half-done rename
+     fails the build instead of shipping a dead updater.
+   - ~~**Clear the open backlog** in §4~~ — **done:** ISSUE-15 (plaintext backup secrets), ISSUE-16
+     (wrong tracker ids) and ISSUE-18 (HLS export) all closed (§2be / v1.12.0). §4 has no open
+     issue left.
+0b. **CI — done** (ISSUE-26): `.github/workflows/ci.yml` runs `compileDebugKotlin` +
+   `testDebugUnitTest` + `assembleDebug` on every push/PR to `main`; first green run `41333117929`
+   (7 m 13 s). The old "no workflow exists" note was stale from 2026-10-31.
 0c. **Design-system follow-ups (new, §2bb) —** (a) device pass on the new type scale and surfaces:
    Home hero legibility under the logo row, `SurfaceCard` in dark **and** light, True AMOLED
    (cards now go #000 too), a bright accent (Amber/Neon Purple) on the CTA to confirm the derived
@@ -6444,11 +6774,13 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
    dependencies (§2bj follow-up), the three stale §4 markers (ISSUE-15, ISSUE-23) and the four
    conflicting test totals (now **348/38**); plus, in the second pass, the 12 capsule radii, the
    `PillSegmentedControl` → `SegmentedControl` rename, **decision 6** (stub repo indexes pruned —
-   §3 finding 4 is closed) and **decision 7** (MissAV retired; the remaining 20 sources stay opt-in,
+   §3 finding 4 is closed) and **decision 7** (MissAV retired; the remaining 21 sources stay opt-in,
    with the probe they need now tracked as item 0k). **Still open, unchanged:** the repo rename — blocked
    until the repository is actually renamed on GitHub, because pointing `DEFAULT_REPO` /
    `website/lib/utils.ts` at `speckle-hub/moovio` first would break the in-app updater and the site
-   CTA; the Aniyomi/Mihon runtime and its toolchain migration (§2ba); `androidTest` coverage; R8;   and every device pass below.
+   CTA; ~~the Aniyomi/Mihon runtime and its toolchain migration (§2ba)~~, ~~`androidTest` coverage~~ and
+   ~~R8~~ — all three landed in v1.13.0 (§2bq) — the quarantined-source probe (0k), and every device
+   pass below.
 0k. **Probe the 20 quarantined sources (new, 2026-11-01 — §2bo decision 7) —** they can only be
    judged from a residential/mobile network, not this sandbox. With Settings → "Show experimental
    sources" on, confirm rows paint for `Eporner`, `Beeg`, `PornTrex`, `SxyPrn`, `FullPorner`,
@@ -6458,14 +6790,16 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
    the ones that 403/404/timeout, and keep the reason in the registry comment either way.
 
 1. **Manual verification pass** on a device/emulator:
-   - Fresh install → Home populates; open a movie → stream sources listed (Torrentio / TPB+).
+   - Fresh install → Home populates; open a movie → **metadata** rows work and a stream source
+     appears only after one is installed. Torrentio/TPB+ are no longer seeded — the source-neutral
+     decision (§8) removed them — so the old wording asked for something the app never ships.
    - Settings → Add-ons → CloudStream repo → provider list is **no longer empty**.
    - NSFW → NSFW Anime → Jikan "Top" row populates even while the filtered Jikan endpoint 504s.
    - NSFW → NSFW Anime → search returns results (Jikan fallback or AniList).
    - Manga → open a licensed title (e.g. One Piece) → chapter list shows only readable chapters.
 2. Run the device pass in step 1, then archive a release build: `./gradlew :app:assembleRelease`
    (signing material comes from the untracked `local.properties` / `MOOVIO_*` env vars — §5).
-3. Test suites live in `app/src/test/java/com/moovio/app/` — **348 tests** across 38 files; the
+3. Test suites live in `app/src/test/java/com/moovio/app/` — **367 tests** across 40 files; the
    full per-file breakdown is in §1. Instrumented (androidTest) coverage was added for the
    highest-risk Android-dependent code: [SettingsStore] (DataStore read/write round-trips,
    OAuth nonce one-shot consumption, scrobble snapshot) and [Http] (markup detection,
@@ -6608,7 +6942,10 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
     the    same sheet for the on-screen episode; playing a torrent from the sheet shows the
     "Preparing stream…" overlay (sheet closes first).
 
-21. **Re-test the expanded Real 18+ sources on a device** (see §2k): the Real 18+ tab should now
+21. **Re-test the expanded Real 18+ sources on a device** (see §2k) — **narrowed in §2br:**
+    YouPorn, RedTube, SpankBang, TXXX, JavMost, OpJav, 7MMTV, MissAV, HPJAV, Avgle and Jable are no
+    longer queried (§9), so check only the sources still registered and use 0k for the experimental
+    ones: the Real 18+ tab should now
     show rows for **xHamster, YouPorn, RedTube, MissAV, Jable, HPJAV** and (when reachable)
     **Avgle** alongside the original five — a dead site must show only its own notice while the
     rest keep loading, and the tab must still paint progressively (cached sources instantly, the
@@ -6631,7 +6968,9 @@ Live API probe with the shipped UA: popular 30/30, latest 30/30, Action 30/30, R
     pages show); leave the reader with volume-key page turns on → the rocker must turn pages.
     Finally, pull-to-refresh Home and confirm the featured carousel keeps auto-advancing.
 
-23. **Re-test the expanded NSFW-anime sources on a device** (see §2m): with **no** Stremio NSFW
+23. **Re-test the expanded NSFW-anime sources on a device** (see §2m) — **narrowed in §2br:**
+    Hanime and Hentaigasm are retired and the other seven are `experimental` (§10), so this is 0k's
+    probe with device eyes: with **no** Stremio NSFW
     add-ons installed, open an NSFW-anime title and confirm the episode list + Streams panel now
     resolve from the built-in sources; a stream from any of **Hanime, HentaiHaven, HStream,
     Hentaigasm, MuchoHentai, HentaiCity, Haho** should appear when reachable. A Cloudflare-blocked
@@ -7091,6 +7430,20 @@ data/hentai/
 | 4 | Check for updates / Export backup | Not tested | Deferred to post-release QA (TEST_REPORT P2). |
 | 6 | Cast / MediaRouteButton | Fixed | v1.10.1: `ThemeOverlay.Moovio.CastButton` opaque theme + `r`runCatching` guard. Already in code; structurally verified via `aapt2`. Not exercised on device (cast not available on test network). |
 | 7 | MangaDex empty NSFW feed | ✅ Fixed + device-verified | v1.10.1: NSFW feed asks for non-safe ratings only. Device-verified on CPH2487 — chapter lists now populate correctly. |
+
+### Status of the table above (re-checked 2026-11-04, §2br)
+
+| # | Item | Status now |
+|---|------|------------|
+| 1 | Aniyomi / Mihon extension execution | ✅ done — reflection-based tachiyomi runtime shipped in v1.13.0 |
+| 2 | Device pass | ✅ done on OnePlus CPH2487 — but it predates v1.11.0, so v1.11.0–v1.13.0 still need one |
+| 3 | Torrent watchdog | mitigated — 20 s watchdog + Retry (v1.10.1); unverifiable with trackers blocked |
+| 4 | Check for updates / Export backup | **still not tested** — the only functional gap outside the device passes |
+| 6 | Cast / MediaRouteButton | structurally fixed (v1.10.1), never exercised on hardware |
+| 7 | MangaDex NSFW feed | ✅ fixed and device-verified (v1.10.1) |
+| — | Instrumentation coverage | **partly closed (§2bs)** — JVM tests added for the Mihon adapters and HLS export; `androidTest` is still `SettingsStore` + `Http`, and the CloudStream shims / download managers / Compose UI remain untested |
+| — | Website checks in CI | ✅ added in §2bs — `npm ci` · `tsc --noEmit` · `next lint` · `next build` |
+| — | Aniyomi/Mihon extension execution | **open** — APKs install/update but cannot run: `extensions-lib` needs AGP ≥ 8.9 / compileSdk 37. The manager now says so instead of claiming "sources live" (§2bt) |
 
 ### Version note
 

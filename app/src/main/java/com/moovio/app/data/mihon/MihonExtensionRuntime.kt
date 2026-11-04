@@ -31,6 +31,16 @@ object MihonExtensionRuntime {
     /** ID prefix for extension sources, mirroring CloudStream's `cloudstream:`. */
     const val ADDON_PREFIX = "mihon:"
 
+    /**
+     * True when the tachiyomi source APIs (`eu.kanade.tachiyomi.source.Source`) are on this build's
+     * classpath. They are deliberately absent until the toolchain migration in `build.gradle.kts`
+     * is done, so every installed extension APK can be scanned but no source can be instantiated.
+     * The Add-on Manager reads this to explain the state instead of promising "sources live".
+     */
+    val canExecuteSources: Boolean = runCatching {
+        Class.forName("eu.kanade.tachiyomi.source.Source")
+    }.isSuccess
+
     /** Simple names of tachiyomi source base classes we recognise by walking the superclass chain. */
     private val SOURCE_BASE_SIMPLE_NAMES = setOf(
         "Source", "SingletonSource", "OnlineSource",
