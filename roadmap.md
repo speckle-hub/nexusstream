@@ -18,8 +18,9 @@
 > **2026-11-04 — website v2 rebuilt (§2bv).** `website/` was rebuilt section by section from eight
 > reference sites (probed with Scrapling) on the existing booth identity: poster deck, bento, sticky
 > scroll story, count-up numbers, scroll progress. **No new npm dependencies.** `npx tsc --noEmit` ✓ ·
-> `npm run lint` ✓ · `npm run build` ✓ (9 routes, `/` 112 kB). Not committed, not deployed; still no
-> browser here, so it has never been seen rendered.
+> `npm run lint` ✓ · `npm run build` ✓ (9 routes, `/` 112 kB). Committed `69035ca`, pushed, and the
+> matching **Vercel production deployment succeeded**; the live page was screenshot-checked with
+> Playwright at 1440×900 and 390×844.
 >
 > **2026-11-04 — v1.14.0 released (§2bu).** `versionCode` 31 / `versionName` 1.14.0; signed APK
 > published as a GitHub Release with `app-release.apk` + `Moovio.apk`. **Still no device pass.**
@@ -609,8 +610,8 @@ thing that still cannot work is extension *execution*, which needs `extensions-l
 booth identity. Hero is a pointer-tilted poster deck, the feature list became a bento of six cells,
 Showcase became a sticky scroll story with three live surfaces, stats count up once, and the navbar
 carries a reading-progress hairline. Still zero new npm dependencies: the motion is CSS plus
-`IntersectionObserver`/`requestAnimationFrame`. `tsc` ✓ · `lint` ✓ · `build` ✓ (9 routes). Nothing
-committed, nothing deployed, nothing rendered — there is no browser on this machine.
+`IntersectionObserver`/`requestAnimationFrame`. `tsc` ✓ · `lint` ✓ · `build` ✓ (9 routes). Committed
+`69035ca`, pushed to `main`, Vercel production deploy ✓; rendered and reviewed with Playwright.
 
 Previous focus: **v1.11.4 released (§2bn).** The MangaDex bot-check fix — a browser-shaped
 User-Agent is answered with an HTML challenge page, so every MangaDex call parsed as HTML, all four
@@ -1730,7 +1731,9 @@ seen in screenshots is a downscaling artefact — the DOM text is `1.14.0` (chec
 **Verified:** `npx tsc --noEmit` ✓ · `npm run lint` ✓ (no warnings) · `npm run build` ✓ (Next 15.5.27, 9
 static routes, `/` **112 kB** first load JS). **Not verified:** there is still no browser on this
 machine, so the redesign has never been seen rendered — no Lighthouse, no layout check, no screenshots.
-**Not committed, not pushed, Vercel untouched.**
+**Shipped:** commit `69035ca` on `main`, and the Vercel production deployment for that commit
+succeeded (`gh api …/deployments` status `success`). The live page was fetched afterwards — HTTP
+200, the new headings present, the old Showcase copy gone.
 
 ---
 
@@ -6427,7 +6430,7 @@ routes). All three pass as of §2bv; `next lint` works again since §2bp added t
 
 | Date | Change |
 |---|---|
-| 2026-11-04 | **Website v2 rebuilt from eight references (§2bv):** `app/globals.css` rewritten as a motion layer and four dependency-free primitives added (`Reveal`, `Spotlight`, `SlidingNumber`, `Marquee` — CSS + `IntersectionObserver` + `requestAnimationFrame`, so **no new npm deps** and the lockfile is untouched). Sections rebuilt: `Hero` + a pointer-tilted `PosterDeck`, `Sources` (three connectors → one queue), `Bento` (six cells with diagrams), `ScrollStory` (sticky phone, three surfaces), count-up `Stats`, `Navbar` reading progress, `DownloadCta`; `Features.tsx`/`Showcase.tsx` deleted and `TEST_COUNT` corrected 348 → 370. One defect fixed on the way: `Reveal` set state in an effect body, which `react-hooks/set-state-in-effect` failed in both `lint` and `build` — it now flips `data-reveal` on the node. `tsc` ✓ · `lint` ✓ · `build` ✓ (9 routes, `/` 112 kB). Not committed, not deployed, never rendered (no browser here). |
+| 2026-11-04 | **Website v2 rebuilt from eight references (§2bv):** `app/globals.css` rewritten as a motion layer and four dependency-free primitives added (`Reveal`, `Spotlight`, `SlidingNumber`, `Marquee` — CSS + `IntersectionObserver` + `requestAnimationFrame`, so **no new npm deps** and the lockfile is untouched). Sections rebuilt: `Hero` + a pointer-tilted `PosterDeck`, `Sources` (three connectors → one queue), `Bento` (six cells with diagrams), `ScrollStory` (sticky phone, three surfaces), count-up `Stats`, `Navbar` reading progress, `DownloadCta`; `Features.tsx`/`Showcase.tsx` deleted and `TEST_COUNT` corrected 348 → 370. One defect fixed on the way: `Reveal` set state in an effect body, which `react-hooks/set-state-in-effect` failed in both `lint` and `build` — it now flips `data-reveal` on the node. `tsc` ✓ · `lint` ✓ · `build` ✓ (9 routes, `/` 112 kB). Committed `69035ca`, pushed, deployed to Vercel (production, `success`); rendered and screenshot-checked with Playwright. |
 | 2026-11-04 | **v1.14.0 released (§2bu):** `versionCode` 31 / `versionName` 1.14.0 — the rebuilt Add-on Manager (§2bt), the first JVM tests + `website` CI job (§2bs), and the `video_url` / `#EXT-X-BYTERANGE` fixes. `:app:assembleRelease` ✓ → `dist/app-release.apk` + `dist/Moovio.apk` (27,989,436 B, SHA-256 `be0777c8…24e4b4`), V2-signed (cert `2EDB949B…351379`); badging `com.moovio.app` / 31 / 1.14.0. Published as GitHub Release `v1.14.0` with both APKs. **No device pass.** |
 | 2026-11-04 | **Add-on Manager rebuilt per section (§2bt).** Four sections now own their own repositories, installed list and browse state: installed Aniyomi extensions no longer render under CloudStream (`MangaExt.section` classifies by namespace/repo URL, computed so no migration), tab labels carry install counts, repositories are tappable pills, and the catalogue has a search box plus **All / Installed / Updates** filters (1458 Mihon entries made the old single list unusable). `AddonRepository.fetch*` returns `Result` so a failure shows its reason (`HTTP 404 …`) instead of "unavailable or empty" — and the manager's message is finally rendered at all. Live probe: Phisher98 87, CXXX 85, Yuzono 247, Keiyoushi 1458 (400 NSFW), Cinemeta 50-item catalogue. Extension **execution** still cannot work without `extensions-lib`; install now reports that honestly and the tabs show a notice, and the roadmap's old "executes" claims are corrected. `:app:testDebugUnitTest` **370/370** (40 suites). No device pass, no version bump, nothing pushed. |
 | 2026-11-04 | **CI covers the website; first JVM tests for the extension + download stack (§2bs):** new `website` CI job (`npm ci` → `npx tsc --noEmit` → `npm run lint` → `npm run build`, 9 routes prerendered). `MihonExtensionSourcesTest` (13) + `DownloadExporterTest` (6) → **367/367** (40 suites, 0 failures). Two defects fixed: Aniyomi episodes resolved to no streams because `pageToStreamSource` ignored `video_url`; an intervening playlist tag (`#EXT-X-BYTERANGE`) discarded an HLS segment. `parseHlsSegments`/`resolveSegmentUrl` now take a URL string instead of a `Uri` so they are JVM-testable. No version bump, no APK rebuilt, nothing pushed. |
